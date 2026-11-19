@@ -17,13 +17,15 @@ The numbers and dates on the screens are examples.
 | 2. Add a line | Typing your own line | [png](2-add-line-typing.png) | [html](2-add-line-typing.html) |
 | 3. Start a new date | Tap below the add line, pick the date | [png](3-new-date.png) | [html](3-new-date.html) |
 | 4. Remove a line | Drag left to delete | [png](4-remove-line.png) | [html](4-remove-line.html) |
-| 5. Settings | Machines list, cog icon | [png](5-settings-machines.png) | [html](5-settings-machines.html) |
+| 5. Settings | Machines and backup, cog icon | [png](5-settings-machines.png) | [html](5-settings-machines.html) |
+| 5. Settings | Export: saved as a JSON file | [png](5-settings-export.png) | [html](5-settings-export.html) |
+| 5. Settings | Import: check the file, then replace | [png](5-settings-import.png) | [html](5-settings-import.html) |
 | 6. Statistics | This month, chart icon | [png](6-statistics-month.png) | [html](6-statistics-month.html) |
 | 6. Statistics | One machine over time | [png](6-statistics-machine.png) | [html](6-statistics-machine.html) |
 
 ## What is built
 
-Groups 1 to 5 are built in [`../index.html`](../index.html). Group 6, statistics, is design only so far.
+All six groups are built in [`../index.html`](../index.html).
 
 ## Look
 
