@@ -404,8 +404,14 @@ button {
 }
 
 .sheet-action:active { opacity: .85; }
+.sheet-cancel { height: 48px; margin-bottom: -12px; color: var(--pen); font: 600 17px/1 var(--font-ui); }
+.sheet-info { display: flex; flex-direction: column; gap: 4px; padding: 4px 8px 6px; font-size: 15px; line-height: 22px; }
+.sheet-info h3 { margin: 0 0 4px; font: 600 17px/22px var(--font-ui); overflow-wrap: anywhere; }
+.sheet-info p:last-child { margin-top: 6px; }
+.is-muted { color: var(--muted); }
 
 /* 9. Settings -------------------------------------------------------------- */
+.section-title { height: var(--line); font-weight: 700; }
 .title-row { display: flex; align-items: center; gap: 2px; height: var(--line); font-weight: 700; }
 
 .back-btn {
@@ -472,6 +478,7 @@ button {
 }
 
 .toast.is-visible { transform: translate(-50%, 0); visibility: visible; transition: transform .25s var(--ease); }
+.toast.is-plain { padding-right: 18px; }
 .toast button { height: 44px; padding: 0 14px; border-radius: 22px; color: #a9c1ff; font-weight: 600; }
 
 /* 12. Reduced motion ------------------------------------------------------- */
@@ -503,11 +510,17 @@ button {
       <button class="back-btn" type="button" data-back="notebook" aria-label="Back to the notebook">
         <svg width="14" height="24" viewBox="0 0 14 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M11 3l-8 9 8 9"/></svg>
       </button>
-      <h1 id="settingsTitle">Machines</h1>
+      <h1 id="settingsTitle">Settings</h1>
     </div>
     <div class="blank" aria-hidden="true"></div>
+    <h2 class="section-title">machines</h2>
     <div id="machineList" class="bleed" role="list" aria-label="Machines"></div>
     <div id="addMachineRow" class="bleed add-row add-row--pencil"></div>
+    <div class="blank" aria-hidden="true"></div>
+    <h2 class="section-title">backup</h2>
+    <button id="exportBtn" class="stat-link" type="button"><span>export to a file</span><svg width="12" height="22" viewBox="0 0 12 22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2 3l8 8-8 8"/></svg></button>
+    <button id="importBtn" class="stat-link" type="button"><span>import from a file</span><svg width="12" height="22" viewBox="0 0 12 22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2 3l8 8-8 8"/></svg></button>
+    <input id="importFile" type="file" accept="application/json,.json" aria-label="Backup file to import" hidden>
     <div class="blank" aria-hidden="true"></div>
     <button id="removeExamples" class="text-btn" type="button" hidden>remove the example lines</button>
     <div class="filler" aria-hidden="true"></div>
@@ -561,6 +574,7 @@ button {
 <div id="sheet" class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
   <div class="sheet-inner">
     <h2 id="sheetTitle" class="visually-hidden">Log a line</h2>
+    <div id="sheetInfo" class="sheet-info" hidden></div>
     <div class="sheet-pickers">
       <div id="sheetLabels" class="sheet-cols sheet-labels" aria-hidden="true"></div>
       <div class="wheels">
@@ -570,6 +584,7 @@ button {
     </div>
     <input id="sheetText" class="sheet-text" type="text" autocomplete="off" autocapitalize="sentences" enterkeyhint="done" aria-label="Write your own line" hidden>
     <button id="sheetAction" class="sheet-action" type="button">Log</button>
+    <button id="sheetCancel" class="sheet-cancel" type="button" hidden>Cancel</button>
   </div>
 </div>
 
@@ -852,10 +867,13 @@ button {
       undo = null;
     }
 
+    /** Shows a short message. With onUndo it also offers an Undo button. */
     function show(message, onUndo) {
       clearTimeout(timer);
       text.textContent = message;
-      undo = onUndo;
+      undo = onUndo || null;
+      button.hidden = !undo;
+      el.classList.toggle('is-plain', !undo);
       el.classList.add('is-visible');
       timer = setTimeout(hide, UNDO_MS);
     }
@@ -1095,6 +1113,8 @@ button {
     const labels = byId('sheetLabels');
     const wheelsEl = byId('sheetWheels');
     const action = byId('sheetAction');
+    const cancelButton = byId('sheetCancel');
+    const info = byId('sheetInfo');
     const behind = ['notebook', 'settings', 'cogBtn', 'statsBtn', 'todayBtn'].map(byId);
     let config = null;
 
@@ -1104,22 +1124,32 @@ button {
     /** While typing, the wheels fold away so the field and the button fit above the keyboard. */
     function updateTyping() {
       const typing =
-        !textField.hidden &&
-        (!config || config.wheels.length === 0 || textField.value !== '' || document.activeElement === textField);
+        !!config &&
+        (config.wheels.length === 0 || (!textField.hidden && (textField.value !== '' || document.activeElement === textField)));
       sheet.classList.toggle('is-typing', typing);
     }
 
     /**
      * Opens the sheet and returns its wheels.
-     * config: { title, text: { value, placeholder } (optional), columns, center, labels: [{ text, left }],
-     *           wheels: [{ label, align, items, index }], actionLabel,
+     * config: { title, info: { heading, details: [..], note } (optional), text: { value, placeholder } (optional),
+     *           columns, center, labels: [{ text, left }], wheels: [{ label, align, items, index }],
+     *           actionLabel, cancelLabel (optional),
      *           onChange(i), onSettle(i), onAction(), onCancel() }   onChange(-1) = the text changed
      */
     function open(cfg) {
       close();
+      Toast.hide(); // a leftover message would sit on top of the sheet's buttons
       config = cfg;
       title.textContent = cfg.title;
       action.textContent = cfg.actionLabel;
+      cancelButton.hidden = !cfg.cancelLabel;
+      cancelButton.textContent = cfg.cancelLabel || '';
+      info.hidden = !cfg.info;
+      info.innerHTML = cfg.info
+        ? `<h3>${escapeHtml(cfg.info.heading)}</h3>` +
+          cfg.info.details.map((detail) => `<p class="is-muted">${escapeHtml(detail)}</p>`).join('') +
+          `<p>${escapeHtml(cfg.info.note)}</p>`
+        : '';
       textField.hidden = !cfg.text;
       textField.value = cfg.text ? cfg.text.value || '' : '';
       textField.placeholder = cfg.text ? cfg.text.placeholder : '';
@@ -1146,8 +1176,9 @@ button {
       behind.forEach((el) => { el.inert = true; });
       wheels.forEach((wheel, i) => wheel.setItems(cfg.wheels[i].items, cfg.wheels[i].index));
       updateTyping();
-      if (sheet.classList.contains('is-typing')) textField.focus({ preventScroll: true });
-      else if (wheels.length) wheels[0].el.focus({ preventScroll: true });
+      if (wheels.length && !sheet.classList.contains('is-typing')) wheels[0].el.focus({ preventScroll: true });
+      else if (!textField.hidden) textField.focus({ preventScroll: true });
+      else action.focus({ preventScroll: true });
       return wheels;
     }
 
@@ -1172,6 +1203,7 @@ button {
       if (cfg) cfg.onAction();
     });
     backdrop.addEventListener('click', cancel);
+    cancelButton.addEventListener('click', cancel);
 
     textField.addEventListener('input', () => {
       updateTyping();
@@ -1712,13 +1744,119 @@ button {
   })();
 
   /* ==========================================================================
-     8. Settings view (the machines)
+     8. Backup: export to and import from a JSON file
+     --------------------------------------------------------------------------
+     File shape
+       { "app": "fitness-notebook", "version": 1, "exportedAt": "<ISO time>", "unit": "kg",
+         "machines": [{ id, name }],
+         "lines": [{ id, type: "date", date } | { id, type: "text", text } |
+                   { id, type: "machine", machineId, name, weight, sets, reps }] }
+     Rules for reading a file
+       - it must say app "fitness-notebook"; anything else is refused
+       - a newer version than this app knows is refused, never half-read
+       - fields this app does not know are ignored, so later versions can add things
+     ========================================================================== */
+
+  const Backup = {
+    APP: 'fitness-notebook',
+    VERSION: 1,
+
+    fileName() {
+      return `fitness-notebook-${Dates.today()}.json`;
+    },
+
+    /** The notebook as the text of a backup file. */
+    toJson() {
+      const backup = {
+        app: Backup.APP,
+        version: Backup.VERSION,
+        exportedAt: new Date().toISOString(),
+        unit: 'kg',
+        machines: data.machines.map(Backup.cleanMachine).filter(Boolean),
+        lines: data.lines.map(Backup.cleanLine).filter(Boolean),
+      };
+      return JSON.stringify(backup, null, 2);
+    },
+
+    /** Reads the text of a backup file. Returns { notebook } or { error }. */
+    parse(text) {
+      let file;
+      try {
+        file = JSON.parse(text);
+      } catch (_) {
+        return { error: 'That is not a JSON file' };
+      }
+      if (!file || file.app !== Backup.APP || !Array.isArray(file.machines) || !Array.isArray(file.lines)) {
+        return { error: 'That is not a Fitness Notebook file' };
+      }
+      if (typeof file.version !== 'number' || file.version > Backup.VERSION) {
+        return { error: 'That file is from a newer version of the app' };
+      }
+      return {
+        notebook: {
+          version: 1,
+          machines: file.machines.map(Backup.cleanMachine).filter(Boolean),
+          lines: file.lines.map(Backup.cleanLine).filter(Boolean),
+        },
+      };
+    },
+
+    /** Keeps only the fields this app knows; returns null for something it cannot use. */
+    cleanMachine(machine) {
+      if (!machine || typeof machine.id !== 'string' || typeof machine.name !== 'string' || !cleanName(machine.name)) return null;
+      return { id: machine.id, name: cleanName(machine.name) };
+    },
+
+    cleanLine(line) {
+      if (!line) return null;
+      const id = typeof line.id === 'string' && line.id ? line.id : newId('l');
+      const isCount = (n) => Number.isFinite(n) && n >= 0;
+      if (line.type === 'date' && /^\d{4}-\d{2}-\d{2}$/.test(line.date)) return { id, type: 'date', date: line.date };
+      if (line.type === 'text' && typeof line.text === 'string' && line.text.trim()) return { id, type: 'text', text: line.text.trim() };
+      if (
+        line.type === 'machine' &&
+        typeof line.machineId === 'string' &&
+        typeof line.name === 'string' &&
+        isCount(line.weight) && isCount(line.sets) && isCount(line.reps)
+      ) {
+        const { machineId, name, weight, sets, reps } = line;
+        return { id, type: 'machine', machineId, name, weight, sets, reps };
+      }
+      return null;
+    },
+
+    /** A short description of a notebook, for the "replace?" question. */
+    describe(notebook) {
+      const dates = notebook.lines.filter((l) => l.type === 'date').map((l) => l.date).sort();
+      const count = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
+      let lines = count(notebook.lines.length, 'line');
+      if (dates.length === 1) lines += `, on ${Dates.written(dates[0]).date}`;
+      else if (dates.length > 1) lines += `, from ${Dates.written(dates[0]).date} to ${Dates.written(dates[dates.length - 1]).date}`;
+      return [lines, count(notebook.machines.length, 'machine')];
+    },
+
+    /** Hands the browser a file to save. */
+    download(fileName, text) {
+      const url = URL.createObjectURL(new Blob([text], { type: 'application/json' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
+    },
+  };
+
+  /* ==========================================================================
+     9. Settings view: machines and backup
      ========================================================================== */
 
   const SettingsView = (() => {
     const list = byId('machineList');
     const addRow = byId('addMachineRow');
     const examplesBtn = byId('removeExamples');
+    const importFile = byId('importFile');
 
     function render() {
       renderList();
@@ -1829,7 +1967,7 @@ button {
       Toast.show('Example lines removed', () => {
         data.lines = before;
         save();
-        render();
+        App.refresh();
       });
     });
 
@@ -1838,11 +1976,63 @@ button {
       onDelete: (row) => removeMachine(row.dataset.key),
     });
 
+    /* ---- Backup ---- */
+
+    byId('exportBtn').addEventListener('click', () => {
+      const fileName = Backup.fileName();
+      Backup.download(fileName, Backup.toJson());
+      Toast.show(`Saved ${fileName}`);
+    });
+
+    byId('importBtn').addEventListener('click', () => importFile.click());
+
+    importFile.addEventListener('change', () => {
+      const file = importFile.files[0];
+      importFile.value = ''; // so the same file can be picked again
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onerror = () => Toast.show('That file could not be read');
+      reader.onload = () => {
+        const { notebook, error } = Backup.parse(String(reader.result));
+        if (error) Toast.show(error);
+        else askToReplace(file.name, notebook);
+      };
+      reader.readAsText(file);
+    });
+
+    /** Shows what is in the file and replaces the notebook only after a yes. */
+    function askToReplace(fileName, notebook) {
+      Sheet.open({
+        title: 'Import a notebook',
+        info: {
+          heading: fileName,
+          details: Backup.describe(notebook),
+          note: 'This replaces the notebook and the machines on this phone.',
+        },
+        columns: 'none',
+        labels: [],
+        wheels: [],
+        actionLabel: 'Replace my notebook',
+        cancelLabel: 'Cancel',
+        onAction() {
+          const before = data;
+          data = notebook;
+          save();
+          App.refresh();
+          Toast.show('Notebook replaced', () => {
+            data = before;
+            save();
+            App.refresh(); // you may have left Settings by now
+          });
+        },
+      });
+    }
+
     return { render };
   })();
 
   /* ==========================================================================
-     9. Statistics view
+     10. Statistics view
      ========================================================================== */
 
   const StatsView = (() => {
@@ -2030,7 +2220,7 @@ button {
   })();
 
   /* ==========================================================================
-     10. Navigation and start-up
+     11. Navigation and start-up
      ========================================================================== */
 
   const App = (() => {
@@ -2117,7 +2307,7 @@ button {
       });
     }
 
-    return { start, open };
+    return { start, open, refresh: render };
   })();
 
   App.start();
