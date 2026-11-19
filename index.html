@@ -150,7 +150,7 @@ button {
 /* 5. Lines (rows) ---------------------------------------------------------- */
 .row {
   position: relative;
-  overflow: hidden;
+  clip-path: inset(-7px 0 0 0); /* clip the sides, but let Delete reach up to the ruled line above */
   touch-action: pan-y;
   -webkit-user-select: none;
   user-select: none;
@@ -179,11 +179,11 @@ button {
 .mark { flex: none; margin-left: auto; white-space: nowrap; }
 .mark svg { display: inline-block; }
 
-.row-delete {
+.row-delete { /* fills the space between two ruled lines */
   position: absolute;
-  top: 0;
-  right: 0;
-  bottom: 0;
+  top: -7px;
+  right: var(--rule-inset);
+  bottom: 8px;
   width: 0;
   display: flex;
   align-items: center;
@@ -197,7 +197,7 @@ button {
 .row-delete > span { padding-left: 24px; }
 .row-delete.is-animating { transition: width .22s var(--ease), background-color .15s; }
 .row.is-armed > .row-delete { background: var(--danger-armed); }
-.row.is-collapsing { transition: height .18s ease; }
+.row.is-collapsing { overflow: hidden; transition: height .18s ease; }
 
 .line-input {
   display: block;
@@ -542,6 +542,8 @@ button {
 
   const WHEEL_ITEM_PX = 36;     // keep in sync with --wheel-item
   const DELETE_WIDTH_PX = 96;   // width of the revealed Delete button
+  const RULE_INSET_PX = 20;     // keep in sync with --rule-inset
+  const OPEN_OFFSET_PX = DELETE_WIDTH_PX + RULE_INSET_PX; // how far a row slides to show Delete
   const FULL_SWIPE = 0.55;      // drag this share of the row to delete in one go
   const UNDO_MS = 5000;
   const PREVIEW_ID = '__preview__';
@@ -1179,7 +1181,7 @@ button {
       content.classList.toggle('is-animating', animate);
       button.classList.toggle('is-animating', animate);
       content.style.transform = x ? `translateX(${x}px)` : '';
-      button.style.width = `${-x}px`;
+      button.style.width = `${Math.max(0, -x - RULE_INSET_PX)}px`;
       if (!x) row.classList.remove('is-armed');
     }
 
@@ -1222,7 +1224,7 @@ button {
         pointerId: e.pointerId,
         startX: e.clientX,
         startY: e.clientY,
-        from: row === openRow ? -DELETE_WIDTH_PX : 0,
+        from: row === openRow ? -OPEN_OFFSET_PX : 0,
         x: 0,
         axis: null,
       };
@@ -1261,9 +1263,9 @@ button {
       const width = g.row.offsetWidth;
       if (-g.x > width * FULL_SWIPE) {
         removeRow(g.row);
-      } else if (-g.x > DELETE_WIDTH_PX / 2) {
+      } else if (-g.x > OPEN_OFFSET_PX / 2) {
         if (openRow !== g.row) closeOpenRow();
-        slide(g.row, -DELETE_WIDTH_PX, true);
+        slide(g.row, -OPEN_OFFSET_PX, true);
         openRow = g.row;
       } else {
         slide(g.row, 0, true);
