@@ -767,6 +767,9 @@ button {
   let data = Store.load();
   const save = () => Store.save(data);
 
+  /** The machines in alphabetical order, the way every list and wheel shows them. */
+  const machinesAZ = () => data.machines.slice().sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+
   /* ==========================================================================
      5. Notebook rules
      ========================================================================== */
@@ -1483,7 +1486,7 @@ button {
 
     function openLineSheet(editing) {
       const editingMachine = editing && editing.type === 'machine' ? editing : null;
-      const machines = data.machines.slice();
+      const machines = machinesAZ();
       if (editingMachine && !machines.some((m) => m.id === editingMachine.machineId)) {
         // The machine was removed in settings; keep it pickable for this line.
         machines.unshift({ id: editingMachine.machineId, name: editingMachine.name });
@@ -1724,7 +1727,7 @@ button {
     }
 
     function renderList() {
-      list.innerHTML = data.machines
+      list.innerHTML = machinesAZ()
         .map((m) => {
           const name = escapeHtml(m.name);
           return (
@@ -1925,7 +1928,7 @@ button {
 
       const streak = weeksInARow(sessionDates, today);
       const machines = data.machines.length
-        ? data.machines
+        ? machinesAZ()
             .map((machine) => `<button class="stat-link" type="button" data-machine="${escapeHtml(machine.id)}"><span>${escapeHtml(machine.name)}</span>${CHEVRON}</button>`)
             .join('')
         : '<div class="stat-line is-pencil">no machines yet</div>';
