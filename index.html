@@ -21,9 +21,9 @@
 
    CSS sections
      1. Font             5. Lines (rows)          9. Settings
-     2. Tokens           6. Add rows             10. Undo toast
-     3. Base             7. Floating buttons     11. Reduced motion
-     4. Paper            8. Sheet & wheels
+     2. Tokens           6. Add rows             10. Statistics
+     3. Base             7. Floating buttons     11. Undo toast
+     4. Paper            8. Sheet & wheels       12. Reduced motion
    ========================================================================== */
 
 /* 1. Font ------------------------------------------------------------------
@@ -279,6 +279,8 @@ button {
   color: var(--pencil);
 }
 
+.stats-btn { right: max(52px, calc((100vw - var(--page-max)) / 2 + 52px)); }
+
 .today {
   right: max(20px, calc((100vw - var(--page-max)) / 2 + 20px));
   bottom: calc(28px + var(--safe-bottom));
@@ -426,7 +428,28 @@ button {
   text-underline-offset: 5px;
 }
 
-/* 10. Undo toast ----------------------------------------------------------- */
+/* 10. Statistics ----------------------------------------------------------- */
+.stat-line { display: flex; align-items: baseline; gap: 14px; min-height: var(--line); }
+.is-small { font-size: 22px; }
+.week { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); height: var(--line); text-align: center; }
+
+.stat-link {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  width: 100%;
+  height: var(--line);
+  color: var(--pen);
+  text-align: left;
+}
+
+.chart { position: relative; height: calc(var(--line) * 5); } /* the ruled lines are its grid */
+.chart svg { position: absolute; top: 0; left: 0; }
+.axis { position: absolute; left: 0; color: var(--pencil); font-size: 20px; line-height: 36px; }
+.months { position: relative; height: var(--line); color: var(--pencil); font-size: 22px; }
+.months span { position: absolute; top: 0; transform: translateX(-50%); }
+
+/* 11. Undo toast ----------------------------------------------------------- */
 .toast {
   position: fixed;
   z-index: 30;
@@ -451,7 +474,7 @@ button {
 .toast.is-visible { transform: translate(-50%, 0); visibility: visible; transition: transform .25s var(--ease); }
 .toast button { height: 44px; padding: 0 14px; border-radius: 22px; color: #a9c1ff; font-weight: 600; }
 
-/* 11. Reduced motion ------------------------------------------------------- */
+/* 12. Reduced motion ------------------------------------------------------- */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     transition-duration: .01ms !important;
@@ -477,7 +500,7 @@ button {
 <section id="settings" aria-labelledby="settingsTitle" hidden>
   <div class="page">
     <div class="title-row">
-      <button id="backBtn" class="back-btn" type="button" aria-label="Back to the notebook">
+      <button class="back-btn" type="button" data-back="notebook" aria-label="Back to the notebook">
         <svg width="14" height="24" viewBox="0 0 14 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M11 3l-8 9 8 9"/></svg>
       </button>
       <h1 id="settingsTitle">Machines</h1>
@@ -491,7 +514,39 @@ button {
   </div>
 </section>
 
+<section id="stats" aria-labelledby="statsTitle" hidden>
+  <div class="page">
+    <div class="title-row">
+      <button class="back-btn" type="button" data-back="notebook" aria-label="Back to the notebook">
+        <svg width="14" height="24" viewBox="0 0 14 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M11 3l-8 9 8 9"/></svg>
+      </button>
+      <h1 id="statsTitle">Statistics</h1>
+    </div>
+    <div class="blank" aria-hidden="true"></div>
+    <div id="statsBody"></div>
+    <div class="filler" aria-hidden="true"></div>
+  </div>
+</section>
+
+<section id="machineStats" aria-labelledby="machineStatsTitle" hidden>
+  <div class="page">
+    <div class="title-row">
+      <button class="back-btn" type="button" data-back="stats" aria-label="Back to statistics">
+        <svg width="14" height="24" viewBox="0 0 14 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M11 3l-8 9 8 9"/></svg>
+      </button>
+      <h1 id="machineStatsTitle">Machine</h1>
+    </div>
+    <div class="blank" aria-hidden="true"></div>
+    <div id="machineStatsBody"></div>
+    <div class="filler" aria-hidden="true"></div>
+  </div>
+</section>
+
 <div class="topbar" aria-hidden="true"></div>
+
+<button id="statsBtn" class="cog stats-btn" type="button" aria-label="Statistics">
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 20h18M6 16v-4M12 16V6M18 16V9"/></svg>
+</button>
 
 <button id="cogBtn" class="cog" type="button" aria-label="Settings">
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10.12 4.64L10.48 1.91A10.2 10.2 0 0 1 13.52 1.91L13.88 4.64A7.6 7.6 0 0 1 15.88 5.46L18.05 3.79A10.2 10.2 0 0 1 20.21 5.95L18.54 8.12A7.6 7.6 0 0 1 19.36 10.12L22.09 10.48A10.2 10.2 0 0 1 22.09 13.52L19.36 13.88A7.6 7.6 0 0 1 18.54 15.88L20.21 18.05A10.2 10.2 0 0 1 18.05 20.21L15.88 18.54A7.6 7.6 0 0 1 13.88 19.36L13.52 22.09A10.2 10.2 0 0 1 10.48 22.09L10.12 19.36A7.6 7.6 0 0 1 8.12 18.54L5.95 20.21A10.2 10.2 0 0 1 3.79 18.05L5.46 15.88A7.6 7.6 0 0 1 4.64 13.88L1.91 13.52A10.2 10.2 0 0 1 1.91 10.48L4.64 10.12A7.6 7.6 0 0 1 5.46 8.12L3.79 5.95A10.2 10.2 0 0 1 5.95 3.79L8.12 5.46A7.6 7.6 0 0 1 10.12 4.64Z"/><circle cx="12" cy="12" r="3"/></svg>
@@ -533,6 +588,8 @@ button {
 
   const STORAGE_KEY = 'fitness-notebook.v1';
   const DAY_NAMES = ['zo', 'ma', 'di', 'wo', 'do', 'vr', 'za']; // Dutch, as in the paper notebook
+  const MONTH_NAMES = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september', 'oktober', 'november', 'december'];
+  const MONTH_SHORT = ['jan', 'feb', 'mrt', 'apr', 'mei', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'];
   const KG_STEP = 2.5;          // every notch on the kg wheel
   const KG_MAX = 300;
   const SETS = range(1, 10);
@@ -1035,7 +1092,7 @@ button {
     const labels = byId('sheetLabels');
     const wheelsEl = byId('sheetWheels');
     const action = byId('sheetAction');
-    const behind = ['notebook', 'settings', 'cogBtn', 'todayBtn'].map(byId);
+    const behind = ['notebook', 'settings', 'cogBtn', 'statsBtn', 'todayBtn'].map(byId);
     let config = null;
 
     /** What is typed in the text field ('' when the sheet has none). */
@@ -1782,55 +1839,249 @@ button {
   })();
 
   /* ==========================================================================
-     9. Navigation and start-up
+     9. Statistics view
+     ========================================================================== */
+
+  const StatsView = (() => {
+    const monthBody = byId('statsBody');
+    const machineTitle = byId('machineStatsTitle');
+    const machineBody = byId('machineStatsBody');
+
+    const CHART_ROWS = 5;          // ruled lines used as the chart's grid
+    const LINE_PX = 44;            // keep in sync with --line
+    const RULE_Y = 36.5;           // where the ruled line sits inside a row
+    const KG_PER_LINE = [2.5, 5, 10, 20, 25, 50, 100];
+    const MAX_TALLY = 30;
+    const CHEVRON =
+      '<svg width="12" height="22" viewBox="0 0 12 22" fill="none" stroke="currentColor" stroke-width="2.5" ' +
+      'stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2 3l8 8-8 8"/></svg>';
+
+    /** Hand-drawn tally marks: four strokes and a slash for every five. */
+    function tallyHtml(count) {
+      if (count < 1 || count > MAX_TALLY) return '';
+      const fives = Math.floor(count / 5);
+      const rest = count % 5;
+      let path = '';
+      for (let g = 0; g < fives; g++) {
+        const x = g * 46;
+        path += `M${x + 4} 3l-1 20M${x + 13} 2l-1 21M${x + 22} 3l0 20M${x + 31} 2l-1 21M${x} 19L${x + 36} 6`;
+      }
+      for (let i = 0; i < rest; i++) path += `M${fives * 46 + 4 + i * 9} ${i % 2 ? 2 : 3}l-1 20`;
+      const width = fives * 46 + (rest ? rest * 9 + 2 : 0);
+      return (
+        `<svg width="${width}" height="26" viewBox="0 0 ${width} 26" fill="none" stroke="currentColor" stroke-width="2.2" ` +
+        `stroke-linecap="round" aria-hidden="true" focusable="false"><path d="${path}"/></svg>`
+      );
+    }
+
+    /** The Monday of the week a date falls in, as "YYYY-MM-DD". */
+    function mondayOf(iso) {
+      const { y, m, d } = Dates.parts(iso);
+      const date = new Date(y, m - 1, d);
+      date.setDate(date.getDate() - ((date.getDay() + 6) % 7));
+      return Dates.toIso(date.getFullYear(), date.getMonth() + 1, date.getDate());
+    }
+
+    function weekBefore(mondayIso) {
+      const { y, m, d } = Dates.parts(mondayIso);
+      const date = new Date(y, m - 1, d - 7);
+      return Dates.toIso(date.getFullYear(), date.getMonth() + 1, date.getDate());
+    }
+
+    /** Weeks in a row with at least one session, counting back from this week (or last week, if this one is still empty). */
+    function weeksInARow(sessionDates, today) {
+      const weeks = new Set(Array.from(sessionDates, mondayOf));
+      let week = mondayOf(today);
+      if (!weeks.has(week)) week = weekBefore(week);
+      let count = 0;
+      while (weeks.has(week)) {
+        count++;
+        week = weekBefore(week);
+      }
+      return count;
+    }
+
+    /* ---- This month ---- */
+
+    function renderMonth() {
+      const today = Dates.today();
+      const { y, m } = Dates.parts(today);
+      const sessionDates = new Set(data.lines.filter((l) => l.type === 'date').map((l) => l.date));
+
+      const cells = [];
+      const leading = (new Date(y, m - 1, 1).getDay() + 6) % 7; // weeks start on Monday
+      for (let i = 0; i < leading; i++) cells.push('<span></span>');
+      let sessions = 0;
+      for (let d = 1; d <= Dates.parts(today).d; d++) { // the days still to come stay empty paper
+        if (sessionDates.has(Dates.toIso(y, m, d))) {
+          sessions++;
+          cells.push(`<span class="is-bold" role="img" aria-label="${d}: trained">×</span>`);
+        } else {
+          cells.push('<span class="is-pencil" aria-hidden="true">·</span>');
+        }
+      }
+      let weeks = '';
+      for (let i = 0; i < cells.length; i += 7) weeks += `<div class="week">${cells.slice(i, i + 7).join('')}</div>`;
+
+      const streak = weeksInARow(sessionDates, today);
+      const machines = data.machines.length
+        ? data.machines
+            .map((machine) => `<button class="stat-link" type="button" data-machine="${escapeHtml(machine.id)}"><span>${escapeHtml(machine.name)}</span>${CHEVRON}</button>`)
+            .join('')
+        : '<div class="stat-line is-pencil">no machines yet</div>';
+
+      monthBody.innerHTML =
+        `<div class="stat-line is-bold">${MONTH_NAMES[m - 1]}</div>` +
+        `<div class="week is-pencil is-small" aria-hidden="true">${DAY_NAMES.slice(1).concat(DAY_NAMES[0]).map((day) => `<span>${day}</span>`).join('')}</div>` +
+        weeks +
+        BLANK_ROW +
+        `<div class="stat-line"><span>sessions</span>${tallyHtml(sessions)}<span class="mark">${sessions}</span></div>` +
+        `<div class="stat-line"><span>weeks in a row</span>${tallyHtml(streak)}<span class="mark">${streak}</span></div>` +
+        BLANK_ROW +
+        machines;
+    }
+
+    /* ---- One machine over time ---- */
+
+    /** Every dated time this machine was logged, oldest first. */
+    function history(machineId) {
+      const points = [];
+      let date = null;
+      data.lines.forEach((line, order) => {
+        if (line.type === 'date') date = line.date;
+        else if (line.type === 'machine' && line.machineId === machineId && date) points.push({ date, order, weight: line.weight });
+      });
+      return points.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.order - b.order));
+    }
+
+    function renderMachine(machineId) {
+      const machine = data.machines.find((m) => m.id === machineId);
+      machineTitle.textContent = machine ? machine.name : 'Machine';
+      const points = history(machineId);
+      if (!points.length) {
+        machineBody.innerHTML = '<div class="stat-line is-pencil">nothing logged yet</div>';
+        return;
+      }
+
+      // The ruled lines are the grid: pick how many kg one line stands for so everything fits.
+      const weights = points.map((p) => p.weight);
+      const min = Math.min(...weights);
+      const max = Math.max(...weights);
+      let perLine = KG_PER_LINE[KG_PER_LINE.length - 1];
+      let top = 0;
+      for (const size of KG_PER_LINE) {
+        top = Math.ceil(max / size) * size;
+        if ((top - min) / size <= CHART_ROWS - 1) {
+          perLine = size;
+          break;
+        }
+      }
+      top = Math.ceil(max / perLine) * perLine;
+
+      const width = machineBody.clientWidth || 326;
+      const left = 56;
+      const right = width - 30;
+      const xOf = (i) => (points.length > 1 ? left + (i * (right - left)) / (points.length - 1) : right);
+      const yOf = (weight) => RULE_Y + ((top - weight) / perLine) * LINE_PX;
+      const xy = points.map((p, i) => [round2(xOf(i)), round2(yOf(p.weight))]);
+      const radius = points.length <= 24 ? 4 : 2.5;
+
+      const lower = top - 2 * perLine;
+      const axis =
+        `<span class="axis" style="top: 0">${formatKg(top)} kg</span>` +
+        (lower > 0 ? `<span class="axis" style="top: ${2 * LINE_PX}px">${formatKg(lower)}</span>` : '');
+
+      let months = '';
+      let lastMonth = '';
+      let lastX = -Infinity;
+      points.forEach((p, i) => {
+        const month = p.date.slice(0, 7);
+        if (month === lastMonth) return;
+        lastMonth = month;
+        if (xy[i][0] - lastX < 44) return; // no room for this label
+        lastX = xy[i][0];
+        months += `<span style="left: ${xy[i][0]}px">${MONTH_SHORT[Number(month.slice(5)) - 1]}</span>`;
+      });
+
+      const first = points[0];
+      const last = points[points.length - 1];
+      const label =
+        `${escapeHtml(machineTitle.textContent)}: ${points.length} times, from ${formatKg(first.weight)} kg on ${Dates.written(first.date).date} ` +
+        `to ${formatKg(last.weight)} kg on ${Dates.written(last.date).date}`;
+
+      machineBody.innerHTML =
+        `<div class="chart">${axis}` +
+        `<svg width="${width}" height="${CHART_ROWS * LINE_PX}" viewBox="0 0 ${width} ${CHART_ROWS * LINE_PX}" fill="none" role="img" aria-label="${label}">` +
+        `<path d="M${xy.map((p) => p.join(' ')).join('L')}" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>` +
+        `<g fill="currentColor">${xy.map(([x, y]) => `<circle cx="${x}" cy="${y}" r="${radius}"/>`).join('')}</g>` +
+        '</svg></div>' +
+        `<div class="months" aria-hidden="true">${months}</div>`;
+    }
+
+    monthBody.addEventListener('click', (e) => {
+      const button = e.target.closest('[data-machine]');
+      if (button) App.open({ view: 'machineStats', machineId: button.dataset.machine });
+    });
+
+    return { renderMonth, renderMachine };
+  })();
+
+  /* ==========================================================================
+     10. Navigation and start-up
      ========================================================================== */
 
   const App = (() => {
-    const notebook = byId('notebook');
-    const settings = byId('settings');
-    const cog = byId('cogBtn');
+    const views = {
+      notebook: byId('notebook'),
+      settings: byId('settings'),
+      stats: byId('stats'),
+      machineStats: byId('machineStats'),
+    };
+    const topButtons = [byId('cogBtn'), byId('statsBtn')];
+    let state = { view: 'notebook' };
     let notebookScrollY = 0;
 
-    function showSettings() {
+    /** Shows the view a state describes: { view, machineId }. */
+    function show(next) {
+      const target = next && views[next.view] ? next : { view: 'notebook' };
       Sheet.cancel();
-      notebookScrollY = window.scrollY;
-      notebook.hidden = true;
-      settings.hidden = false;
-      cog.hidden = true;
-      SettingsView.render();
-      window.scrollTo(0, 0);
+      if (state.view === 'notebook' && target.view !== 'notebook') notebookScrollY = window.scrollY;
+      state = target;
+      for (const name of Object.keys(views)) views[name].hidden = name !== state.view;
+      topButtons.forEach((button) => { button.hidden = state.view !== 'notebook'; });
+      render();
+      window.scrollTo(0, state.view === 'notebook' ? notebookScrollY : 0);
       NotebookView.updateTodayButton();
     }
 
-    function showNotebook() {
-      settings.hidden = true;
-      notebook.hidden = false;
-      cog.hidden = false;
-      NotebookView.render();
-      window.scrollTo(0, notebookScrollY);
-      NotebookView.updateTodayButton();
+    function render() {
+      if (state.view === 'settings') SettingsView.render();
+      else if (state.view === 'stats') StatsView.renderMonth();
+      else if (state.view === 'machineStats') StatsView.renderMachine(state.machineId);
+      else NotebookView.render();
     }
 
-    function openSettings() {
+    function open(next) {
       try {
-        history.pushState({ view: 'settings' }, '');
+        history.pushState(next, '');
       } catch (_) {
-        /* history not available (sandboxed frame): the back arrow still works */
+        /* history not available (sandboxed frame): the back arrows still work */
       }
-      showSettings();
+      show(next);
     }
 
-    function closeSettings() {
-      if (history.state && history.state.view === 'settings') history.back(); // popstate shows the notebook
-      else showNotebook();
+    function back(fallbackView) {
+      const pushed = history.state && history.state.view === state.view && state.view !== 'notebook';
+      if (pushed) history.back(); // popstate shows the view underneath
+      else show({ view: fallbackView });
     }
 
-    cog.addEventListener('click', () => openSettings());
-    byId('backBtn').addEventListener('click', closeSettings);
-    window.addEventListener('popstate', (e) => {
-      if (e.state && e.state.view === 'settings') showSettings();
-      else if (notebook.hidden) showNotebook();
+    byId('cogBtn').addEventListener('click', () => open({ view: 'settings' }));
+    byId('statsBtn').addEventListener('click', () => open({ view: 'stats' }));
+    document.querySelectorAll('[data-back]').forEach((button) => {
+      button.addEventListener('click', () => back(button.dataset.back));
     });
+    window.addEventListener('popstate', (e) => show(e.state));
 
     function start() {
       try {
@@ -1844,24 +2095,26 @@ button {
       scrollToBottom(false);
       if (document.fonts && document.fonts.ready) {
         const y = window.scrollY;
-        document.fonts.ready.then(() => { if (window.scrollY === y) scrollToBottom(false); });
+        document.fonts.ready.then(() => { if (state.view === 'notebook' && window.scrollY === y) scrollToBottom(false); });
       }
 
       const refreshTodayButton = onNextFrame(NotebookView.updateTodayButton);
       window.addEventListener('scroll', refreshTodayButton, { passive: true });
-      window.addEventListener('resize', refreshTodayButton);
+      window.addEventListener('resize', () => {
+        refreshTodayButton();
+        if (state.view === 'machineStats') render(); // the chart follows the page width
+      });
 
       // Another tab changed the notebook: show the new version.
       window.addEventListener('storage', (e) => {
         const typing = document.activeElement && document.activeElement.classList.contains('line-input');
         if (e.key !== STORAGE_KEY || Sheet.isOpen() || typing) return;
         data = Store.load();
-        if (settings.hidden) NotebookView.render();
-        else SettingsView.render();
+        render();
       });
     }
 
-    return { start };
+    return { start, open };
   })();
 
   App.start();
