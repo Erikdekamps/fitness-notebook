@@ -21,7 +21,7 @@
 
    CSS sections
      1. Font             5. Lines (rows)          9. Settings
-     2. Tokens           6. Add rows & icons     10. Undo toast
+     2. Tokens           6. Add rows             10. Undo toast
      3. Base             7. Floating buttons     11. Reduced motion
      4. Paper            8. Sheet & wheels
    ========================================================================== */
@@ -53,8 +53,8 @@
 
   --line: 44px;            /* one ruled line */
   --text-left: 32px;       /* where the handwriting starts */
-  --text-right: 16px;
-  --rule-left: 20px;       /* ruled lines start a little in from the edge */
+  --text-right: 32px;
+  --rule-inset: 20px;      /* ruled lines stop a little short of both edges */
   --page-max: 680px;
   --wheel-item: 36px;      /* keep in sync with WHEEL_ITEM_PX */
 
@@ -134,9 +134,9 @@ button {
   content: "";
   position: absolute;
   top: var(--safe-top);
-  right: 0;
+  right: var(--rule-inset);
   bottom: 0;
-  left: var(--rule-left);
+  left: var(--rule-inset);
   background-image: linear-gradient(to bottom, transparent 36px, var(--rule) 36px, var(--rule) 37px, transparent 37px);
   background-size: 100% var(--line);
   pointer-events: none;
@@ -162,18 +162,19 @@ button {
 
 .row-content {
   display: flex;
+  flex-wrap: wrap;         /* a line that is too long runs on to the next ruled line */
   align-items: baseline;
-  gap: 12px;
+  gap: 0 12px;
   min-height: var(--line);
   padding: 0 var(--text-right) 0 var(--text-left);
 }
 
 .row-content.is-animating { transition: transform .22s var(--ease); }
-.row--text > .row-content { display: block; overflow-wrap: anywhere; }
+.row--text > .row-content, .row-content.is-text { display: block; overflow-wrap: anywhere; }
 .row--date > .row-content, .is-bold { font-weight: 700; }
 .is-pencil { color: var(--pencil); }
 
-.name { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.name { min-width: 0; overflow-wrap: anywhere; }
 .nums { flex: none; white-space: nowrap; }
 .mark { flex: none; margin-left: auto; white-space: nowrap; }
 .mark svg { display: inline-block; }
@@ -226,25 +227,17 @@ button {
   40%, 80% { transform: translateX(6px); }
 }
 
-/* 6. Add rows & icons ------------------------------------------------------ */
+/* 6. Add rows -------------------------------------------------------------- */
 .add-row { min-height: var(--line); }
-.add-row--icons { display: flex; align-items: center; gap: 4px; padding-left: calc(var(--text-left) - 8px); }
 .add-row--pencil { padding-left: var(--text-left); }
-
-.icon-btn {
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
-  color: var(--pen);
-}
-
-.icon-btn:active { background: rgba(29, 58, 138, .1); }
 .pencil-btn { display: block; height: var(--line); color: var(--pencil); text-align: left; }
 
-@media (hover: hover) {
-  .icon-btn:hover { background: rgba(29, 58, 138, .08); }
+.add-btn { /* a whole empty line you can tap */
+  display: block;
+  width: 100%;
+  height: var(--line);
+  padding: 0 var(--text-right) 0 var(--text-left);
+  text-align: left;
 }
 
 /* 7. Floating buttons ------------------------------------------------------ */
@@ -331,7 +324,25 @@ button {
 
 .sheet.is-open { transform: none; visibility: visible; transition: transform .3s var(--ease); }
 .sheet-inner { display: flex; flex-direction: column; gap: 10px; max-width: 480px; margin: 0 auto; }
-.sheet-cols { display: grid; gap: 8px; padding: 0 8px; }
+.sheet-pickers { display: flex; flex-direction: column; gap: 10px; }
+.sheet.is-typing .sheet-pickers { height: 0; overflow: hidden; visibility: hidden; } /* folded, wheels keep their place */
+
+.sheet-text {
+  width: 100%;
+  height: 48px;
+  margin: 0;
+  padding: 0 14px;
+  border: 1px solid #cbbba8;
+  border-radius: 12px;
+  background: #fffaf3;
+  color: var(--ink);
+  font: 17px/1.2 var(--font-ui);
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.sheet-text::placeholder { color: var(--muted); opacity: 1; }
+.sheet-cols { display: grid; gap: 6px; padding: 0 8px; }
 .sheet-labels { font-size: 13px; color: var(--muted); text-align: center; }
 .sheet-labels .is-left { padding-left: 4px; text-align: left; }
 .wheels { position: relative; }
@@ -357,6 +368,7 @@ button {
   scrollbar-width: none;
   touch-action: pan-y;
   border-radius: 9px;
+  font-size: 19px;
   cursor: grab;
 }
 
@@ -369,7 +381,6 @@ button {
   height: var(--wheel-item);
   overflow: hidden;
   color: var(--muted);
-  font-size: 20px;
   font-variant-numeric: tabular-nums;
   line-height: var(--wheel-item);
   text-align: center;
@@ -379,7 +390,7 @@ button {
   transform-origin: center;
 }
 
-.wheel-item.is-current { color: var(--ink); font-weight: 600; }
+.wheel-item.is-current, .wheel.is-measuring .wheel-item { color: var(--ink); font-weight: 600; }
 .wheel--left .wheel-item { padding-left: 4px; text-align: left; transform-origin: left center; }
 
 .sheet-action {
@@ -393,7 +404,6 @@ button {
 .sheet-action:active { opacity: .85; }
 
 /* 9. Settings -------------------------------------------------------------- */
-.row--machine > .row-content { align-items: center; height: var(--line); } /* name and step stay on one ruled line */
 .title-row { display: flex; align-items: center; gap: 2px; height: var(--line); font-weight: 700; }
 
 .back-btn {
@@ -405,19 +415,6 @@ button {
   border-radius: 12px;
   color: var(--pen);
 }
-
-.step-btn {
-  flex: none;
-  min-width: 44px;
-  height: var(--line);
-  margin-left: auto;
-  padding: 0 4px;
-  color: var(--pencil);
-  font-size: 22px;
-  text-align: right;
-}
-
-.hint { color: var(--pencil); font-size: 22px; }
 
 .text-btn {
   display: block;
@@ -473,7 +470,7 @@ button {
       <div id="rowNext" class="add-row"></div>
       <div id="rowDate" class="add-row"></div>
     </div>
-    <div id="notebookFiller" class="filler" aria-hidden="true"></div>
+    <div id="notebookFiller" class="filler"></div>
   </div>
 </main>
 
@@ -488,11 +485,6 @@ button {
     <div class="blank" aria-hidden="true"></div>
     <div id="machineList" class="bleed" role="list" aria-label="Machines"></div>
     <div id="addMachineRow" class="bleed add-row add-row--pencil"></div>
-    <div class="blank" aria-hidden="true"></div>
-    <p class="hint">tap a name to change it</p>
-    <p class="hint">tap +2.5 to change the kg steps</p>
-    <p class="hint">drag a line left to remove it</p>
-    <p class="hint">old notebook lines stay as they are</p>
     <div class="blank" aria-hidden="true"></div>
     <button id="removeExamples" class="text-btn" type="button" hidden>remove the example lines</button>
     <div class="filler" aria-hidden="true"></div>
@@ -514,10 +506,13 @@ button {
 <div id="sheet" class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
   <div class="sheet-inner">
     <h2 id="sheetTitle" class="visually-hidden">Log a line</h2>
-    <div id="sheetLabels" class="sheet-cols sheet-labels" aria-hidden="true"></div>
-    <div class="wheels">
-      <div class="wheels-band" aria-hidden="true"></div>
-      <div id="sheetWheels" class="sheet-cols"></div>
+    <input id="sheetText" class="sheet-text" type="text" autocomplete="off" autocapitalize="sentences" enterkeyhint="done" aria-label="Write your own line" hidden>
+    <div class="sheet-pickers">
+      <div id="sheetLabels" class="sheet-cols sheet-labels" aria-hidden="true"></div>
+      <div class="wheels">
+        <div class="wheels-band" aria-hidden="true"></div>
+        <div id="sheetWheels" class="sheet-cols"></div>
+      </div>
     </div>
     <button id="sheetAction" class="sheet-action" type="button">Log</button>
   </div>
@@ -538,8 +533,7 @@ button {
 
   const STORAGE_KEY = 'fitness-notebook.v1';
   const DAY_NAMES = ['zo', 'ma', 'di', 'wo', 'do', 'vr', 'za']; // Dutch, as in the paper notebook
-  const KG_STEPS = [0.5, 1, 2.5, 5];
-  const DEFAULT_KG_STEP = 2.5;
+  const KG_STEP = 2.5;          // every notch on the kg wheel
   const KG_MAX = 300;
   const SETS = range(1, 10);
   const REPS = range(1, 50);
@@ -560,9 +554,6 @@ button {
   const Icons = {
     up: svg(16, 22, 2, '<path d="M8 20V3M2 9l6-6 6 6"/>'),
     down: svg(16, 22, 2, '<path d="M8 2v17M2 13l6 6 6-6"/>'),
-    keyboard: svg(28, 28, 2, '<rect x="2" y="6" width="24" height="16" rx="3"/><path d="M7 11h.01M11.5 11h.01M16.5 11h.01M21 11h.01M7 15h.01M11.5 15h.01M16.5 15h.01M21 15h.01M10 18.5h8"/>'),
-    dumbbell: svg(28, 28, 2.5, '<path d="M8 14h12M8 8v12M4.5 10.5v7M20 8v12M23.5 10.5v7"/>'),
-    calendar: svg(28, 28, 2, '<rect x="4" y="6" width="20" height="18" rx="3"/><path d="M4 12h20M9 3v5M19 3v5"/>'),
   };
 
   /* ==========================================================================
@@ -646,7 +637,7 @@ button {
      4. Storage
      --------------------------------------------------------------------------
      Data shape
-       machines: [{ id, name, step }]            step = kg per notch on the wheel
+       machines: [{ id, name }]
        lines:    [{ id, type: 'date', date }      date = "YYYY-MM-DD"
                   { id, type: 'text', text }
                   { id, type: 'machine', machineId, name, weight, sets, reps }]
@@ -674,12 +665,12 @@ button {
 
   function exampleNotebook() {
     const machines = [
-      { id: 'm-leg-press', name: 'Leg press', step: 5 },
-      { id: 'm-chest-press', name: 'Chest press', step: 2.5 },
-      { id: 'm-lat-pulldown', name: 'Lat pulldown', step: 2.5 },
-      { id: 'm-shoulder-press', name: 'Shoulder press', step: 2.5 },
-      { id: 'm-seated-row', name: 'Seated row', step: 2.5 },
-      { id: 'm-leg-curl', name: 'Leg curl', step: 2.5 },
+      { id: 'm-leg-press', name: 'Leg press' },
+      { id: 'm-chest-press', name: 'Chest press' },
+      { id: 'm-lat-pulldown', name: 'Lat pulldown' },
+      { id: 'm-shoulder-press', name: 'Shoulder press' },
+      { id: 'm-seated-row', name: 'Seated row' },
+      { id: 'm-leg-curl', name: 'Leg curl' },
     ];
     const byName = new Map(machines.map((m) => [m.name, m]));
     const sessions = [
@@ -765,9 +756,9 @@ button {
       return ids;
     },
 
-    /** The kg values on the wheel for a machine: 0 to KG_MAX in its steps, always including `mustInclude`. */
-    kgOptions(step, mustInclude) {
-      const size = KG_STEPS.includes(step) ? step : DEFAULT_KG_STEP;
+    /** The kg values on the wheel: 0 to KG_MAX in steps of KG_STEP, always including `mustInclude`. */
+    kgOptions(mustInclude) {
+      const size = KG_STEP;
       const value = round2(Number(mustInclude) || 0);
       const max = Math.max(KG_MAX, value);
       const options = [];
@@ -904,7 +895,21 @@ button {
       el.setAttribute('aria-valuemax', String(list.length - 1));
       styled.clear();
       current = -1;
+      if (align === 'left') fitText();
       setIndex(index, false);
+    }
+
+    /** Shrinks the text until the longest name fits, so names are never cut off. */
+    function fitText() {
+      el.style.fontSize = '';
+      el.classList.add('is-measuring'); // measure at the bold weight of the picked row
+      const nodes = Array.from(el.querySelectorAll('.wheel-item'));
+      let size = parseFloat(getComputedStyle(el).fontSize);
+      while (size > 12 && nodes.some((node) => node.scrollWidth > node.clientWidth)) {
+        size -= 1;
+        el.style.fontSize = `${size}px`;
+      }
+      el.classList.remove('is-measuring');
     }
 
     /** Moves to an item. Instant moves are silent; smooth moves report changes as they scroll. */
@@ -1018,28 +1023,44 @@ button {
     };
   }
 
-  /* ---- 6d. Bottom sheet with wheels ------------------------------------- */
+  /* ---- 6d. Bottom sheet: wheels, plus an optional text field ------------- */
 
   const Sheet = (() => {
     const sheet = byId('sheet');
     const backdrop = byId('backdrop');
     const title = byId('sheetTitle');
+    const textField = byId('sheetText');
     const labels = byId('sheetLabels');
     const wheelsEl = byId('sheetWheels');
     const action = byId('sheetAction');
     const behind = ['notebook', 'settings', 'cogBtn', 'todayBtn'].map(byId);
     let config = null;
 
+    /** What is typed in the text field ('' when the sheet has none). */
+    const text = () => (textField.hidden ? '' : textField.value.trim());
+
+    /** While typing, the wheels fold away so the field and the button fit above the keyboard. */
+    function updateTyping() {
+      const typing =
+        !textField.hidden &&
+        (!config || config.wheels.length === 0 || textField.value !== '' || document.activeElement === textField);
+      sheet.classList.toggle('is-typing', typing);
+    }
+
     /**
      * Opens the sheet and returns its wheels.
-     * config: { title, columns, center, labels: [{ text, left }], wheels: [{ label, align, items, index }],
-     *           actionLabel, onChange(i), onSettle(i), onAction(), onCancel() }
+     * config: { title, text: { value, placeholder } (optional), columns, center, labels: [{ text, left }],
+     *           wheels: [{ label, align, items, index }], actionLabel,
+     *           onChange(i), onSettle(i), onAction(), onCancel() }   onChange(-1) = the text changed
      */
     function open(cfg) {
       close();
       config = cfg;
       title.textContent = cfg.title;
       action.textContent = cfg.actionLabel;
+      textField.hidden = !cfg.text;
+      textField.value = cfg.text ? cfg.text.value || '' : '';
+      textField.placeholder = cfg.text ? cfg.text.placeholder : '';
       for (const el of [labels, wheelsEl]) {
         el.style.gridTemplateColumns = cfg.columns;
         el.style.justifyContent = cfg.center ? 'center' : '';
@@ -1062,7 +1083,9 @@ button {
       sheet.classList.add('is-open');
       behind.forEach((el) => { el.inert = true; });
       wheels.forEach((wheel, i) => wheel.setItems(cfg.wheels[i].items, cfg.wheels[i].index));
-      wheels[0].el.focus({ preventScroll: true });
+      updateTyping();
+      if (sheet.classList.contains('is-typing')) textField.focus({ preventScroll: true });
+      else if (wheels.length) wheels[0].el.focus({ preventScroll: true });
       return wheels;
     }
 
@@ -1088,6 +1111,19 @@ button {
     });
     backdrop.addEventListener('click', cancel);
 
+    textField.addEventListener('input', () => {
+      updateTyping();
+      if (config && config.onChange) config.onChange(-1);
+    });
+    textField.addEventListener('focus', updateTyping);
+    // Wait a moment before unfolding the wheels, so a tap on the button still lands on it.
+    textField.addEventListener('blur', () => setTimeout(updateTyping, 250));
+    textField.addEventListener('keydown', (e) => {
+      if (e.key !== 'Enter' || e.isComposing || e.keyCode === 229) return;
+      e.preventDefault();
+      action.click();
+    });
+
     document.addEventListener('keydown', (e) => {
       if (!config) return;
       if (e.key === 'Escape') {
@@ -1104,9 +1140,20 @@ button {
     backdrop.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
     backdrop.addEventListener('wheel', (e) => e.preventDefault(), { passive: false });
 
+    // Ride on top of the on-screen keyboard.
+    if (window.visualViewport) {
+      const viewport = window.visualViewport;
+      const lift = () => {
+        sheet.style.bottom = `${Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop)}px`;
+      };
+      viewport.addEventListener('resize', lift);
+      viewport.addEventListener('scroll', lift);
+    }
+
     return {
       open,
       cancel,
+      text,
       isOpen: () => config !== null,
       height: () => sheet.offsetHeight,
     };
@@ -1271,8 +1318,7 @@ button {
     const filler = byId('notebookFiller');
     const todayBtn = byId('todayBtn');
 
-    /** What is going on: null, or { kind: 'text' | 'machine' | 'date', line } (line = the one being changed). */
-    let activity = null;
+    let busy = false; // a sheet is open
 
     /* ---- Markup ---- */
 
@@ -1312,30 +1358,31 @@ button {
       linesEl.innerHTML = data.lines
         .map((line, i) => (line.type === 'date' && i > 0 ? BLANK_ROW : '') + rowHtml(line, marks.get(line.id)))
         .join('');
-      showAddIcons();
+      showAddLines();
       filler.style.height = '';
       updateTodayButton();
     }
 
-    /* ---- The two lines under the last entry ---- */
+    /* ---- The lines under the last entry ----
+       First empty line: tap to add a line. Anywhere below it: tap to start a new date. */
 
-    function showAddIcons() {
-      rowNext.hidden = data.lines.length === 0; // a fresh notebook starts with a date
-      setIcons(rowNext, [['text', 'Write a line', Icons.keyboard], ['machine', 'Log a machine', Icons.dumbbell]]);
-      setIcons(rowDate, [['date', 'Start a new date', Icons.calendar]]);
+    function showAddLines() {
+      const empty = data.lines.length === 0; // a fresh notebook starts with a date
+      rowNext.hidden = empty;
+      setButton(rowNext, 'line', 'tap to add a line');
+      setButton(rowDate, 'date', empty ? 'tap to start with a date' : '', 'Start a new date');
     }
 
-    function setIcons(row, buttons) {
-      row.className = 'add-row add-row--icons';
-      row.innerHTML = buttons
-        .map(([action, label, icon]) => `<button class="icon-btn" type="button" data-action="${action}" aria-label="${label}">${icon}</button>`)
-        .join('');
+    function setButton(row, action, text, label) {
+      row.className = 'add-row';
+      row.innerHTML =
+        `<button class="add-btn is-pencil" type="button" data-action="${action}"` +
+        `${label ? ` aria-label="${label}"` : ''}>${text}</button>`;
     }
 
     function setRowContent(row, html, className = '') {
       row.className = 'add-row';
       row.innerHTML = `<div class="row-content ${className}">${html}</div>`;
-      return row.firstElementChild;
     }
 
     function clearRow(row) {
@@ -1347,9 +1394,11 @@ button {
       return linesEl.querySelector(`.row[data-key="${CSS.escape(line.id)}"]`);
     }
 
-    function showInRow(line, html) {
+    /** Shows a pencil preview in the row of the line that is being changed. */
+    function showInRow(line, type, html) {
       const row = rowFor(line);
       if (!row) return;
+      row.className = `row row--${type}`;
       const content = row.querySelector('.row-content');
       content.classList.add('is-pencil');
       content.innerHTML = html;
@@ -1366,115 +1415,66 @@ button {
     }
 
     function finish({ scroll } = {}) {
-      activity = null;
+      busy = false;
       render();
       if (scroll) scrollToBottom(true);
     }
 
-    /* ---- Text lines ---- */
+    /* ---- Add or change a line: machine wheels, or your own text ---- */
 
-    function writeLine() {
-      activity = { kind: 'text' };
-      clearRow(rowDate);
-      const holder = setRowContent(rowNext, '');
-      let added = false;
-      const input = createLineInput({
-        placeholder: 'write a line',
-        label: 'New line',
-        onSubmit(text) {
-          if (text) {
-            data.lines.push({ id: newId('l'), type: 'text', text });
-            save();
-            added = true;
-          }
-          return 'close';
-        },
-        onClose: () => finish({ scroll: added }),
-      });
-      holder.appendChild(input);
-      input.focus();
-    }
-
-    function rewriteLine(line, row) {
-      activity = { kind: 'text', line };
-      const input = createLineInput({
-        value: line.text,
-        label: 'Change line',
-        onSubmit(text) {
-          if (text && text !== line.text) {
-            line.text = text;
-            delete line.example;
-            save();
-          }
-          return 'close';
-        },
-        onClose: () => finish(),
-      });
-      row.querySelector('.row-content').replaceChildren(input);
-      input.focus();
-      input.setSelectionRange(input.value.length, input.value.length);
-    }
-
-    /* ---- Machine lines ---- */
-
-    function openMachineSheet(editing) {
-      if (!editing && data.machines.length === 0) {
-        App.openSettings({ addMachine: true });
-        return;
-      }
-
+    function openLineSheet(editing) {
+      const editingMachine = editing && editing.type === 'machine' ? editing : null;
       const machines = data.machines.slice();
-      if (editing && !machines.some((m) => m.id === editing.machineId)) {
+      if (editingMachine && !machines.some((m) => m.id === editingMachine.machineId)) {
         // The machine was removed in settings; keep it pickable for this line.
-        machines.unshift({ id: editing.machineId, name: editing.name, step: DEFAULT_KG_STEP });
+        machines.unshift({ id: editingMachine.machineId, name: editingMachine.name });
       }
+      const hasWheels = machines.length > 0;
       const { latest } = Rules.analyze(data.lines);
       const lastTime = (machine) => latest.get(machine.id) || FIRST_TIME_VALUES;
 
-      let machineIndex;
-      if (editing) {
-        machineIndex = machines.findIndex((m) => m.id === editing.machineId);
-      } else {
+      let machineIndex = 0;
+      if (editingMachine) {
+        machineIndex = machines.findIndex((m) => m.id === editingMachine.machineId);
+      } else if (hasWheels) {
         const done = Rules.machinesInCurrentDay(data.lines);
         machineIndex = Math.max(0, machines.findIndex((m) => !done.has(m.id)));
       }
       let settledIndex = machineIndex;
-      const start = editing || lastTime(machines[machineIndex]);
-      let kgList = Rules.kgOptions(machines[machineIndex].step, start.weight);
+      const start = editingMachine || (hasWheels ? lastTime(machines[machineIndex]) : FIRST_TIME_VALUES);
+      let kgList = Rules.kgOptions(start.weight);
       let wheels = null;
 
-      function read() {
-        const machine = machines[wheels[0].index];
-        if (!editing && wheels[0].index !== settledIndex) {
-          // The machine wheel is still moving: show the values it will fill in.
-          return { machine, ...lastTime(machine) };
-        }
-        return { machine, weight: kgList[wheels[1].index], sets: SETS[wheels[2].index], reps: REPS[wheels[3].index] };
-      }
+      const wheelValues = () => ({ weight: kgList[wheels[1].index], sets: SETS[wheels[2].index], reps: REPS[wheels[3].index] });
 
-      function lineFromWheels() {
-        const v = read();
-        const keepName = editing && v.machine.id === editing.machineId; // old lines keep the name they were written with
-        return {
-          id: editing ? editing.id : PREVIEW_ID,
-          type: 'machine',
-          machineId: v.machine.id,
-          name: keepName ? editing.name : v.machine.name,
-          weight: v.weight,
-          sets: v.sets,
-          reps: v.reps,
-        };
+      /** What the button would write: a text line when something is typed, else a machine line. */
+      function fields() {
+        const text = Sheet.text();
+        if (text) return { type: 'text', text };
+        if (!hasWheels) return null;
+        const machine = machines[wheels[0].index];
+        // While the machine wheel is still moving, show the numbers it will fill in.
+        const moving = !editingMachine && wheels[0].index !== settledIndex;
+        const { weight, sets, reps } = moving ? lastTime(machine) : wheelValues();
+        const keepName = editingMachine && machine.id === editingMachine.machineId; // old lines keep their written name
+        return { type: 'machine', machineId: machine.id, name: keepName ? editingMachine.name : machine.name, weight, sets, reps };
       }
 
       function preview() {
         if (!wheels) return;
-        const line = lineFromWheels();
-        const lines = editing ? data.lines.map((l) => (l === editing ? line : l)) : data.lines.concat(line);
-        const html = contentHtml(line, Rules.analyze(lines).marks.get(line.id));
+        const next = fields();
+        let type = 'text';
+        let html = '';
+        if (next) {
+          const line = { id: editing ? editing.id : PREVIEW_ID, ...next };
+          const lines = editing ? data.lines.map((l) => (l === editing ? line : l)) : data.lines.concat(line);
+          type = line.type;
+          html = contentHtml(line, Rules.analyze(lines).marks.get(line.id));
+        }
         if (editing) {
-          showInRow(editing, html);
+          showInRow(editing, type, html);
         } else {
-          setRowContent(rowNext, html, 'is-pencil');
+          setRowContent(rowNext, html, type === 'text' ? 'is-pencil is-text' : 'is-pencil');
           clearRow(rowDate);
         }
       }
@@ -1484,41 +1484,41 @@ button {
         const index = wheels[0].index;
         if (index === settledIndex) return;
         settledIndex = index;
-        const machine = machines[index];
-        const values = editing
-          ? { weight: kgList[wheels[1].index], sets: SETS[wheels[2].index], reps: REPS[wheels[3].index] }
-          : lastTime(machine);
-        kgList = Rules.kgOptions(machine.step, values.weight);
-        wheels[1].setItems(kgList.map(formatKg), indexOr(kgList, values.weight));
+        const values = editingMachine ? wheelValues() : lastTime(machines[index]);
+        kgList = Rules.kgOptions(values.weight);
+        wheels[1].setItems(kgList.map(formatKg), indexOr(kgList, round2(values.weight)));
         wheels[2].setIndex(indexOr(SETS, values.sets, 2), false);
         wheels[3].setIndex(indexOr(REPS, values.reps, 9), false);
         preview();
       }
 
       function commitLine() {
-        const line = lineFromWheels();
-        if (editing) {
-          const { machineId, name, weight, sets, reps } = line;
-          Object.assign(editing, { machineId, name, weight, sets, reps });
-          delete editing.example;
-        } else {
-          data.lines.push({ ...line, id: newId('l') });
+        const next = fields();
+        if (next) {
+          if (editing) data.lines[data.lines.indexOf(editing)] = { id: editing.id, ...next };
+          else data.lines.push({ id: newId('l'), ...next });
+          save();
         }
-        save();
-        finish({ scroll: !editing });
+        finish({ scroll: !editing && !!next });
       }
 
-      activity = { kind: 'machine', line: editing };
+      busy = true;
       wheels = Sheet.open({
-        title: editing ? 'Change this line' : 'Log a machine',
-        columns: 'minmax(0, 1fr) 64px 44px 44px',
+        title: editing ? 'Change this line' : 'Add a line',
+        text: {
+          value: editing && editing.type === 'text' ? editing.text : '',
+          placeholder: hasWheels ? 'or write your own line' : 'write a line',
+        },
+        columns: 'minmax(0, 1fr) 56px 40px 40px',
         labels: [{ text: 'Machine', left: true }, { text: 'kg' }, { text: 'sets' }, { text: 'reps' }],
-        wheels: [
-          { label: 'Machine', align: 'left', items: machines.map((m) => m.name), index: machineIndex },
-          { label: 'Weight in kg', items: kgList.map(formatKg), index: indexOr(kgList, round2(start.weight)) },
-          { label: 'Sets', items: SETS.map(String), index: indexOr(SETS, start.sets, 2) },
-          { label: 'Reps', items: REPS.map(String), index: indexOr(REPS, start.reps, 9) },
-        ],
+        wheels: hasWheels
+          ? [
+              { label: 'Machine', align: 'left', items: machines.map((m) => m.name), index: machineIndex },
+              { label: 'Weight in kg', items: kgList.map(formatKg), index: indexOr(kgList, round2(start.weight)) },
+              { label: 'Sets', items: SETS.map(String), index: indexOr(SETS, start.sets, 2) },
+              { label: 'Reps', items: REPS.map(String), index: indexOr(REPS, start.reps, 9) },
+            ]
+          : [],
         actionLabel: editing ? 'Save' : 'Log',
         onChange: preview,
         onSettle: (i) => { if (i === 0) followMachine(); },
@@ -1562,7 +1562,7 @@ button {
         if (!wheels) return;
         const html = contentHtml({ type: 'date', date: picked() });
         if (editing) {
-          showInRow(editing, html);
+          showInRow(editing, 'date', html);
         } else {
           clearRow(rowNext); // this becomes the skipped line
           setRowContent(rowDate, html, 'is-pencil is-bold');
@@ -1571,17 +1571,13 @@ button {
 
       function commitDate() {
         const date = picked();
-        if (editing) {
-          editing.date = date;
-          delete editing.example;
-        } else {
-          data.lines.push({ id: newId('l'), type: 'date', date });
-        }
+        if (editing) data.lines[data.lines.indexOf(editing)] = { id: editing.id, type: 'date', date };
+        else data.lines.push({ id: newId('l'), type: 'date', date });
         save();
         finish({ scroll: !editing });
       }
 
-      activity = { kind: 'date', line: editing };
+      busy = true;
       wheels = Sheet.open({
         title: editing ? 'Change the date' : 'Start a new date',
         columns: '64px 64px 84px',
@@ -1628,22 +1624,22 @@ button {
 
     addArea.addEventListener('click', (e) => {
       const button = e.target.closest('[data-action]');
-      if (!button) return;
-      const active = document.activeElement;
-      if (active && active.classList.contains('line-input')) active.blur(); // finish any open line first
-      const action = button.dataset.action;
-      if (action === 'text') writeLine();
-      else if (action === 'machine') openMachineSheet(null);
-      else if (action === 'date') openDateSheet(null);
+      if (!button || busy) return;
+      if (button.dataset.action === 'line') openLineSheet(null);
+      else openDateSheet(null);
+    });
+
+    // The empty paper below the add line also starts a new date.
+    filler.addEventListener('click', () => {
+      if (!busy) openDateSheet(null);
     });
 
     createRowGestures(linesEl, {
       onTap(row) {
         const line = data.lines.find((l) => l.id === row.dataset.key);
-        if (!line || activity) return;
-        if (line.type === 'text') rewriteLine(line, row);
-        else if (line.type === 'machine') openMachineSheet(line);
-        else openDateSheet(line);
+        if (!line || busy) return;
+        if (line.type === 'date') openDateSheet(line);
+        else openLineSheet(line);
       },
       onDelete: (row) => removeLine(row.dataset.key),
     });
@@ -1672,11 +1668,9 @@ button {
       list.innerHTML = data.machines
         .map((m) => {
           const name = escapeHtml(m.name);
-          const step = formatKg(m.step);
           return (
             `<div class="row row--machine" role="listitem" tabindex="0" data-key="${escapeHtml(m.id)}">` +
-            `<div class="row-content"><span class="name">${name}</span>` +
-            `<button class="step-btn" type="button" data-step="${escapeHtml(m.id)}" aria-label="${name}: the kg wheel moves ${step} per step. Tap to change.">+${step}</button></div>` +
+            `<div class="row-content"><span class="name">${name}</span></div>` +
             `<button class="row-delete" type="button" tabindex="-1" aria-label="Remove ${name}"><span>Delete</span></button>` +
             '</div>'
           );
@@ -1699,7 +1693,7 @@ button {
         const l = data.lines[i];
         if (l.type === 'machine' && sameName(l.name, clean) && !data.machines.some((m) => m.id === l.machineId)) oldId = l.machineId;
       }
-      data.machines.push({ id: oldId || newId('m'), name: clean, step: DEFAULT_KG_STEP });
+      data.machines.push({ id: oldId || newId('m'), name: clean });
       save();
       renderList();
     }
@@ -1761,16 +1755,6 @@ button {
       });
     }
 
-    function cycleStep(button) {
-      const machine = data.machines.find((m) => m.id === button.dataset.step);
-      if (!machine) return;
-      const hadFocus = document.activeElement === button;
-      machine.step = KG_STEPS[(KG_STEPS.indexOf(machine.step) + 1) % KG_STEPS.length];
-      save();
-      renderList();
-      if (hadFocus) list.querySelector(`.step-btn[data-step="${CSS.escape(machine.id)}"]`).focus();
-    }
-
     addRow.addEventListener('click', (e) => {
       if (e.target.closest('.pencil-btn')) startAdding();
     });
@@ -1788,15 +1772,11 @@ button {
     });
 
     createRowGestures(list, {
-      onTap(row, target) {
-        const stepButton = target.closest('.step-btn');
-        if (stepButton) cycleStep(stepButton);
-        else rename(row);
-      },
+      onTap: rename,
       onDelete: (row) => removeMachine(row.dataset.key),
     });
 
-    return { render, startAdding };
+    return { render };
   })();
 
   /* ==========================================================================
@@ -1809,7 +1789,7 @@ button {
     const cog = byId('cogBtn');
     let notebookScrollY = 0;
 
-    function showSettings({ addMachine = false } = {}) {
+    function showSettings() {
       Sheet.cancel();
       notebookScrollY = window.scrollY;
       notebook.hidden = true;
@@ -1818,7 +1798,6 @@ button {
       SettingsView.render();
       window.scrollTo(0, 0);
       NotebookView.updateTodayButton();
-      if (addMachine) SettingsView.startAdding();
     }
 
     function showNotebook() {
@@ -1830,13 +1809,13 @@ button {
       NotebookView.updateTodayButton();
     }
 
-    function openSettings(options) {
+    function openSettings() {
       try {
         history.pushState({ view: 'settings' }, '');
       } catch (_) {
         /* history not available (sandboxed frame): the back arrow still works */
       }
-      showSettings(options);
+      showSettings();
     }
 
     function closeSettings() {
@@ -1880,7 +1859,7 @@ button {
       });
     }
 
-    return { start, openSettings };
+    return { start };
   })();
 
   App.start();
