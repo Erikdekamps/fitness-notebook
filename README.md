@@ -14,7 +14,7 @@ Edit `index.html`. What you edit is what runs.
 npm test    # run the unit tests (needs Node 22, nothing to install)
 ```
 
-CI runs the tests on every pull request.
+CI runs the tests on every pull request. On `main` the deploy runs them first and publishes nothing when they fail.
 
 ## How index.html is laid out
 

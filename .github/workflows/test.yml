@@ -1,10 +1,12 @@
-# Runs the unit tests. They read the app's logic straight out of index.html.
+# Runs the unit tests on every pull request.
+# They read the app's logic straight out of index.html.
+#
+# Not run on main: there the deploy workflow runs the same tests first
+# and does not publish when they fail.
 name: Test
 
 on:
   pull_request:
-  push:
-    branches: [main]
 
 permissions:
   contents: read
