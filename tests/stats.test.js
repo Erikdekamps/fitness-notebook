@@ -3,8 +3,9 @@ import assert from 'node:assert/strict';
 import { load } from './load.js';
 
 const {
-  sessionDates, mondayOf, weekBefore, weeksInARow, monthCells, countTrained, inRows,
-  tallyMarks, machineHistory, chartScale, chartPoints, monthLabels,
+  sessionDates, monthOf, monthParts, shiftMonth, monthRange, clampMonth, mondayOf, weekBefore, weeksInARow,
+  monthCells, countTrained, inRows, tallyMarks, machineHistory, changeIndexes, weightChanges,
+  chartScale, chartRows, axisValues, chartPoints, spacedOut, monthLabels,
 } = load('stats');
 
 const date = (iso) => ({ type: 'date', date: iso });
@@ -102,7 +103,66 @@ test('monthLabels: first point of each month, skipping labels that would collide
   const points = [{ date: '2026-09-05' }, { date: '2026-09-19' }, { date: '2026-10-10' }, { date: '2026-11-16' }];
   const at = (xs) => xs.map((x) => ({ x, y: 0 }));
   assert.deepEqual(monthLabels(points, at([0, 50, 100, 150]), 44), [
-    { x: 0, month: 9 }, { x: 100, month: 10 }, { x: 150, month: 11 },
+    { x: 0, year: 2026, month: 9 }, { x: 100, year: 2026, month: 10 }, { x: 150, year: 2026, month: 11 },
   ]);
-  assert.deepEqual(monthLabels(points, at([0, 10, 20, 60]), 44), [{ x: 0, month: 9 }, { x: 60, month: 11 }]);
+  assert.deepEqual(monthLabels(points, at([0, 10, 20, 60]), 44), [{ x: 0, year: 2026, month: 9 }, { x: 60, year: 2026, month: 11 }]);
+});
+
+test('months: of a date, parts, and stepping across a year', () => {
+  assert.equal(monthOf('2026-11-18'), '2026-11');
+  assert.deepEqual(monthParts('2026-03'), { y: 2026, m: 3 });
+  assert.equal(shiftMonth('2026-11', -1), '2026-10');
+  assert.equal(shiftMonth('2026-12', 1), '2027-01');
+  assert.equal(shiftMonth('2026-01', -1), '2025-12');
+  assert.equal(shiftMonth('2026-03', -14), '2025-01');
+});
+
+test('monthRange: from the oldest session month to the month of today', () => {
+  assert.deepEqual(monthRange(new Set(['2026-09-05', '2025-12-06', '2026-11-16']), '2026-11-20'), { first: '2025-12', last: '2026-11' });
+  assert.deepEqual(monthRange(new Set(), '2026-11-20'), { first: '2026-11', last: '2026-11' });
+  // a session dated after today does not stretch the range forward
+  assert.deepEqual(monthRange(new Set(['2027-01-01']), '2026-11-20'), { first: '2026-11', last: '2026-11' });
+});
+
+test('clampMonth: stays inside the range', () => {
+  const range = { first: '2026-09', last: '2026-11' };
+  assert.equal(clampMonth('2026-10', range), '2026-10');
+  assert.equal(clampMonth('2026-08', range), '2026-09');
+  assert.equal(clampMonth('2026-12', range), '2026-11');
+});
+
+test('changeIndexes and weightChanges: the first time, and every time the weight is new', () => {
+  const points = [
+    { date: '2026-09-05', weight: 65 }, { date: '2026-09-12', weight: 65 },
+    { date: '2026-09-19', weight: 70 }, { date: '2026-10-10', weight: 75 },
+    { date: '2026-10-17', weight: 75 }, { date: '2026-11-16', weight: 70 },
+  ];
+  assert.deepEqual(changeIndexes(points), [0, 2, 3, 5]);
+  assert.deepEqual(weightChanges(points).map((p) => `${p.date} ${p.weight}`), ['2026-09-05 65', '2026-09-19 70', '2026-10-10 75', '2026-11-16 70']);
+  assert.deepEqual(changeIndexes([]), []);
+});
+
+test('chartRows: just enough lines, never fewer than 2 or more than the maximum', () => {
+  assert.equal(chartRows([65, 80], { top: 80, perLine: 5 }, 5), 4);
+  assert.equal(chartRows([45, 80], { top: 80, perLine: 10 }, 5), 5);
+  assert.equal(chartRows([80], { top: 80, perLine: 2.5 }, 5), 2);
+  assert.equal(chartRows([0, 1000], { top: 1000, perLine: 100 }, 5), 5);
+});
+
+test('axisValues: one kg value per line, top first, never below zero', () => {
+  assert.deepEqual(axisValues({ top: 80, perLine: 5 }, 4), [
+    { row: 0, value: 80 }, { row: 1, value: 75 }, { row: 2, value: 70 }, { row: 3, value: 65 },
+  ]);
+  assert.deepEqual(axisValues({ top: 2.5, perLine: 2.5 }, 3), [{ row: 0, value: 2.5 }, { row: 1, value: 0 }]);
+});
+
+test('spacedOut', () => {
+  assert.equal(spacedOut([66, 124, 211, 298], 50), true);
+  assert.equal(spacedOut([66, 100, 211], 50), false);
+  assert.equal(spacedOut([], 50), true);
+});
+
+test('monthLabels: carries the year, so a label can show it', () => {
+  const points = [{ date: '2025-12-06' }, { date: '2026-01-24' }];
+  assert.deepEqual(monthLabels(points, [{ x: 0 }, { x: 100 }], 44), [{ x: 0, year: 2025, month: 12 }, { x: 100, year: 2026, month: 1 }]);
 });
