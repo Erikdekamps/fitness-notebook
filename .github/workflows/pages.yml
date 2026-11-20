@@ -1,4 +1,4 @@
-# Publishes the app (index.html) and the design screens to GitHub Pages
+# Publishes the app (index.html and its font) and the design screens to GitHub Pages
 # every time main changes.
 name: Deploy to GitHub Pages
 
@@ -18,11 +18,11 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  deploy:
+  # Two jobs on purpose: the site is uploaded in one and deployed in the next.
+  # Deploying in the same job, a split second after the upload, can fail with
+  # "No artifacts named github-pages were found".
+  build:
     runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - name: Check out the repo
         uses: actions/checkout@v4
@@ -50,6 +50,13 @@ jobs:
         with:
           path: _site
 
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
       - name: Deploy
         id: deployment
         uses: actions/deploy-pages@v4
