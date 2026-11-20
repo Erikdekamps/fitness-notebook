@@ -44,4 +44,4 @@ The rule of thumb: anything that decides something (what mark a line gets, what 
 
 - `fonts/`: the handwriting font.
 - `tests/`: the unit tests.
-- `design/`: the design screens, as pictures.
+- `design/`: the design screens, as pictures and pages.
