@@ -20,8 +20,10 @@ The numbers and dates on the screens are examples.
 | 5. Settings | Machines and backup, cog icon | [png](5-settings-machines.png) | [html](5-settings-machines.html) |
 | 5. Settings | Export: saved as a JSON file | [png](5-settings-export.png) | [html](5-settings-export.html) |
 | 5. Settings | Import: check the file, then replace | [png](5-settings-import.png) | [html](5-settings-import.html) |
-| 6. Statistics | This month, chart icon | [png](6-statistics-month.png) | [html](6-statistics-month.html) |
-| 6. Statistics | One machine over time | [png](6-statistics-machine.png) | [html](6-statistics-machine.html) |
+| 6. Statistics | This month: only an arrow back | [png](6-statistics-month.png) | [html](6-statistics-month.html) |
+| 6. Statistics | An older month: arrows both ways | [png](6-statistics-older-month.png) | [html](6-statistics-older-month.html) |
+| 6. Statistics | One machine: weights and dates | [png](6-statistics-machine.png) | [html](6-statistics-machine.html) |
+| 6. Statistics | One machine with a year of data | [png](6-statistics-machine-year.png) | [html](6-statistics-machine-year.html) |
 
 ## What is built
 
