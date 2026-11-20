@@ -1,10 +1,10 @@
 # Fitness Notebook
 
-A fitness log that looks and feels like a paper notebook. The whole app is one file, `index.html`: no build step, no dependencies, no network needs. Your notebook is saved in the browser you open it in.
+A fitness log that looks and feels like a paper notebook. The whole app is one page, `index.html`, plus its handwriting font in `fonts/`. No build step and no dependencies. Your notebook is saved in the browser you open it in.
 
 ## Use it
 
-Open `index.html` in a browser, or the GitHub Pages site once that is switched on.
+Open `index.html` in a browser, or the GitHub Pages site once that is switched on. Keep the `fonts/` folder next to it; without the font file the page still works, in another handwriting font.
 
 ## Change it
 
@@ -18,7 +18,7 @@ CI runs the tests on every pull request.
 
 ## How index.html is laid out
 
-1. `<style>`: all styles, in numbered sections. The handwriting font sits at the very end as one long line.
+1. `<style>`: all styles, in numbered sections. The font is loaded from `fonts/caveat-latin.woff2`.
 2. `<body>`: the markup of the screens.
 3. The script, split into blocks with one job each. Every block adds one object to a shared `FN` object and takes what it needs from blocks above it, so the order matters.
 
@@ -42,5 +42,6 @@ The rule of thumb: anything that decides something (what mark a line gets, what 
 
 ## Other folders
 
+- `fonts/`: the handwriting font.
 - `tests/`: the unit tests.
 - `design/`: the design screens, as pictures and pages.

@@ -42,6 +42,7 @@ jobs:
         run: |
           mkdir _site
           cp index.html _site/
+          cp -r fonts _site/fonts
           cp -r design _site/design
 
       - name: Upload the site
