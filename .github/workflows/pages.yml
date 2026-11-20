@@ -1,5 +1,9 @@
 # Publishes the app (index.html and its font) and the design screens to GitHub Pages
 # every time main changes.
+#
+# Three jobs in a chain: test -> build -> deploy.
+# Each one only starts when the one before it succeeded,
+# so a failing test means nothing is built and nothing goes live.
 name: Deploy to GitHub Pages
 
 on:
@@ -18,10 +22,7 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
-  # Two jobs on purpose: the site is uploaded in one and deployed in the next.
-  # Deploying in the same job, a split second after the upload, can fail with
-  # "No artifacts named github-pages were found".
-  build:
+  test:
     runs-on: ubuntu-latest
     steps:
       - name: Check out the repo
@@ -34,6 +35,13 @@ jobs:
 
       - name: Unit tests
         run: npm test
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v4
 
       - name: Set up Pages
         uses: actions/configure-pages@v5
@@ -50,6 +58,9 @@ jobs:
         with:
           path: _site
 
+  # A job of its own, so it starts well after the upload has finished.
+  # Deploying a split second after the upload can fail with
+  # "No artifacts named github-pages were found".
   deploy:
     needs: build
     runs-on: ubuntu-latest
