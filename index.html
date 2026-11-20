@@ -609,7 +609,7 @@ button {
   const KG_MAX = 300;
   const SETS = range(1, 10);
   const REPS = range(1, 50);
-  const FIRST_TIME_VALUES = { weight: 20, sets: 3, reps: 10 };
+  const FIRST_TIME_VALUES = { weight: 20, sets: 3, reps: 12 };
   const YEARS_BACK = 5;
 
   const WHEEL_ITEM_PX = 36;     // keep in sync with --wheel-item
@@ -1582,7 +1582,7 @@ button {
         kgList = Rules.kgOptions(values.weight);
         wheels[1].setItems(kgList.map(formatKg), indexOr(kgList, round2(values.weight)));
         wheels[2].setIndex(indexOr(SETS, values.sets, 2), false);
-        wheels[3].setIndex(indexOr(REPS, values.reps, 9), false);
+        wheels[3].setIndex(indexOr(REPS, values.reps, 11), false);
         preview();
       }
 
@@ -1610,7 +1610,7 @@ button {
               { label: 'Machine', align: 'left', items: machines.map((m) => m.name), index: machineIndex },
               { label: 'Weight in kg', items: kgList.map(formatKg), index: indexOr(kgList, round2(start.weight)) },
               { label: 'Sets', items: SETS.map(String), index: indexOr(SETS, start.sets, 2) },
-              { label: 'Reps', items: REPS.map(String), index: indexOr(REPS, start.reps, 9) },
+              { label: 'Reps', items: REPS.map(String), index: indexOr(REPS, start.reps, 11) },
             ]
           : [],
         actionLabel: editing ? 'Save' : 'Log',
