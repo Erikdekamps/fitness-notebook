@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#e8d3bc">
+<meta name="color-scheme" content="light">
+<meta name="format-detection" content="telephone=no, date=no, address=no, email=no">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Notebook">
+<meta name="description" content="Log gym sessions on endless notebook paper.">
+<title>Fitness Notebook</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%23e8d3bc'/%3E%3Cpath d='M10 24h44M10 36h44M10 48h44' stroke='%235a5048' stroke-width='2'/%3E%3Cpath d='M15 31c4-7 8-7 10 0s7 7 11 0' stroke='%231d3a8a' stroke-width='4' fill='none' stroke-linecap='round'/%3E%3C/svg%3E">
+<style>
+/*__CSS__*/
+</style>
+</head>
+<body>
+
+<main id="notebook" aria-label="Notebook">
+  <div class="page">
+    <div id="lines" class="bleed" role="list" aria-label="Notebook lines"></div>
+    <div id="addArea" class="bleed">
+      <div id="rowNext" class="add-row"></div>
+      <div id="rowDate" class="add-row"></div>
+    </div>
+    <div id="notebookFiller" class="filler"></div>
+  </div>
+</main>
+
+<section id="settings" aria-labelledby="settingsTitle" hidden>
+  <div class="page">
+    <div class="title-row">
+      <button class="back-btn" type="button" data-back="notebook" aria-label="Back to the notebook">
+        <svg width="14" height="24" viewBox="0 0 14 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M11 3l-8 9 8 9"/></svg>
+      </button>
+      <h1 id="settingsTitle">Settings</h1>
+    </div>
+    <div class="blank" aria-hidden="true"></div>
+    <h2 class="section-title">machines</h2>
+    <div id="machineList" class="bleed" role="list" aria-label="Machines"></div>
+    <div id="addMachineRow" class="bleed add-row add-row--pencil"></div>
+    <div class="blank" aria-hidden="true"></div>
+    <h2 class="section-title">backup</h2>
+    <button id="exportBtn" class="stat-link" type="button"><span>export to a file</span><svg width="12" height="22" viewBox="0 0 12 22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2 3l8 8-8 8"/></svg></button>
+    <button id="importBtn" class="stat-link" type="button"><span>import from a file</span><svg width="12" height="22" viewBox="0 0 12 22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2 3l8 8-8 8"/></svg></button>
+    <input id="importFile" type="file" accept="application/json,.json" aria-label="Backup file to import" hidden>
+    <div class="blank" aria-hidden="true"></div>
+    <button id="removeExamples" class="text-btn" type="button" hidden>remove the example lines</button>
+    <div class="filler" aria-hidden="true"></div>
+  </div>
+</section>
+
+<section id="stats" aria-labelledby="statsTitle" hidden>
+  <div class="page">
+    <div class="title-row">
+      <button class="back-btn" type="button" data-back="notebook" aria-label="Back to the notebook">
+        <svg width="14" height="24" viewBox="0 0 14 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M11 3l-8 9 8 9"/></svg>
+      </button>
+      <h1 id="statsTitle">Statistics</h1>
+    </div>
+    <div class="blank" aria-hidden="true"></div>
+    <div id="statsBody"></div>
+    <div class="filler" aria-hidden="true"></div>
+  </div>
+</section>
+
+<section id="machineStats" aria-labelledby="machineStatsTitle" hidden>
+  <div class="page">
+    <div class="title-row">
+      <button class="back-btn" type="button" data-back="stats" aria-label="Back to statistics">
+        <svg width="14" height="24" viewBox="0 0 14 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M11 3l-8 9 8 9"/></svg>
+      </button>
+      <h1 id="machineStatsTitle">Machine</h1>
+    </div>
+    <div class="blank" aria-hidden="true"></div>
+    <div id="machineStatsBody"></div>
+    <div class="filler" aria-hidden="true"></div>
+  </div>
+</section>
+
+<div class="topbar" aria-hidden="true"></div>
+
+<button id="statsBtn" class="cog stats-btn" type="button" aria-label="Statistics">
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 20h18M6 16v-4M12 16V6M18 16V9"/></svg>
+</button>
+
+<button id="cogBtn" class="cog" type="button" aria-label="Settings">
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10.12 4.64L10.48 1.91A10.2 10.2 0 0 1 13.52 1.91L13.88 4.64A7.6 7.6 0 0 1 15.88 5.46L18.05 3.79A10.2 10.2 0 0 1 20.21 5.95L18.54 8.12A7.6 7.6 0 0 1 19.36 10.12L22.09 10.48A10.2 10.2 0 0 1 22.09 13.52L19.36 13.88A7.6 7.6 0 0 1 18.54 15.88L20.21 18.05A10.2 10.2 0 0 1 18.05 20.21L15.88 18.54A7.6 7.6 0 0 1 13.88 19.36L13.52 22.09A10.2 10.2 0 0 1 10.48 22.09L10.12 19.36A7.6 7.6 0 0 1 8.12 18.54L5.95 20.21A10.2 10.2 0 0 1 3.79 18.05L5.46 15.88A7.6 7.6 0 0 1 4.64 13.88L1.91 13.52A10.2 10.2 0 0 1 1.91 10.48L4.64 10.12A7.6 7.6 0 0 1 5.46 8.12L3.79 5.95A10.2 10.2 0 0 1 5.95 3.79L8.12 5.46A7.6 7.6 0 0 1 10.12 4.64Z"/><circle cx="12" cy="12" r="3"/></svg>
+</button>
+
+<button id="todayBtn" class="today" type="button" aria-label="Back to today">
+  <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M11 3v15M4 12l7 7 7-7"/></svg>
+</button>
+
+<div id="backdrop" class="backdrop" hidden></div>
+
+<div id="sheet" class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+  <div class="sheet-inner">
+    <h2 id="sheetTitle" class="visually-hidden">Log a line</h2>
+    <div id="sheetInfo" class="sheet-info" hidden></div>
+    <div class="sheet-pickers">
+      <div id="sheetLabels" class="sheet-cols sheet-labels" aria-hidden="true"></div>
+      <div class="wheels">
+        <div class="wheels-band" aria-hidden="true"></div>
+        <div id="sheetWheels" class="sheet-cols"></div>
+      </div>
+    </div>
+    <input id="sheetText" class="sheet-text" type="text" autocomplete="off" autocapitalize="sentences" enterkeyhint="done" aria-label="Write your own line" hidden>
+    <button id="sheetAction" class="sheet-action" type="button">Log</button>
+    <button id="sheetCancel" class="sheet-cancel" type="button" hidden>Cancel</button>
+  </div>
+</div>
+
+<div id="toast" class="toast" role="status" aria-live="polite">
+  <span id="toastText"></span>
+  <button id="toastUndo" type="button">Undo</button>
+</div>
+
+<script>
+/*__JS__*/
+</script>
+</body>
+</html>
