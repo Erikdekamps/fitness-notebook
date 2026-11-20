@@ -2,14 +2,9 @@
   "name": "fitness-notebook",
   "version": "1.0.0",
   "private": true,
-  "description": "A fitness log that looks and feels like a paper notebook. Builds to one self-contained index.html.",
+  "description": "A fitness log that looks and feels like a paper notebook. The whole app is one file: index.html.",
   "type": "module",
   "scripts": {
-    "build": "node build.mjs",
-    "check": "node build.mjs --check",
     "test": "node --test"
-  },
-  "devDependencies": {
-    "esbuild": "^0.25.0"
   }
 }

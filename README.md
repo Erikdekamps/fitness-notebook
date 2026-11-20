@@ -1,6 +1,6 @@
 # Fitness Notebook
 
-A fitness log that looks and feels like a paper notebook. The whole app is one file, `index.html`, with no network needs. Your notebook is saved in the browser you open it in.
+A fitness log that looks and feels like a paper notebook. The whole app is one file, `index.html`: no build step, no dependencies, no network needs. Your notebook is saved in the browser you open it in.
 
 ## Use it
 
@@ -8,41 +8,39 @@ Open `index.html` in a browser, or the GitHub Pages site once that is switched o
 
 ## Change it
 
-`index.html` is built. Do not edit it by hand: change the files in `src/` and build again.
+Edit `index.html`. What you edit is what runs.
 
 ```sh
-npm install      # once
-npm test         # run the unit tests
-npm run build    # write index.html from src/
-npm run check    # fail when index.html does not match src/
+npm test    # run the unit tests (needs Node 22, nothing to install)
 ```
 
-Commit `index.html` together with the source change. CI runs the tests and the check on every pull request.
+CI runs the tests on every pull request.
 
-## Where things are
+## How index.html is laid out
 
-```
-src/
-  index.template.html   the page's HTML; CSS and script are put in by the build
-  styles.css            all styles
-  font.css              the handwriting font, embedded
-  js/
-    config.js           every fixed value
-    util.js             small pure helpers
-    dates.js            dates as "YYYY-MM-DD"
-    notebook.js         the notebook's rules: marks, wheel values, sorting   (pure, tested)
-    stats.js            the numbers behind the statistics                    (pure, tested)
-    backup.js           notebook to JSON file and back                       (pure, tested)
-    storage.js          reading and writing localStorage                     (tested)
-    state.js            the one notebook the app is showing
-    dom.js              small helpers that touch the page
-    navigation.js       how a view asks the app to change screen
-    app.js              start-up and moving between screens
-    ui/                 building blocks: wheel, sheet, row gestures, text field, toast
-    views/              one file per screen: notebook, settings, statistics
-tests/                  unit tests for the pure files (node --test)
-design/                 the design screens, as pictures and pages
-build.mjs               the build
-```
+1. `<style>`: all styles, in numbered sections. The handwriting font sits at the very end as one long line.
+2. `<body>`: the markup of the screens.
+3. The script, split into blocks with one job each. Every block adds one object to a shared `FN` object and takes what it needs from blocks above it, so the order matters.
 
-The rule of thumb: anything that decides something (what mark a line gets, what a backup file may contain, how a chart is scaled) lives in a pure file and has tests. The `ui/` and `views/` files only draw and listen.
+| Block | Job | Unit tested |
+| --- | --- | --- |
+| `util` | small pure helpers | yes |
+| `config` | every fixed value | yes |
+| `dates` | dates as "YYYY-MM-DD" | yes |
+| `storage` | reading and writing localStorage | yes |
+| `notebook` | the notebook's rules: marks, wheel values, sorting | yes |
+| `backup` | notebook to JSON file and back | yes |
+| `stats` | the numbers behind the statistics | yes |
+| `dom` | small helpers that touch the page | |
+| `state` | the one notebook the app is showing | |
+| `navigation` | how a view asks the app to change screen | |
+| `toast`, `lineInput`, `wheel`, `sheet`, `rowGestures` | building blocks of the screens | |
+| `notebookView`, `settingsView`, `statsView` | one per screen | |
+| `app` | start-up and moving between screens | |
+
+The rule of thumb: anything that decides something (what mark a line gets, what a backup file may contain, how a chart is scaled) lives in a block marked `data-testable`. Those blocks never touch the page, so `tests/load.js` can read them out of `index.html` and run them in Node. The other blocks only draw and listen.
+
+## Other folders
+
+- `tests/`: the unit tests.
+- `design/`: the design screens, as pictures and pages.

@@ -1,4 +1,4 @@
-# Runs the unit tests and checks that index.html matches the sources.
+# Runs the unit tests. They read the app's logic straight out of index.html.
 name: Test
 
 on:
@@ -20,13 +20,6 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-
-      - name: Install
-        run: npm ci
 
       - name: Unit tests
         run: npm test
-
-      - name: index.html is built from the current sources
-        run: npm run check

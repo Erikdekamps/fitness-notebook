@@ -1,9 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import {
+import { load } from './load.js';
+
+const {
   sessionDates, mondayOf, weekBefore, weeksInARow, monthCells, countTrained, inRows,
   tallyMarks, machineHistory, chartScale, chartPoints, monthLabels,
-} from '../src/js/stats.js';
+} = load('stats');
 
 const date = (iso) => ({ type: 'date', date: iso });
 const lift = (machineId, weight) => ({ type: 'machine', machineId, weight });

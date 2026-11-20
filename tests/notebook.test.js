@@ -1,9 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import {
+import { load } from './load.js';
+
+const {
   linesInDateOrder, markFor, analyzeLines, machinesInCurrentDay, kgOptions,
   sortMachines, withoutExamples, exampleNotebook,
-} from '../src/js/notebook.js';
+} = load('notebook');
 
 const date = (id, iso) => ({ id, type: 'date', date: iso });
 const text = (id, words) => ({ id, type: 'text', text: words });

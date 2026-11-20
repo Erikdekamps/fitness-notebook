@@ -1,8 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import {
+import { load } from './load.js';
+
+const {
   backupFileName, cleanMachine, cleanLine, toBackup, toBackupJson, parseBackup, describeNotebook,
-} from '../src/js/backup.js';
+} = load('backup');
 
 const notebook = {
   version: 1,

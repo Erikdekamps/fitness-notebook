@@ -31,13 +31,9 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
 
-      - name: Install, test and build
-        run: |
-          npm ci
-          npm test
-          npm run build
+      - name: Unit tests
+        run: npm test
 
       - name: Set up Pages
         uses: actions/configure-pages@v5

@@ -1,9 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { range, clamp, round2, formatKg, cleanName, sameName, newId, indexOr, escapeHtml } from '../src/js/util.js';
-import { Dates } from '../src/js/dates.js';
-import { isNotebook, loadNotebook, saveNotebook } from '../src/js/storage.js';
-import { STORAGE_KEY } from '../src/js/config.js';
+import { load } from './load.js';
+
+const { range, clamp, round2, formatKg, cleanName, sameName, newId, indexOr, escapeHtml } = load('util');
+const { Dates } = load('dates');
+const { isNotebook, loadNotebook, saveNotebook } = load('storage');
+const { STORAGE_KEY } = load('config');
 
 test('util: numbers', () => {
   assert.deepEqual(range(1, 4), [1, 2, 3, 4]);
