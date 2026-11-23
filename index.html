@@ -281,6 +281,24 @@ button {
 
 .stats-btn { right: max(52px, calc((100vw - var(--page-max)) / 2 + 52px)); }
 
+.timer-btn {
+  position: fixed;
+  z-index: 10;
+  top: var(--safe-top);
+  left: max(12px, calc((100vw - var(--page-max)) / 2 + 12px));
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 44px;
+  padding: 0 8px;
+  color: var(--pencil);
+  font: 700 26px/1 var(--font-hand);
+  font-variant-numeric: tabular-nums;
+}
+
+.timer-btn.is-over { color: var(--pen); }
+.timer-extra { color: var(--pencil); font-weight: 500; }
+
 .today {
   right: max(20px, calc((100vw - var(--page-max)) / 2 + 20px));
   bottom: calc(28px + var(--safe-bottom));
@@ -578,6 +596,11 @@ button {
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10.12 4.64L10.48 1.91A10.2 10.2 0 0 1 13.52 1.91L13.88 4.64A7.6 7.6 0 0 1 15.88 5.46L18.05 3.79A10.2 10.2 0 0 1 20.21 5.95L18.54 8.12A7.6 7.6 0 0 1 19.36 10.12L22.09 10.48A10.2 10.2 0 0 1 22.09 13.52L19.36 13.88A7.6 7.6 0 0 1 18.54 15.88L20.21 18.05A10.2 10.2 0 0 1 18.05 20.21L15.88 18.54A7.6 7.6 0 0 1 13.88 19.36L13.52 22.09A10.2 10.2 0 0 1 10.48 22.09L10.12 19.36A7.6 7.6 0 0 1 8.12 18.54L5.95 20.21A10.2 10.2 0 0 1 3.79 18.05L5.46 15.88A7.6 7.6 0 0 1 4.64 13.88L1.91 13.52A10.2 10.2 0 0 1 1.91 10.48L4.64 10.12A7.6 7.6 0 0 1 5.46 8.12L3.79 5.95A10.2 10.2 0 0 1 5.95 3.79L8.12 5.46A7.6 7.6 0 0 1 10.12 4.64Z"/><circle cx="12" cy="12" r="3"/></svg>
 </button>
 
+<button id="timerBtn" class="timer-btn" type="button" hidden>
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9 2h6"/></svg>
+  <span id="timerTime"></span><span id="timerExtra" class="timer-extra"></span>
+</button>
+
 <button id="todayBtn" class="today" type="button" aria-label="Back to today">
   <svg width="22" height="22" viewBox="0 0 22 22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M11 3v15M4 12l7 7 7-7"/></svg>
 </button>
@@ -670,6 +693,7 @@ button {
 
   const STORAGE_KEY = 'fitness-notebook.v1';
   const PREFS_KEY = 'fitness-notebook.prefs.v1'; // settings, kept apart from the notebook and its backups
+  const TIMER_KEY = 'fitness-notebook.timer.v1'; // when the running rest timer ends, so it survives a reload
   const DAY_NAMES = ['zo', 'ma', 'di', 'wo', 'do', 'vr', 'za']; // Dutch, as in the paper notebook
   const MONTH_NAMES = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september', 'oktober', 'november', 'december'];
   const MONTH_SHORT = ['jan', 'feb', 'mrt', 'apr', 'mei', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'];
@@ -682,6 +706,7 @@ button {
   const REST_STEP_S = 15;       // every notch on the rest time wheel
   const REST_TIMES_S = range(1, 40).map((n) => n * REST_STEP_S); // 0:15 to 10:00
   const DEFAULT_PREFS = { timerOn: true, restSeconds: 90 };
+  const TIMER_OVERTIME_S = 600; // after rest is over, the timer counts up this long and then goes away
 
   const WHEEL_ITEM_PX = 36;     // keep in sync with --wheel-item
   const DELETE_WIDTH_PX = 96;   // width of the revealed Delete button
@@ -701,7 +726,7 @@ button {
     down: svg(16, 22, 2, '<path d="M8 2v17M2 13l6 6 6-6"/>'),
   };
 
-  FN.config = { STORAGE_KEY, PREFS_KEY, DAY_NAMES, MONTH_NAMES, MONTH_SHORT, KG_STEP, KG_MAX, SETS, REPS, FIRST_TIME_VALUES, YEARS_BACK, REST_TIMES_S, DEFAULT_PREFS, WHEEL_ITEM_PX, DELETE_WIDTH_PX, RULE_INSET_PX, OPEN_OFFSET_PX, FULL_SWIPE, UNDO_MS, PREVIEW_ID, BLANK_ROW, svg, Icons };
+  FN.config = { STORAGE_KEY, PREFS_KEY, TIMER_KEY, DAY_NAMES, MONTH_NAMES, MONTH_SHORT, KG_STEP, KG_MAX, SETS, REPS, FIRST_TIME_VALUES, YEARS_BACK, REST_TIMES_S, DEFAULT_PREFS, TIMER_OVERTIME_S, WHEEL_ITEM_PX, DELETE_WIDTH_PX, RULE_INSET_PX, OPEN_OFFSET_PX, FULL_SWIPE, UNDO_MS, PREVIEW_ID, BLANK_ROW, svg, Icons };
 })(globalThis.FN = globalThis.FN || {});
 </script>
 
@@ -1259,6 +1284,63 @@ button {
 })(globalThis.FN = globalThis.FN || {});
 </script>
 
+<script data-module="restTimer" data-testable>
+/**
+ * The rest timer, as numbers. A running timer is only the time it ends (ms since 1970),
+ * so it stays right when the phone sleeps or the page reloads.
+ */
+(function (FN) {
+  'use strict';
+  const { TIMER_KEY, TIMER_OVERTIME_S } = FN.config;
+  const { Prefs } = FN.prefs;
+
+  const RestTimer = {
+    /** When a rest of `restSeconds` started at `now` ends. */
+    endsAt(now, restSeconds) {
+      return now + restSeconds * 1000;
+    },
+
+    /**
+     * What the timer shows at `now`:
+     *   { over: false, time: "1:28" }                  resting
+     *   { over: true, time: "go", extra: "+0:08" }     rest is over, counting up
+     *   null                                           no timer, or over for too long
+     */
+    reading(endsAt, now) {
+      if (!Number.isFinite(endsAt)) return null;
+      const left = (endsAt - now) / 1000;
+      if (left > 0) return { over: false, time: Prefs.clock(Math.ceil(left)) };
+      const over = Math.floor(-left);
+      if (over >= TIMER_OVERTIME_S) return null;
+      return { over: true, time: 'go', extra: `+${Prefs.clock(over)}` };
+    },
+
+    /** The saved end time, or null. */
+    load(storage = globalThis.localStorage) {
+      try {
+        const value = JSON.parse(storage.getItem(TIMER_KEY));
+        return Number.isFinite(value) ? value : null;
+      } catch (_) {
+        return null;
+      }
+    },
+
+    /** Saves the end time; null clears it. */
+    save(endsAt, storage = globalThis.localStorage) {
+      try {
+        if (endsAt === null) storage.removeItem(TIMER_KEY);
+        else storage.setItem(TIMER_KEY, JSON.stringify(endsAt));
+        return true;
+      } catch (_) {
+        return false;
+      }
+    },
+  };
+
+  FN.restTimer = { RestTimer };
+})(globalThis.FN = globalThis.FN || {});
+</script>
+
 <script data-module="notebook" data-testable>
 /**
  * The notebook: its machines and its lines, and every change to them.
@@ -1344,8 +1426,14 @@ button {
      */
     logSet(fields) {
       const line = this.setLineFor(fields);
-      if (!line) return this.addLine({ ...fields, sets: 1 });
-      const { id, ...rest } = line;
+      return line ? this.addSet(line.id) : this.addLine({ ...fields, sets: 1 });
+    }
+
+    /** One more set on a machine line, wherever it is. Returns the line, or null when there is no such machine line. */
+    addSet(id) {
+      const line = this.line(id);
+      if (!line || line.type !== 'machine') return null;
+      const { id: _, example, ...rest } = line; // a demo line you add to becomes yours
       this.replaceLine(id, { ...rest, sets: line.sets + 1 });
       return this.line(id);
     }
@@ -1913,7 +2001,7 @@ button {
       this.action = byId('sheetAction');
       this.cancelButton = byId('sheetCancel');
       this.info = byId('sheetInfo');
-      this.behind = ['notebook', 'settings', 'cogBtn', 'statsBtn', 'todayBtn'].map(byId);
+      this.behind = ['notebook', 'settings', 'cogBtn', 'statsBtn', 'timerBtn', 'todayBtn'].map(byId);
       this.config = null;
       this.listen();
     }
@@ -2245,6 +2333,79 @@ button {
 
 <!-- ==== 3. Panels: adding and changing lines ================================================== -->
 
+<script data-module="timerButton">
+/** The rest timer, top left: starts when a set is logged, counts down, then says "go". Tap it to stop. */
+(function (FN) {
+  'use strict';
+  const { byId } = FN.dom;
+  const { RestTimer } = FN.restTimer;
+
+  class TimerButton {
+    /** prefs(): the settings right now, { timerOn, restSeconds }. */
+    constructor({ prefs }) {
+      this.prefs = prefs;
+      this.el = byId('timerBtn');
+      this.timeEl = byId('timerTime');
+      this.extraEl = byId('timerExtra');
+      this.endsAt = RestTimer.load();
+      this.shown = true; // false on screens other than the notebook
+      this.ticking = null;
+      this.el.addEventListener('click', () => this.stop());
+      document.addEventListener('visibilitychange', () => this.draw());
+      this.draw();
+    }
+
+    /** Starts a new rest, when the timer is switched on. A running rest starts over. */
+    start() {
+      const { timerOn, restSeconds } = this.prefs();
+      if (!timerOn) return;
+      this.endsAt = RestTimer.endsAt(Date.now(), restSeconds);
+      RestTimer.save(this.endsAt);
+      this.draw();
+    }
+
+    stop() {
+      this.endsAt = null;
+      RestTimer.save(null);
+      this.draw();
+    }
+
+    /** Picks up a timer started or stopped in another tab. */
+    reload() {
+      this.endsAt = RestTimer.load();
+      this.draw();
+    }
+
+    setShown(shown) {
+      this.shown = shown;
+      this.draw();
+    }
+
+    draw() {
+      const reading = RestTimer.reading(this.endsAt, Date.now());
+      if (!reading && this.endsAt !== null) this.stop(); // over for too long: put it away
+      this.el.hidden = !reading || !this.shown;
+      if (reading) {
+        this.el.classList.toggle('is-over', reading.over);
+        this.timeEl.textContent = reading.time;
+        this.extraEl.textContent = reading.extra || '';
+        this.el.setAttribute('aria-label', reading.over
+          ? `Rest timer: rest is over, ${reading.extra}. Tap to stop.`
+          : `Rest timer: ${reading.time} left. Tap to stop.`);
+      }
+      const run = !!reading && !document.hidden;
+      if (run && !this.ticking) this.ticking = setInterval(() => this.draw(), 250);
+      if (!run && this.ticking) {
+        clearInterval(this.ticking);
+        this.ticking = null;
+      }
+    }
+  }
+
+  FN.timerButton = { TimerButton };
+})(globalThis.FN = globalThis.FN || {});
+</script>
+
 <script data-module="lineEditor">
 /**
  * The add-or-change-a-line panel: machine wheels, or your own text.
@@ -2261,10 +2422,11 @@ button {
 
   class LineEditor {
     /** page: the notebook screen. It draws the pencil preview and hears when the panel closes. */
-    constructor({ notebook, sheet, page }) {
+    constructor({ notebook, sheet, page, timer }) {
       this.notebook = notebook;
       this.sheet = sheet;
       this.page = page;
+      this.timer = timer;
       this.wheels = null;
     }
 
@@ -2345,7 +2507,7 @@ button {
 
     /**
      * What Log would write: a text line when something is typed, else a machine line. Null when there is nothing.
-     * A new machine line has no sets yet: logging counts them. A changed line keeps its sets.
+     * A changed machine line keeps its sets; a new one starts at 1 (logging counts them).
      */
     fields() {
       const text = this.sheet.text();
@@ -2357,9 +2519,8 @@ button {
       const moving = !this.editingMachine && index !== this.settledIndex;
       const { weight, reps } = moving ? this.lastTime(machine) : this.wheelValues();
       const keepName = this.editingMachine && machine.id === this.editingMachine.machineId; // old lines keep their written name
-      const line = { type: 'machine', machineId: machine.id, name: keepName ? this.editingMachine.name : machine.name, weight, reps };
-      if (this.editingMachine) line.sets = this.editingMachine.sets;
-      return line;
+      const sets = this.editingMachine ? this.editingMachine.sets : 1;
+      return { type: 'machine', machineId: machine.id, name: keepName ? this.editingMachine.name : machine.name, weight, reps, sets };
     }
 
     /**
@@ -2369,23 +2530,42 @@ button {
     preview() {
       if (!this.wheels) return;
       const next = this.fields();
-      const setLine = this.editing ? null : this.notebook.setLineFor(next);
+      const setLine = this.setLineFor(next);
       if (this.shownOn && this.shownOn !== setLine) this.page.restoreRow(this.shownOn);
       this.shownOn = setLine;
-      if (!this.editing) this.sheet.setActionLabel(next && next.type === 'machine' ? `Log set ${setLine ? setLine.sets + 1 : 1}` : 'Log');
+      this.sheet.setActionLabel(this.actionLabel(next, setLine));
       if (!next) {
         this.page.preview(this.editing, 'text', '');
         return;
       }
       if (setLine) {
         const line = { ...setLine, sets: setLine.sets + 1 };
-        this.page.clearNext();
+        if (!this.editing) this.page.clearNext();
         this.page.preview(setLine, 'machine', LineMarkup.content(line, this.markFor(line, setLine.id)));
         return;
       }
       const editing = this.editing;
-      const line = { id: editing ? editing.id : PREVIEW_ID, sets: 1, ...next };
+      const line = { id: editing ? editing.id : PREVIEW_ID, ...next };
       this.page.preview(editing, line.type, LineMarkup.content(line, this.markFor(line, editing && editing.id)));
+    }
+
+    /**
+     * The line that Log adds one more set to, or null. When changing a machine line, that is the line
+     * itself while machine, kg and reps are unchanged; else the bottom line when it matches.
+     */
+    setLineFor(next) {
+      const line = this.editingMachine;
+      if (!line) return this.editing ? null : this.notebook.setLineFor(next);
+      const same = next && next.type === 'machine' && next.machineId === line.machineId &&
+        round2(next.weight) === round2(line.weight) && next.reps === line.reps;
+      return same ? line : null;
+    }
+
+    /** "Log set 3" when the button logs a set; "Save" when it changes a line; "Log" for a text line. */
+    actionLabel(next, setLine) {
+      if (setLine) return `Log set ${setLine.sets + 1}`;
+      if (this.editing) return 'Save';
+      return next && next.type === 'machine' ? 'Log set 1' : 'Log';
     }
 
     /** The mark a line would get: `replacesId` is the line it stands in for, or none for a new line. */
@@ -2409,10 +2589,17 @@ button {
 
     commit() {
       const next = this.fields();
-      if (next) {
-        if (this.editing) this.notebook.replaceLine(this.editing.id, next);
-        else if (next.type === 'machine') this.notebook.logSet(next);
-        else this.notebook.addLine(next);
+      const setLine = this.setLineFor(next);
+      if (setLine) {
+        this.notebook.addSet(setLine.id);
+        this.timer.start();
+      } else if (next && this.editing) {
+        this.notebook.replaceLine(this.editing.id, next);
+      } else if (next && next.type === 'machine') {
+        this.notebook.logSet(next);
+        this.timer.start();
+      } else if (next) {
+        this.notebook.addLine(next);
       }
       this.shownOn = null;
       this.page.done({ scroll: !this.editing && !!next });
@@ -2528,7 +2715,7 @@ button {
   const { DateEditor } = FN.dateEditor;
 
   class NotebookScreen {
-    constructor({ notebook, sheet, toast }) {
+    constructor({ notebook, sheet, toast, timer }) {
       this.notebook = notebook;
       this.sheet = sheet;
       this.toast = toast;
@@ -2540,7 +2727,7 @@ button {
       this.filler = byId('notebookFiller');
       this.todayBtn = byId('todayBtn');
       this.busy = false; // a panel is open
-      this.lineEditor = new LineEditor({ notebook, sheet, page: this });
+      this.lineEditor = new LineEditor({ notebook, sheet, page: this, timer });
       this.dateEditor = new DateEditor({ notebook, sheet, page: this });
       this.listen();
     }
@@ -3151,13 +3338,14 @@ button {
 /** Start-up and moving between the screens: notebook, settings, statistics, machine chart. */
 (function (FN) {
   'use strict';
-  const { STORAGE_KEY, PREFS_KEY } = FN.config;
+  const { STORAGE_KEY, PREFS_KEY, TIMER_KEY } = FN.config;
   const { byId, onNextFrame, scrollToBottom } = FN.dom;
   const { Store } = FN.store;
   const { Prefs } = FN.prefs;
   const { Notebook } = FN.notebook;
   const { Toast } = FN.toast;
   const { Sheet } = FN.sheet;
+  const { TimerButton } = FN.timerButton;
   const { NotebookScreen } = FN.notebookScreen;
   const { SettingsScreen } = FN.settingsScreen;
   const { MonthScreen } = FN.monthScreen;
@@ -3169,8 +3357,9 @@ button {
       this.sheet = new Sheet({ toast: this.toast });
       this.notebook = new Notebook(Store.load() || Notebook.exampleData(), { onSave: (data) => Store.save(data) });
       this.prefs = Prefs.load();
+      this.timer = new TimerButton({ prefs: () => this.prefs });
 
-      const parts = { notebook: this.notebook, sheet: this.sheet, toast: this.toast, app: this };
+      const parts = { notebook: this.notebook, sheet: this.sheet, toast: this.toast, timer: this.timer, app: this };
       this.screens = {
         notebook: new NotebookScreen(parts),
         settings: new SettingsScreen(parts),
@@ -3193,6 +3382,7 @@ button {
       this.current = target;
       for (const [name, screen] of Object.entries(this.screens)) screen.root.hidden = name !== target.view;
       this.topButtons.forEach((button) => { button.hidden = target.view !== 'notebook'; });
+      this.timer.setShown(target.view === 'notebook');
       this.refresh();
       window.scrollTo(0, target.view === 'notebook' ? this.notebookScrollY : 0);
       this.screens.notebook.updateTodayButton();
@@ -3202,6 +3392,7 @@ button {
     setPrefs(changes) {
       this.prefs = Prefs.clean({ ...this.prefs, ...changes });
       Prefs.save(this.prefs);
+      if (!this.prefs.timerOn) this.timer.stop();
     }
 
     /** Draws the screen that is showing again. */
@@ -3261,6 +3452,10 @@ button {
 
       // Another tab changed the notebook: show the new version.
       window.addEventListener('storage', (e) => {
+        if (e.key === TIMER_KEY) {
+          this.timer.reload();
+          return;
+        }
         if (e.key === PREFS_KEY) {
           this.prefs = Prefs.load();
           if (this.current.view === 'settings' && !this.sheet.isOpen()) this.refresh();

@@ -60,6 +60,17 @@ test('logSet: only the bottom line counts, and never an example line', () => {
   assert.equal(notebook.setLineFor({ type: 'text', text: 'x' }), null);
 });
 
+test('addSet: one more set on any machine line; a demo line becomes yours', () => {
+  const { notebook } = makeNotebook();
+  notebook.addLine({ type: 'text', text: 'Biking' });
+  assert.equal(notebook.addSet('l1').sets, 4); // not the bottom line: still fine
+  assert.equal(notebook.lines[1].id, 'l1');
+  notebook.lines[1].example = true;
+  assert.ok(!('example' in notebook.addSet('l1')));
+  assert.equal(notebook.addSet('d1'), null);
+  assert.equal(notebook.addSet('nope'), null);
+});
+
 test('replaceLine: same id and place, new contents', () => {
   const { notebook, saved } = makeNotebook();
   assert.equal(notebook.replaceLine('d1', { type: 'date', date: '2026-11-17' }), true);
