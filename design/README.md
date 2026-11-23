@@ -27,8 +27,8 @@ They are pictures of the real `index.html`, so they show what is built. Screens 
 | Plans | [19-new-plan-name.png](19-new-plan-name.png) | Settings, "tap here to add a plan": name the plan |
 | Plans | [20-plan-empty.png](20-plan-empty.png) | The new plan, still empty |
 | Plans | [21-plan-add-machine.png](21-plan-add-machine.png) | Pick a machine, or write a new one. The panel comes back for the next machine |
-| Plans | [22-plan.png](22-plan.png) | One plan: machine names in order. Drag the handle to move one, drag left to take it out |
-| Plans | [23-settings-plans.png](23-settings-plans.png) | Settings with two plans. Tap one to open it, drag left to remove it |
+| Plans | [22-plan.png](22-plan.png) | One plan: machine names in order. Drag the handle to move one, drag left to take it out. Tap the name at the top to change it |
+| Plans | [23-settings-plans.png](23-settings-plans.png) | Settings with two plans. Tap one to open it, drag left to remove it, like a line in the notebook |
 | A day from a plan | [24-new-date-plan.png](24-new-date-plan.png) | New date: the plan wheel on the right starts on "No plan". Pick a plan and its lines show in pencil |
 | A day from a plan | [25-plan-day-ready.png](25-plan-day-ready.png) | "Start Leg day": the panel opens on the first machine, with last time's kg and reps |
 | A day from a plan | [26-plan-log-next-set.png](26-plan-log-next-set.png) | After each set the panel comes back: "Log set 4", or on to the next machine |

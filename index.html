@@ -439,7 +439,8 @@ button {
   color: var(--pen);
 }
 
-.stat-link.is-danger { color: var(--danger); }
+#planTitle { flex: 1 1 auto; min-width: 0; }
+.title-btn { display: block; width: 100%; height: var(--line); overflow: hidden; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
 
 .row-handle { /* drag it to move a machine up or down in a plan */
   flex: none;
@@ -586,16 +587,12 @@ button {
       <button class="back-btn" type="button" data-back="settings" aria-label="Back to settings">
         <svg width="14" height="24" viewBox="0 0 14 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M11 3l-8 9 8 9"/></svg>
       </button>
-      <h1 id="planTitle">Plan</h1>
+      <h1 id="planTitle"></h1>
     </div>
     <div class="blank" aria-hidden="true"></div>
     <h2 class="section-title">machines, in order</h2>
     <div id="planMachines" class="bleed" role="list" aria-label="Machines in this plan"></div>
     <div id="planAddRow" class="bleed add-row add-row--pencil"></div>
-    <div class="blank" aria-hidden="true"></div>
-    <h2 class="section-title">this plan</h2>
-    <button id="planRename" class="stat-link" type="button"><span>change the name</span><svg width="12" height="22" viewBox="0 0 12 22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2 3l8 8-8 8"/></svg></button>
-    <button id="planRemove" class="stat-link is-danger" type="button"><span>remove this plan</span></button>
     <div class="filler" aria-hidden="true"></div>
   </div>
 </section>
@@ -3506,16 +3503,18 @@ button {
 /**
  * One plan: its machines in the order you do them. Names only, no kg or reps.
  * Drag the handle of a machine to move it, drag the row left to take it out.
+ * Tap the name at the top to change it. A plan is removed in settings, like a machine: drag it left.
  */
 (function (FN) {
   'use strict';
   const { Icons } = FN.config;
   const { escapeHtml, sameName, clamp } = FN.util;
-  const { byId } = FN.dom;
+  const { byId, shake } = FN.dom;
+  const { LineInput } = FN.lineInput;
   const { SwipeRows } = FN.swipeRows;
 
   class PlanScreen {
-    /** app: to go back to settings when the plan is removed. */
+    /** app: to draw the screen again after an undo. */
     constructor({ notebook, sheet, toast, app }) {
       this.notebook = notebook;
       this.sheet = sheet;
@@ -3532,10 +3531,16 @@ button {
 
     render({ planId }) {
       this.planId = planId;
-      const plan = this.notebook.plan(planId);
-      this.title.textContent = plan ? plan.name : 'Plan';
+      this.renderTitle();
       this.renderList();
       this.renderAddRow();
+    }
+
+    /** The plan's name, as a button: tap it to change the name. */
+    renderTitle() {
+      const plan = this.notebook.plan(this.planId);
+      const name = escapeHtml(plan ? plan.name : 'Plan');
+      this.title.innerHTML = `<button class="title-btn" type="button" aria-label="${name}: tap to change the name">${name}</button>`;
     }
 
     renderList() {
@@ -3599,39 +3604,28 @@ button {
       });
     }
 
-    /* ---- The plan itself ---- */
+    /* ---- The name ---- */
 
+    /** Turns the name into a text field, the way a machine is renamed in settings. */
     rename() {
       const plan = this.notebook.plan(this.planId);
       if (!plan) return;
-      this.sheet.open({
-        title: 'Change the name',
-        text: { value: plan.name, placeholder: 'name of the plan', label: 'Name of the plan' },
-        columns: 'none',
-        labels: [],
-        wheels: [],
-        actionLabel: 'Save',
-        onAction: () => {
-          const name = this.sheet.textField.value.trim();
-          if (!name || name === plan.name) return;
+      const field = new LineInput({
+        value: plan.name,
+        label: 'Name of the plan',
+        onSubmit: (name, el) => {
+          if (!name || name === plan.name) return 'close';
           if (this.notebook.planNameTaken(name, plan.id)) {
-            this.toast.show('There is a plan with that name already');
-            return;
+            shake(el);
+            return 'keep';
           }
           this.notebook.renamePlan(plan.id, name);
-          this.title.textContent = this.notebook.plan(plan.id).name;
+          return 'close';
         },
+        onClose: () => this.renderTitle(),
       });
-    }
-
-    remove() {
-      const undo = this.notebook.removePlan(this.planId);
-      if (!undo) return;
-      this.app.back('settings');
-      this.toast.show('Plan removed', () => {
-        undo();
-        this.app.refresh();
-      });
+      this.title.replaceChildren(field.el);
+      field.focus();
     }
 
     /* ---- Moving a machine up or down ---- */
@@ -3687,8 +3681,9 @@ button {
       this.addRow.addEventListener('click', (e) => {
         if (e.target.closest('.pencil-btn')) this.addMachine();
       });
-      byId('planRename').addEventListener('click', () => this.rename());
-      byId('planRemove').addEventListener('click', () => this.remove());
+      this.title.addEventListener('click', (e) => {
+        if (e.target.closest('.title-btn')) this.rename();
+      });
 
       new SwipeRows(this.list, {
         onTap: () => {},
