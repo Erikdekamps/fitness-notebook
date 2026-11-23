@@ -19,19 +19,14 @@ function memoryStorage(initial = {}) {
 test('RestTimer: counts down from the rest time', () => {
   const endsAt = RestTimer.endsAt(1000, 90);
   assert.equal(endsAt, 91000);
-  assert.deepEqual(RestTimer.reading(endsAt, 1000), { over: false, time: '1:30' });
-  assert.deepEqual(RestTimer.reading(endsAt, 2500), { over: false, time: '1:29' }); // 88.5 s left shows 1:29
-  assert.deepEqual(RestTimer.reading(endsAt, 90900), { over: false, time: '0:01' });
+  assert.equal(RestTimer.reading(endsAt, 1000), '1:30');
+  assert.equal(RestTimer.reading(endsAt, 2500), '1:29'); // 88.5 s left shows 1:29
+  assert.equal(RestTimer.reading(endsAt, 90900), '0:01');
 });
 
-test('RestTimer: says go when rest is over, and counts up', () => {
-  assert.deepEqual(RestTimer.reading(10000, 10000), { over: true, time: 'go', extra: '+0:00' });
-  assert.deepEqual(RestTimer.reading(10000, 18000), { over: true, time: 'go', extra: '+0:08' });
-});
-
-test('RestTimer: goes away 10 minutes after rest is over, or when there is none', () => {
-  assert.notEqual(RestTimer.reading(0, 599000), null);
-  assert.equal(RestTimer.reading(0, 600000), null);
+test('RestTimer: nothing to show when rest is over, or when there is no timer', () => {
+  assert.equal(RestTimer.reading(10000, 10000), null);
+  assert.equal(RestTimer.reading(10000, 18000), null);
   assert.equal(RestTimer.reading(null, 0), null);
 });
 

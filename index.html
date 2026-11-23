@@ -296,9 +296,6 @@ button {
   font-variant-numeric: tabular-nums;
 }
 
-.timer-btn.is-over { color: var(--pen); }
-.timer-extra { color: var(--pencil); font-weight: 500; }
-
 .today {
   right: max(20px, calc((100vw - var(--page-max)) / 2 + 20px));
   bottom: calc(28px + var(--safe-bottom));
@@ -598,7 +595,7 @@ button {
 
 <button id="timerBtn" class="timer-btn" type="button" hidden>
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9 2h6"/></svg>
-  <span id="timerTime"></span><span id="timerExtra" class="timer-extra"></span>
+  <span id="timerTime"></span>
 </button>
 
 <button id="todayBtn" class="today" type="button" aria-label="Back to today">
@@ -706,7 +703,6 @@ button {
   const REST_STEP_S = 15;       // every notch on the rest time wheel
   const REST_TIMES_S = range(1, 40).map((n) => n * REST_STEP_S); // 0:15 to 10:00
   const DEFAULT_PREFS = { timerOn: true, restSeconds: 90 };
-  const TIMER_OVERTIME_S = 600; // after rest is over, the timer counts up this long and then goes away
 
   const WHEEL_ITEM_PX = 36;     // keep in sync with --wheel-item
   const DELETE_WIDTH_PX = 96;   // width of the revealed Delete button
@@ -726,7 +722,7 @@ button {
     down: svg(16, 22, 2, '<path d="M8 2v17M2 13l6 6 6-6"/>'),
   };
 
-  FN.config = { STORAGE_KEY, PREFS_KEY, TIMER_KEY, DAY_NAMES, MONTH_NAMES, MONTH_SHORT, KG_STEP, KG_MAX, SETS, REPS, FIRST_TIME_VALUES, YEARS_BACK, REST_TIMES_S, DEFAULT_PREFS, TIMER_OVERTIME_S, WHEEL_ITEM_PX, DELETE_WIDTH_PX, RULE_INSET_PX, OPEN_OFFSET_PX, FULL_SWIPE, UNDO_MS, PREVIEW_ID, BLANK_ROW, svg, Icons };
+  FN.config = { STORAGE_KEY, PREFS_KEY, TIMER_KEY, DAY_NAMES, MONTH_NAMES, MONTH_SHORT, KG_STEP, KG_MAX, SETS, REPS, FIRST_TIME_VALUES, YEARS_BACK, REST_TIMES_S, DEFAULT_PREFS, WHEEL_ITEM_PX, DELETE_WIDTH_PX, RULE_INSET_PX, OPEN_OFFSET_PX, FULL_SWIPE, UNDO_MS, PREVIEW_ID, BLANK_ROW, svg, Icons };
 })(globalThis.FN = globalThis.FN || {});
 </script>
 
@@ -1291,7 +1287,7 @@ button {
  */
 (function (FN) {
   'use strict';
-  const { TIMER_KEY, TIMER_OVERTIME_S } = FN.config;
+  const { TIMER_KEY } = FN.config;
   const { Prefs } = FN.prefs;
 
   const RestTimer = {
@@ -1300,19 +1296,11 @@ button {
       return now + restSeconds * 1000;
     },
 
-    /**
-     * What the timer shows at `now`:
-     *   { over: false, time: "1:28" }                  resting
-     *   { over: true, time: "go", extra: "+0:08" }     rest is over, counting up
-     *   null                                           no timer, or over for too long
-     */
+    /** The time left at `now`, as "1:28"; null when there is no timer or rest is over. */
     reading(endsAt, now) {
       if (!Number.isFinite(endsAt)) return null;
       const left = (endsAt - now) / 1000;
-      if (left > 0) return { over: false, time: Prefs.clock(Math.ceil(left)) };
-      const over = Math.floor(-left);
-      if (over >= TIMER_OVERTIME_S) return null;
-      return { over: true, time: 'go', extra: `+${Prefs.clock(over)}` };
+      return left > 0 ? Prefs.clock(Math.ceil(left)) : null;
     },
 
     /** The saved end time, or null. */
@@ -2334,7 +2322,7 @@ button {
 <!-- ==== 3. Panels: adding and changing lines ================================================== -->
 
 <script data-module="timerButton">
-/** The rest timer, top left: starts when a set is logged, counts down, then says "go". Tap it to stop. */
+/** The rest timer, top left: starts when a set is logged and counts down. At 0:00 it goes away. Tap it to stop. */
 (function (FN) {
   'use strict';
   const { byId } = FN.dom;
@@ -2346,7 +2334,6 @@ button {
       this.prefs = prefs;
       this.el = byId('timerBtn');
       this.timeEl = byId('timerTime');
-      this.extraEl = byId('timerExtra');
       this.endsAt = RestTimer.load();
       this.shown = true; // false on screens other than the notebook
       this.ticking = null;
@@ -2382,18 +2369,14 @@ button {
     }
 
     draw() {
-      const reading = RestTimer.reading(this.endsAt, Date.now());
-      if (!reading && this.endsAt !== null) this.stop(); // over for too long: put it away
-      this.el.hidden = !reading || !this.shown;
-      if (reading) {
-        this.el.classList.toggle('is-over', reading.over);
-        this.timeEl.textContent = reading.time;
-        this.extraEl.textContent = reading.extra || '';
-        this.el.setAttribute('aria-label', reading.over
-          ? `Rest timer: rest is over, ${reading.extra}. Tap to stop.`
-          : `Rest timer: ${reading.time} left. Tap to stop.`);
+      const left = RestTimer.reading(this.endsAt, Date.now());
+      if (!left && this.endsAt !== null) this.stop(); // rest is over: put it away
+      this.el.hidden = !left || !this.shown;
+      if (left) {
+        this.timeEl.textContent = left;
+        this.el.setAttribute('aria-label', `Rest timer: ${left} left. Tap to stop.`);
       }
-      const run = !!reading && !document.hidden;
+      const run = !!left && !document.hidden;
       if (run && !this.ticking) this.ticking = setInterval(() => this.draw(), 250);
       if (!run && this.ticking) {
         clearInterval(this.ticking);
