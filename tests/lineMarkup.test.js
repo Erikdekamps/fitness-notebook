@@ -19,7 +19,7 @@ test('content: text is escaped', () => {
 test('content: a machine line has its name, the numbers and the mark', () => {
   const html = LineMarkup.content(machine, 'up');
   assert.match(html, /<span class="name">Leg press<\/span>/);
-  assert.match(html, /37\.5 × 3 × 12/);
+  assert.match(html, /37\.5 × 12 × 3/);
   assert.match(html, /heavier than last time/);
 });
 

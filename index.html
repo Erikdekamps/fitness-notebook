@@ -281,6 +281,21 @@ button {
 
 .stats-btn { right: max(52px, calc((100vw - var(--page-max)) / 2 + 52px)); }
 
+.timer-btn {
+  position: fixed;
+  z-index: 10;
+  top: var(--safe-top);
+  left: max(12px, calc((100vw - var(--page-max)) / 2 + 12px));
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 44px;
+  padding: 0 8px;
+  color: var(--pencil);
+  font: 700 26px/1 var(--font-hand);
+  font-variant-numeric: tabular-nums;
+}
+
 .today {
   right: max(20px, calc((100vw - var(--page-max)) / 2 + 20px));
   bottom: calc(28px + var(--safe-bottom));
@@ -449,6 +464,9 @@ button {
   text-align: left;
 }
 
+.stat-value { display: flex; align-items: center; gap: 10px; font-variant-numeric: tabular-nums; }
+.stat-value.is-off { color: var(--pencil); }
+
 .month-nav { display: flex; align-items: center; height: var(--line); font-weight: 700; }
 .month-name { flex: 1 1 0; text-align: center; }
 .month-arrow { flex: none; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 12px; color: var(--pen); }
@@ -523,6 +541,10 @@ button {
     <div id="machineList" class="bleed" role="list" aria-label="Machines"></div>
     <div id="addMachineRow" class="bleed add-row add-row--pencil"></div>
     <div class="blank" aria-hidden="true"></div>
+    <h2 class="section-title">rest timer</h2>
+    <button id="timerOnBtn" class="stat-link" type="button" role="switch" aria-checked="true"><span>timer after each set</span><span id="timerOnValue" class="stat-value">on</span></button>
+    <button id="restTimeBtn" class="stat-link" type="button"><span>rest time</span><span class="stat-value"><span id="restTimeValue">1:30</span><svg width="12" height="22" viewBox="0 0 12 22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2 3l8 8-8 8"/></svg></span></button>
+    <div class="blank" aria-hidden="true"></div>
     <h2 class="section-title">backup</h2>
     <button id="exportBtn" class="stat-link" type="button"><span>export to a file</span><svg width="12" height="22" viewBox="0 0 12 22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2 3l8 8-8 8"/></svg></button>
     <button id="importBtn" class="stat-link" type="button"><span>import from a file</span><svg width="12" height="22" viewBox="0 0 12 22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2 3l8 8-8 8"/></svg></button>
@@ -569,6 +591,11 @@ button {
 
 <button id="cogBtn" class="cog" type="button" aria-label="Settings">
   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10.12 4.64L10.48 1.91A10.2 10.2 0 0 1 13.52 1.91L13.88 4.64A7.6 7.6 0 0 1 15.88 5.46L18.05 3.79A10.2 10.2 0 0 1 20.21 5.95L18.54 8.12A7.6 7.6 0 0 1 19.36 10.12L22.09 10.48A10.2 10.2 0 0 1 22.09 13.52L19.36 13.88A7.6 7.6 0 0 1 18.54 15.88L20.21 18.05A10.2 10.2 0 0 1 18.05 20.21L15.88 18.54A7.6 7.6 0 0 1 13.88 19.36L13.52 22.09A10.2 10.2 0 0 1 10.48 22.09L10.12 19.36A7.6 7.6 0 0 1 8.12 18.54L5.95 20.21A10.2 10.2 0 0 1 3.79 18.05L5.46 15.88A7.6 7.6 0 0 1 4.64 13.88L1.91 13.52A10.2 10.2 0 0 1 1.91 10.48L4.64 10.12A7.6 7.6 0 0 1 5.46 8.12L3.79 5.95A10.2 10.2 0 0 1 5.95 3.79L8.12 5.46A7.6 7.6 0 0 1 10.12 4.64Z"/><circle cx="12" cy="12" r="3"/></svg>
+</button>
+
+<button id="timerBtn" class="timer-btn" type="button" hidden>
+  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9 2h6"/></svg>
+  <span id="timerTime"></span>
 </button>
 
 <button id="todayBtn" class="today" type="button" aria-label="Back to today">
@@ -662,6 +689,8 @@ button {
   const { range } = FN.util;
 
   const STORAGE_KEY = 'fitness-notebook.v1';
+  const PREFS_KEY = 'fitness-notebook.prefs.v1'; // settings, kept apart from the notebook and its backups
+  const TIMER_KEY = 'fitness-notebook.timer.v1'; // when the running rest timer ends, so it survives a reload
   const DAY_NAMES = ['zo', 'ma', 'di', 'wo', 'do', 'vr', 'za']; // Dutch, as in the paper notebook
   const MONTH_NAMES = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september', 'oktober', 'november', 'december'];
   const MONTH_SHORT = ['jan', 'feb', 'mrt', 'apr', 'mei', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'];
@@ -671,6 +700,9 @@ button {
   const REPS = range(1, 50);
   const FIRST_TIME_VALUES = { weight: 20, sets: 3, reps: 12 };
   const YEARS_BACK = 5;
+  const REST_STEP_S = 15;       // every notch on the rest time wheel
+  const REST_TIMES_S = range(1, 40).map((n) => n * REST_STEP_S); // 0:15 to 10:00
+  const DEFAULT_PREFS = { timerOn: true, restSeconds: 90 };
 
   const WHEEL_ITEM_PX = 36;     // keep in sync with --wheel-item
   const DELETE_WIDTH_PX = 96;   // width of the revealed Delete button
@@ -690,7 +722,7 @@ button {
     down: svg(16, 22, 2, '<path d="M8 2v17M2 13l6 6 6-6"/>'),
   };
 
-  FN.config = { STORAGE_KEY, DAY_NAMES, MONTH_NAMES, MONTH_SHORT, KG_STEP, KG_MAX, SETS, REPS, FIRST_TIME_VALUES, YEARS_BACK, WHEEL_ITEM_PX, DELETE_WIDTH_PX, RULE_INSET_PX, OPEN_OFFSET_PX, FULL_SWIPE, UNDO_MS, PREVIEW_ID, BLANK_ROW, svg, Icons };
+  FN.config = { STORAGE_KEY, PREFS_KEY, TIMER_KEY, DAY_NAMES, MONTH_NAMES, MONTH_SHORT, KG_STEP, KG_MAX, SETS, REPS, FIRST_TIME_VALUES, YEARS_BACK, REST_TIMES_S, DEFAULT_PREFS, WHEEL_ITEM_PX, DELETE_WIDTH_PX, RULE_INSET_PX, OPEN_OFFSET_PX, FULL_SWIPE, UNDO_MS, PREVIEW_ID, BLANK_ROW, svg, Icons };
 })(globalThis.FN = globalThis.FN || {});
 </script>
 
@@ -1196,6 +1228,107 @@ button {
 })(globalThis.FN = globalThis.FN || {});
 </script>
 
+<script data-module="prefs" data-testable>
+/**
+ * The settings of the app, saved in localStorage next to the notebook.
+ *
+ * Shape
+ *   { timerOn: true | false,   the rest timer is switched on
+ *     restSeconds: 90 }        how long the rest timer runs, one of REST_TIMES_S
+ */
+(function (FN) {
+  'use strict';
+  const { PREFS_KEY, REST_TIMES_S, DEFAULT_PREFS } = FN.config;
+
+  const Prefs = {
+    /** Settings with only known fields and allowed values; anything else falls back to the default. */
+    clean(value) {
+      const v = value && typeof value === 'object' ? value : {};
+      return {
+        timerOn: typeof v.timerOn === 'boolean' ? v.timerOn : DEFAULT_PREFS.timerOn,
+        restSeconds: REST_TIMES_S.includes(v.restSeconds) ? v.restSeconds : DEFAULT_PREFS.restSeconds,
+      };
+    },
+
+    /** The saved settings, or the defaults when there are none or they cannot be read. */
+    load(storage = globalThis.localStorage) {
+      try {
+        return Prefs.clean(JSON.parse(storage.getItem(PREFS_KEY)));
+      } catch (_) {
+        return Prefs.clean(null);
+      }
+    },
+
+    /** Saves settings. Returns false when storage is blocked. */
+    save(prefs, storage = globalThis.localStorage) {
+      try {
+        storage.setItem(PREFS_KEY, JSON.stringify(Prefs.clean(prefs)));
+        return true;
+      } catch (_) {
+        return false;
+      }
+    },
+
+    /** Seconds as a clock: 90 → "1:30", 5 → "0:05". */
+    clock(seconds) {
+      const s = Math.max(0, Math.round(seconds));
+      return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, '0')}`;
+    },
+  };
+
+  FN.prefs = { Prefs };
+})(globalThis.FN = globalThis.FN || {});
+</script>
+
+<script data-module="restTimer" data-testable>
+/**
+ * The rest timer, as numbers. A running timer is only the time it ends (ms since 1970),
+ * so it stays right when the phone sleeps or the page reloads.
+ */
+(function (FN) {
+  'use strict';
+  const { TIMER_KEY } = FN.config;
+  const { Prefs } = FN.prefs;
+
+  const RestTimer = {
+    /** When a rest of `restSeconds` started at `now` ends. */
+    endsAt(now, restSeconds) {
+      return now + restSeconds * 1000;
+    },
+
+    /** The time left at `now`, as "1:28"; null when there is no timer or rest is over. */
+    reading(endsAt, now) {
+      if (!Number.isFinite(endsAt)) return null;
+      const left = (endsAt - now) / 1000;
+      return left > 0 ? Prefs.clock(Math.ceil(left)) : null;
+    },
+
+    /** The saved end time, or null. */
+    load(storage = globalThis.localStorage) {
+      try {
+        const value = JSON.parse(storage.getItem(TIMER_KEY));
+        return Number.isFinite(value) ? value : null;
+      } catch (_) {
+        return null;
+      }
+    },
+
+    /** Saves the end time; null clears it. */
+    save(endsAt, storage = globalThis.localStorage) {
+      try {
+        if (endsAt === null) storage.removeItem(TIMER_KEY);
+        else storage.setItem(TIMER_KEY, JSON.stringify(endsAt));
+        return true;
+      } catch (_) {
+        return false;
+      }
+    },
+  };
+
+  FN.restTimer = { RestTimer };
+})(globalThis.FN = globalThis.FN || {});
+</script>
+
 <script data-module="notebook" data-testable>
 /**
  * The notebook: its machines and its lines, and every change to them.
@@ -1208,7 +1341,7 @@ button {
  */
 (function (FN) {
   'use strict';
-  const { newId, cleanName, sameName } = FN.util;
+  const { newId, cleanName, sameName, round2 } = FN.util;
 
   class Notebook {
     /** data: { version, machines, lines }. onSave(data) runs after every change. */
@@ -1261,6 +1394,36 @@ button {
       this.lines.push(line);
       this.save();
       return line;
+    }
+
+    /**
+     * The bottom line, when one more set of `fields` belongs on it: the same machine, kg and reps.
+     * Null when the set needs a line of its own. Example lines are never counted on.
+     */
+    setLineFor(fields) {
+      const last = this.lines[this.lines.length - 1];
+      const same =
+        last && !last.example && last.type === 'machine' && fields && fields.type === 'machine' &&
+        last.machineId === fields.machineId && round2(last.weight) === round2(fields.weight) && last.reps === fields.reps;
+      return same ? last : null;
+    }
+
+    /**
+     * Logs one set. It counts up the sets of the bottom line when that is the same machine, kg and reps;
+     * otherwise it writes a new line with 1 set. Returns the line.
+     */
+    logSet(fields) {
+      const line = this.setLineFor(fields);
+      return line ? this.addSet(line.id) : this.addLine({ ...fields, sets: 1 });
+    }
+
+    /** One more set on a machine line, wherever it is. Returns the line, or null when there is no such machine line. */
+    addSet(id) {
+      const line = this.line(id);
+      if (!line || line.type !== 'machine') return null;
+      const { id: _, example, ...rest } = line; // a demo line you add to becomes yours
+      this.replaceLine(id, { ...rest, sets: line.sets + 1 });
+      return this.line(id);
     }
 
     /** Rewrites a line in place, keeping its id and its position. */
@@ -1431,7 +1594,7 @@ button {
       if (line.type === 'text') return escapeHtml(line.text);
       return (
         `<span class="name">${escapeHtml(line.name)}</span>` +
-        `<span class="nums">${formatKg(line.weight)} × ${Number(line.sets)} × ${Number(line.reps)}</span>` +
+        `<span class="nums">${formatKg(line.weight)} × ${Number(line.reps)} × ${Number(line.sets)}</span>` +
         LineMarkup.mark(mark)
       );
     },
@@ -1826,9 +1989,14 @@ button {
       this.action = byId('sheetAction');
       this.cancelButton = byId('sheetCancel');
       this.info = byId('sheetInfo');
-      this.behind = ['notebook', 'settings', 'cogBtn', 'statsBtn', 'todayBtn'].map(byId);
+      this.behind = ['notebook', 'settings', 'cogBtn', 'statsBtn', 'timerBtn', 'todayBtn'].map(byId);
       this.config = null;
       this.listen();
+    }
+
+    /** Changes the text on the big button while the sheet is open. */
+    setActionLabel(text) {
+      if (this.config) this.action.textContent = text;
     }
 
     /** What is typed in the text field ('' when the sheet has none). */
@@ -2153,6 +2321,74 @@ button {
 
 <!-- ==== 3. Panels: adding and changing lines ================================================== -->
 
+<script data-module="timerButton">
+/** The rest timer, top left: starts when a set is logged and counts down. At 0:00 it goes away. Tap it to stop. */
+(function (FN) {
+  'use strict';
+  const { byId } = FN.dom;
+  const { RestTimer } = FN.restTimer;
+
+  class TimerButton {
+    /** prefs(): the settings right now, { timerOn, restSeconds }. */
+    constructor({ prefs }) {
+      this.prefs = prefs;
+      this.el = byId('timerBtn');
+      this.timeEl = byId('timerTime');
+      this.endsAt = RestTimer.load();
+      this.shown = true; // false on screens other than the notebook
+      this.ticking = null;
+      this.el.addEventListener('click', () => this.stop());
+      document.addEventListener('visibilitychange', () => this.draw());
+      this.draw();
+    }
+
+    /** Starts a new rest, when the timer is switched on. A running rest starts over. */
+    start() {
+      const { timerOn, restSeconds } = this.prefs();
+      if (!timerOn) return;
+      this.endsAt = RestTimer.endsAt(Date.now(), restSeconds);
+      RestTimer.save(this.endsAt);
+      this.draw();
+    }
+
+    stop() {
+      this.endsAt = null;
+      RestTimer.save(null);
+      this.draw();
+    }
+
+    /** Picks up a timer started or stopped in another tab. */
+    reload() {
+      this.endsAt = RestTimer.load();
+      this.draw();
+    }
+
+    setShown(shown) {
+      this.shown = shown;
+      this.draw();
+    }
+
+    draw() {
+      const left = RestTimer.reading(this.endsAt, Date.now());
+      if (!left && this.endsAt !== null) this.stop(); // rest is over: put it away
+      this.el.hidden = !left || !this.shown;
+      if (left) {
+        this.timeEl.textContent = left;
+        this.el.setAttribute('aria-label', `Rest timer: ${left} left. Tap to stop.`);
+      }
+      const run = !!left && !document.hidden;
+      if (run && !this.ticking) this.ticking = setInterval(() => this.draw(), 250);
+      if (!run && this.ticking) {
+        clearInterval(this.ticking);
+        this.ticking = null;
+      }
+    }
+  }
+
+  FN.timerButton = { TimerButton };
+})(globalThis.FN = globalThis.FN || {});
+</script>
+
 <script data-module="lineEditor">
 /**
  * The add-or-change-a-line panel: machine wheels, or your own text.
@@ -2160,20 +2396,20 @@ button {
  */
 (function (FN) {
   'use strict';
-  const { SETS, REPS, FIRST_TIME_VALUES, PREVIEW_ID } = FN.config;
+  const { REPS, FIRST_TIME_VALUES, PREVIEW_ID } = FN.config;
   const { round2, formatKg, indexOr } = FN.util;
   const { Progress } = FN.progress;
   const { LineMarkup } = FN.lineMarkup;
 
-  const SETS_FALLBACK = SETS.indexOf(FIRST_TIME_VALUES.sets);
   const REPS_FALLBACK = REPS.indexOf(FIRST_TIME_VALUES.reps);
 
   class LineEditor {
     /** page: the notebook screen. It draws the pencil preview and hears when the panel closes. */
-    constructor({ notebook, sheet, page }) {
+    constructor({ notebook, sheet, page, timer }) {
       this.notebook = notebook;
       this.sheet = sheet;
       this.page = page;
+      this.timer = timer;
       this.wheels = null;
     }
 
@@ -2181,6 +2417,7 @@ button {
     open(editing) {
       this.editing = editing;
       this.editingMachine = editing && editing.type === 'machine' ? editing : null;
+      this.shownOn = null; // the bottom line, while it shows one more set in pencil
       this.machines = this.pickableMachines();
       this.latest = Progress.analyzeLines(this.notebook.lines).latest;
       this.wheels = null;
@@ -2197,13 +2434,12 @@ button {
           value: editing && editing.type === 'text' ? editing.text : '',
           placeholder: hasWheels ? 'or write your own line' : 'write a line',
         },
-        columns: 'minmax(0, 1fr) 56px 40px 40px',
-        labels: [{ text: 'Machine', left: true }, { text: 'kg' }, { text: 'sets' }, { text: 'reps' }],
+        columns: 'minmax(0, 1fr) 64px 48px',
+        labels: [{ text: 'Machine', left: true }, { text: 'kg' }, { text: 'reps' }],
         wheels: hasWheels
           ? [
               { label: 'Machine', align: 'left', items: this.machines.map((m) => m.name), index: machineIndex },
               { label: 'Weight in kg', items: this.kgList.map(formatKg), index: indexOr(this.kgList, round2(start.weight)) },
-              { label: 'Sets', items: SETS.map(String), index: indexOr(SETS, start.sets, SETS_FALLBACK) },
               { label: 'Reps', items: REPS.map(String), index: indexOr(REPS, start.reps, REPS_FALLBACK) },
             ]
           : [],
@@ -2211,7 +2447,10 @@ button {
         onChange: () => this.preview(),
         onSettle: (i) => { if (i === 0) this.followMachine(); },
         onAction: () => this.commit(),
-        onCancel: () => this.page.done(),
+        onCancel: () => {
+          this.shownOn = null;
+          this.page.done();
+        },
       });
       this.preview();
       this.page.makeRoom(editing, 'line');
@@ -2225,10 +2464,16 @@ button {
       return machines;
     }
 
-    /** Where the machine wheel starts: the line's own machine, or the first one not done today. */
+    /**
+     * Where the machine wheel starts: the line's own machine; else the machine of the bottom line,
+     * so the next set is one tap; else the first one not done today.
+     */
     startMachineIndex() {
       if (this.editingMachine) return this.machines.findIndex((m) => m.id === this.editingMachine.machineId);
       if (!this.machines.length) return 0;
+      const last = this.notebook.lines[this.notebook.lines.length - 1];
+      const current = last && last.type === 'machine' && !last.example ? this.machines.findIndex((m) => m.id === last.machineId) : -1;
+      if (current !== -1) return current;
       const done = Progress.machinesInCurrentDay(this.notebook.lines);
       return Math.max(0, this.machines.findIndex((m) => !done.has(m.id)));
     }
@@ -2239,11 +2484,14 @@ button {
     }
 
     wheelValues() {
-      const [, kg, sets, reps] = this.wheels;
-      return { weight: this.kgList[kg.index], sets: SETS[sets.index], reps: REPS[reps.index] };
+      const [, kg, reps] = this.wheels;
+      return { weight: this.kgList[kg.index], reps: REPS[reps.index] };
     }
 
-    /** What Log would write: a text line when something is typed, else a machine line. Null when there is nothing. */
+    /**
+     * What Log would write: a text line when something is typed, else a machine line. Null when there is nothing.
+     * A changed machine line keeps its sets; a new one starts at 1 (logging counts them).
+     */
     fields() {
       const text = this.sheet.text();
       if (text) return { type: 'text', text };
@@ -2252,24 +2500,61 @@ button {
       const machine = this.machines[index];
       // While the machine wheel is still moving, show the numbers it will fill in.
       const moving = !this.editingMachine && index !== this.settledIndex;
-      const { weight, sets, reps } = moving ? this.lastTime(machine) : this.wheelValues();
+      const { weight, reps } = moving ? this.lastTime(machine) : this.wheelValues();
       const keepName = this.editingMachine && machine.id === this.editingMachine.machineId; // old lines keep their written name
-      return { type: 'machine', machineId: machine.id, name: keepName ? this.editingMachine.name : machine.name, weight, sets, reps };
+      const sets = this.editingMachine ? this.editingMachine.sets : 1;
+      return { type: 'machine', machineId: machine.id, name: keepName ? this.editingMachine.name : machine.name, weight, reps, sets };
     }
 
-    /** Shows the line in pencil, with the mark it would get. */
+    /**
+     * Shows the line in pencil, with the mark it would get. When Log adds a set to a line,
+     * nothing is previewed: that line keeps showing what is logged so far.
+     */
     preview() {
       if (!this.wheels) return;
       const next = this.fields();
+      const setLine = this.setLineFor(next);
+      if (this.shownOn && this.shownOn !== setLine) this.page.restoreRow(this.shownOn);
+      this.shownOn = setLine;
+      this.sheet.setActionLabel(this.actionLabel(next, setLine));
       if (!next) {
         this.page.preview(this.editing, 'text', '');
         return;
       }
+      if (setLine) {
+        // The set is not there until it is logged: the line stays as it is, the button says which set comes.
+        if (!this.editing) this.page.clearNext();
+        this.page.restoreRow(setLine);
+        return;
+      }
       const editing = this.editing;
       const line = { id: editing ? editing.id : PREVIEW_ID, ...next };
-      const lines = editing ? this.notebook.lines.map((l) => (l.id === editing.id ? line : l)) : this.notebook.lines.concat(line);
-      const mark = Progress.analyzeLines(lines).marks.get(line.id);
-      this.page.preview(editing, line.type, LineMarkup.content(line, mark));
+      this.page.preview(editing, line.type, LineMarkup.content(line, this.markFor(line, editing && editing.id)));
+    }
+
+    /**
+     * The line that Log adds one more set to, or null. When changing a machine line, that is the line
+     * itself while machine, kg and reps are unchanged; else the bottom line when it matches.
+     */
+    setLineFor(next) {
+      const line = this.editingMachine;
+      if (!line) return this.editing ? null : this.notebook.setLineFor(next);
+      const same = next && next.type === 'machine' && next.machineId === line.machineId &&
+        round2(next.weight) === round2(line.weight) && next.reps === line.reps;
+      return same ? line : null;
+    }
+
+    /** "Log set 3" when the button logs a set; "Save" when it changes a line; "Log" for a text line. */
+    actionLabel(next, setLine) {
+      if (setLine) return `Log set ${setLine.sets + 1}`;
+      if (this.editing) return 'Save';
+      return next && next.type === 'machine' ? 'Log set 1' : 'Log';
+    }
+
+    /** The mark a line would get: `replacesId` is the line it stands in for, or none for a new line. */
+    markFor(line, replacesId) {
+      const lines = replacesId ? this.notebook.lines.map((l) => (l.id === replacesId ? line : l)) : this.notebook.lines.concat(line);
+      return Progress.analyzeLines(lines).marks.get(line.id);
     }
 
     /** When the machine wheel stops on another machine, load that machine's numbers. */
@@ -2278,20 +2563,28 @@ button {
       if (index === this.settledIndex) return;
       this.settledIndex = index;
       const values = this.editingMachine ? this.wheelValues() : this.lastTime(this.machines[index]);
-      const [, kg, sets, reps] = this.wheels;
+      const [, kg, reps] = this.wheels;
       this.kgList = Progress.kgOptions(values.weight);
       kg.setItems(this.kgList.map(formatKg), indexOr(this.kgList, round2(values.weight)));
-      sets.setIndex(indexOr(SETS, values.sets, SETS_FALLBACK), false);
       reps.setIndex(indexOr(REPS, values.reps, REPS_FALLBACK), false);
       this.preview();
     }
 
     commit() {
       const next = this.fields();
-      if (next) {
-        if (this.editing) this.notebook.replaceLine(this.editing.id, next);
-        else this.notebook.addLine(next);
+      const setLine = this.setLineFor(next);
+      if (setLine) {
+        this.notebook.addSet(setLine.id);
+        this.timer.start();
+      } else if (next && this.editing) {
+        this.notebook.replaceLine(this.editing.id, next);
+      } else if (next && next.type === 'machine') {
+        this.notebook.logSet(next);
+        this.timer.start();
+      } else if (next) {
+        this.notebook.addLine(next);
       }
+      this.shownOn = null;
       this.page.done({ scroll: !this.editing && !!next });
     }
   }
@@ -2405,7 +2698,7 @@ button {
   const { DateEditor } = FN.dateEditor;
 
   class NotebookScreen {
-    constructor({ notebook, sheet, toast }) {
+    constructor({ notebook, sheet, toast, timer }) {
       this.notebook = notebook;
       this.sheet = sheet;
       this.toast = toast;
@@ -2417,7 +2710,7 @@ button {
       this.filler = byId('notebookFiller');
       this.todayBtn = byId('todayBtn');
       this.busy = false; // a panel is open
-      this.lineEditor = new LineEditor({ notebook, sheet, page: this });
+      this.lineEditor = new LineEditor({ notebook, sheet, page: this, timer });
       this.dateEditor = new DateEditor({ notebook, sheet, page: this });
       this.listen();
     }
@@ -2491,6 +2784,21 @@ button {
       const limit = window.innerHeight - sheetHeight - 16;
       const bottom = target.getBoundingClientRect().bottom;
       if (bottom > limit) window.scrollBy({ top: bottom - limit, behavior: 'smooth' });
+    }
+
+    /** Writes a line back in pen, after its row showed a preview. */
+    restoreRow(line) {
+      const row = this.rowFor(line);
+      const current = this.notebook.line(line.id);
+      if (!row || !current) return;
+      const { marks } = Progress.analyzeLines(this.notebook.lines);
+      row.outerHTML = LineMarkup.row(current, marks.get(current.id));
+    }
+
+    /** Empties the add line, while a set is counted on the line above it. */
+    clearNext() {
+      clearRow(this.rowNext);
+      clearRow(this.rowDate);
     }
 
     rowFor(line) {
@@ -2579,9 +2887,12 @@ button {
   const { Backup } = FN.backup;
   const { LineInput } = FN.lineInput;
   const { SwipeRows } = FN.swipeRows;
+  const { REST_TIMES_S } = FN.config;
+  const { indexOr } = FN.util;
+  const { Prefs } = FN.prefs;
 
   class SettingsScreen {
-    /** app: to draw whatever screen is showing again, after an import or an undo. */
+    /** app: to draw whatever screen is showing again, after an import or an undo. app.prefs holds the settings. */
     constructor({ notebook, sheet, toast, app }) {
       this.notebook = notebook;
       this.sheet = sheet;
@@ -2592,12 +2903,15 @@ button {
       this.addRow = byId('addMachineRow');
       this.examplesBtn = byId('removeExamples');
       this.importFile = byId('importFile');
+      this.timerOnBtn = byId('timerOnBtn');
+      this.restTimeBtn = byId('restTimeBtn');
       this.listen();
     }
 
     render() {
       this.renderList();
       this.renderAddRow();
+      this.renderTimer();
       this.examplesBtn.hidden = !this.notebook.hasExamples();
     }
 
@@ -2675,6 +2989,38 @@ button {
       });
     }
 
+    /* ---- Rest timer ---- */
+
+    renderTimer() {
+      const { timerOn, restSeconds } = this.app.prefs;
+      const value = byId('timerOnValue');
+      value.textContent = timerOn ? 'on' : 'off';
+      value.classList.toggle('is-off', !timerOn);
+      this.timerOnBtn.setAttribute('aria-checked', String(timerOn));
+      byId('restTimeValue').textContent = Prefs.clock(restSeconds);
+      this.restTimeBtn.hidden = !timerOn; // no rest time to pick while the timer is off
+    }
+
+    toggleTimer() {
+      this.app.setPrefs({ timerOn: !this.app.prefs.timerOn });
+      this.renderTimer();
+    }
+
+    pickRestTime() {
+      const [wheel] = this.sheet.open({
+        title: 'Rest time',
+        columns: '96px',
+        center: true,
+        labels: [{ text: 'rest' }],
+        wheels: [{ label: 'Rest time', items: REST_TIMES_S.map(Prefs.clock), index: indexOr(REST_TIMES_S, this.app.prefs.restSeconds) }],
+        actionLabel: 'Save',
+        onAction: () => {
+          this.app.setPrefs({ restSeconds: REST_TIMES_S[wheel.index] });
+          this.renderTimer();
+        },
+      });
+    }
+
     /* ---- Backup ---- */
 
     exportFile() {
@@ -2729,6 +3075,9 @@ button {
         onTap: (row) => this.rename(row),
         onDelete: (row) => this.removeMachine(row.dataset.key),
       });
+
+      this.timerOnBtn.addEventListener('click', () => this.toggleTimer());
+      this.restTimeBtn.addEventListener('click', () => this.pickRestTime());
 
       byId('exportBtn').addEventListener('click', () => this.exportFile());
       byId('importBtn').addEventListener('click', () => this.importFile.click());
@@ -2972,12 +3321,14 @@ button {
 /** Start-up and moving between the screens: notebook, settings, statistics, machine chart. */
 (function (FN) {
   'use strict';
-  const { STORAGE_KEY } = FN.config;
+  const { STORAGE_KEY, PREFS_KEY, TIMER_KEY } = FN.config;
   const { byId, onNextFrame, scrollToBottom } = FN.dom;
   const { Store } = FN.store;
+  const { Prefs } = FN.prefs;
   const { Notebook } = FN.notebook;
   const { Toast } = FN.toast;
   const { Sheet } = FN.sheet;
+  const { TimerButton } = FN.timerButton;
   const { NotebookScreen } = FN.notebookScreen;
   const { SettingsScreen } = FN.settingsScreen;
   const { MonthScreen } = FN.monthScreen;
@@ -2988,8 +3339,10 @@ button {
       this.toast = new Toast();
       this.sheet = new Sheet({ toast: this.toast });
       this.notebook = new Notebook(Store.load() || Notebook.exampleData(), { onSave: (data) => Store.save(data) });
+      this.prefs = Prefs.load();
+      this.timer = new TimerButton({ prefs: () => this.prefs });
 
-      const parts = { notebook: this.notebook, sheet: this.sheet, toast: this.toast, app: this };
+      const parts = { notebook: this.notebook, sheet: this.sheet, toast: this.toast, timer: this.timer, app: this };
       this.screens = {
         notebook: new NotebookScreen(parts),
         settings: new SettingsScreen(parts),
@@ -3012,9 +3365,17 @@ button {
       this.current = target;
       for (const [name, screen] of Object.entries(this.screens)) screen.root.hidden = name !== target.view;
       this.topButtons.forEach((button) => { button.hidden = target.view !== 'notebook'; });
+      this.timer.setShown(target.view === 'notebook');
       this.refresh();
       window.scrollTo(0, target.view === 'notebook' ? this.notebookScrollY : 0);
       this.screens.notebook.updateTodayButton();
+    }
+
+    /** Changes some settings and saves them. `changes` is part of { timerOn, restSeconds }. */
+    setPrefs(changes) {
+      this.prefs = Prefs.clean({ ...this.prefs, ...changes });
+      Prefs.save(this.prefs);
+      if (!this.prefs.timerOn) this.timer.stop();
     }
 
     /** Draws the screen that is showing again. */
@@ -3074,6 +3435,15 @@ button {
 
       // Another tab changed the notebook: show the new version.
       window.addEventListener('storage', (e) => {
+        if (e.key === TIMER_KEY) {
+          this.timer.reload();
+          return;
+        }
+        if (e.key === PREFS_KEY) {
+          this.prefs = Prefs.load();
+          if (this.current.view === 'settings' && !this.sheet.isOpen()) this.refresh();
+          return;
+        }
         const typing = document.activeElement && document.activeElement.classList.contains('line-input');
         if (e.key !== STORAGE_KEY || this.sheet.isOpen() || typing) return;
         this.notebook.reload(Store.load() || Notebook.exampleData());
