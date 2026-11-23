@@ -122,6 +122,12 @@ test('cleanPlan: needs an id and a name; machine ids are text, each once', () =>
   assert.deepEqual(Backup.cleanPlans('nope'), []);
 });
 
+test('cleanLine: a date keeps the name of the plan it started from, when it has one', () => {
+  assert.deepEqual(Backup.cleanLine({ id: 'x', type: 'date', date: '2026-11-23', plan: ' Leg  day ' }), { id: 'x', type: 'date', date: '2026-11-23', plan: 'Leg day' });
+  assert.deepEqual(Backup.cleanLine({ id: 'x', type: 'date', date: '2026-11-23', plan: 7 }), { id: 'x', type: 'date', date: '2026-11-23' });
+  assert.deepEqual(Backup.cleanLine({ id: 'x', type: 'date', date: '2026-11-23', plan: '  ' }), { id: 'x', type: 'date', date: '2026-11-23' });
+});
+
 test('cleanLine: a plan line needs a machine and a name', () => {
   assert.equal(Backup.cleanLine({ id: 'x', type: 'plan', machineId: 'm1' }), null);
   assert.equal(Backup.cleanLine({ id: 'x', type: 'plan', name: 'Leg press' }), null);

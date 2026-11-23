@@ -172,6 +172,7 @@ button {
 .row-content.is-animating { transition: transform .22s var(--ease); }
 .row--text > .row-content, .row-content.is-text { display: block; overflow-wrap: anywhere; }
 .row--date > .row-content, .is-bold { font-weight: 700; }
+.plan-name { min-width: 0; font-weight: 500; overflow-wrap: anywhere; } /* the plan a day was started from, after its date */
 .is-pencil { color: var(--pencil); }
 
 .name { min-width: 0; overflow-wrap: anywhere; }
@@ -908,7 +909,7 @@ button {
  * What the lines say about your training. Pure functions over lines.
  *
  * A line is one of
- *   { id, type: 'date', date }                                   date = "YYYY-MM-DD"
+ *   { id, type: 'date', date, plan }                             date = "YYYY-MM-DD"; plan = the name of the plan the day started from, if any
  *   { id, type: 'text', text }
  *   { id, type: 'machine', machineId, name, weight, sets, reps }
  *   { id, type: 'plan', machineId, name }                        a machine a plan put on the page, not logged yet
@@ -1147,7 +1148,7 @@ button {
  *   { "app": "fitness-notebook", "version": 1, "exportedAt": "<ISO time>", "unit": "kg",
  *     "machines": [{ id, name }],
  *     "plans": [{ id, name, machineIds: [machine id] }],          (may be missing in older files)
- *     "lines": [{ id, type: "date", date } | { id, type: "text", text } |
+ *     "lines": [{ id, type: "date", date, plan (optional) } | { id, type: "text", text } |
  *               { id, type: "machine", machineId, name, weight, sets, reps } |
  *               { id, type: "plan", machineId, name }] }
  * Rules for reading a file
@@ -1194,7 +1195,10 @@ button {
     cleanLine(line) {
       if (!line) return null;
       const id = typeof line.id === 'string' && line.id ? line.id : newId('l');
-      if (line.type === 'date' && /^\d{4}-\d{2}-\d{2}$/.test(line.date)) return { id, type: 'date', date: line.date };
+      if (line.type === 'date' && /^\d{4}-\d{2}-\d{2}$/.test(line.date)) {
+        const plan = typeof line.plan === 'string' ? cleanName(line.plan) : '';
+        return plan ? { id, type: 'date', date: line.date, plan } : { id, type: 'date', date: line.date };
+      }
       if (line.type === 'text' && typeof line.text === 'string' && line.text.trim()) return { id, type: 'text', text: line.text.trim() };
       if (
         line.type === 'machine' &&
@@ -1520,18 +1524,17 @@ button {
     }
 
     /**
-     * Starts a new day: writes the date and, with a plan, the plan's name and one pencil (plan) line per machine.
+     * Starts a new day: writes the date and, with a plan, the plan's name after it and one pencil (plan) line per machine.
      * Pencil lines left over from an earlier day are thrown away: what was never logged is not kept.
      * Returns { dateLine, planLines }.
      */
     startDay(date, planId = null) {
       const plan = planId ? this.plan(planId) : null;
       this.data.lines = this.lines.filter((l) => l.type !== 'plan');
-      const dateLine = { id: newId('l'), type: 'date', date };
+      const dateLine = plan ? { id: newId('l'), type: 'date', date, plan: plan.name } : { id: newId('l'), type: 'date', date };
       this.lines.push(dateLine);
       const planLines = [];
       if (plan) {
-        this.lines.push({ id: newId('l'), type: 'text', text: plan.name });
         for (const machine of this.planMachines(plan.id)) {
           planLines.push({ id: newId('l'), type: 'plan', machineId: machine.id, name: machine.name });
         }
@@ -1807,7 +1810,8 @@ button {
     content(line, mark) {
       if (line.type === 'date') {
         const { date, day } = Calendar.written(line.date);
-        return `<span>${date}</span><span>${day}</span>`;
+        const plan = line.plan ? `<span class="plan-name">${escapeHtml(line.plan)}</span>` : ''; // the plan the day started from
+        return `<span>${date}</span><span>${day}</span>${plan}`;
       }
       if (line.type === 'text') return escapeHtml(line.text);
       if (line.type === 'plan') return `<span class="name">${escapeHtml(line.name)}</span>`;
@@ -2964,22 +2968,23 @@ button {
       return wheel ? this.plans[wheel.index - 1] || null : null;
     }
 
-    /** The date in pencil and, under it, what the picked plan would write: its name and its machines. */
+    /** The date in pencil, with the picked plan's name after it and its machines under it. */
     preview() {
       if (!this.wheels) return;
       const plan = this.pickedPlan();
       const planRows = plan
-        ? `<div class="row-content is-pencil is-text">${escapeHtml(plan.name)}</div>` +
-          this.notebook.planMachines(plan.id).map((m) => `<div class="row-content is-pencil">${escapeHtml(m.name)}</div>`).join('')
+        ? this.notebook.planMachines(plan.id).map((m) => `<div class="row-content is-pencil">${escapeHtml(m.name)}</div>`).join('')
         : '';
+      const written = this.editing ? this.editing.plan : plan && plan.name; // a changed date keeps the plan it was started from
       this.sheet.setActionLabel(this.editing ? 'Save' : plan ? `Start ${plan.name}` : 'Log');
-      this.page.preview(this.editing, 'date', LineMarkup.content({ type: 'date', date: this.picked() }), planRows);
+      this.page.preview(this.editing, 'date', LineMarkup.content({ type: 'date', date: this.picked(), plan: written }), planRows);
     }
 
     commit() {
       const date = this.picked();
       if (this.editing) {
-        this.notebook.replaceLine(this.editing.id, { type: 'date', date });
+        const { plan } = this.editing;
+        this.notebook.replaceLine(this.editing.id, plan ? { type: 'date', date, plan } : { type: 'date', date });
         this.page.done();
         return;
       }

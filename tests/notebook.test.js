@@ -313,17 +313,19 @@ test('startDay: without a plan it writes only the date', () => {
   assert.deepEqual(planLines, []);
   assert.equal(notebook.lines.at(-1), dateLine);
   assert.deepEqual({ type: dateLine.type, date: dateLine.date }, { type: 'date', date: '2026-11-23' });
+  assert.ok(!('plan' in dateLine));
   assert.equal(notebook.lines.length, 3);
   assert.equal(saved.count, 1);
 });
 
-test('startDay: with a plan it writes the date, the name, and a pencil line per machine: names only', () => {
+test('startDay: with a plan it writes the date with the name after it, and a pencil line per machine: names only', () => {
   const { notebook, plan, saved } = makePlanned();
-  const { planLines } = notebook.startDay('2026-11-23', plan.id);
+  const { dateLine, planLines } = notebook.startDay('2026-11-23', plan.id);
   const day = notebook.lines.slice(2);
-  assert.deepEqual(day.map((l) => l.type), ['date', 'text', 'plan', 'plan']);
-  assert.equal(day[1].text, 'Leg day');
-  assert.deepEqual(planLines, day.slice(2));
+  assert.deepEqual(day.map((l) => l.type), ['date', 'plan', 'plan']);
+  assert.equal(day[0], dateLine);
+  assert.equal(dateLine.plan, 'Leg day');
+  assert.deepEqual(planLines, day.slice(1));
   assert.deepEqual(planLines.map(({ machineId, name }) => ({ machineId, name })), [
     { machineId: 'm-leg', name: 'Leg press' }, { machineId: 'm-chest', name: 'Chest press' },
   ]);
@@ -344,7 +346,7 @@ test('startDay: pencil lines never logged on an earlier day are thrown away', ()
   const first = notebook.startDay('2026-11-22', plan.id);
   notebook.replaceLine(first.planLines[0].id, { type: 'machine', machineId: 'm-leg', name: 'Leg press', weight: 80, sets: 1, reps: 12 });
   notebook.startDay('2026-11-23', plan.id);
-  assert.deepEqual(notebook.lines.map((l) => l.type), ['date', 'machine', 'date', 'text', 'machine', 'date', 'text', 'plan', 'plan']);
+  assert.deepEqual(notebook.lines.map((l) => l.type), ['date', 'machine', 'date', 'machine', 'date', 'plan', 'plan']);
 });
 
 test('addLineAfter: right under a line; at the bottom when that line is gone', () => {
