@@ -46,7 +46,7 @@ test('parse: refuses what is not ours', () => {
 test('parse: refuses a newer version, accepts the current one', () => {
   const file = { app: 'fitness-notebook', version: 2, machines: [], lines: [] };
   assert.equal(Backup.parse(JSON.stringify(file)).error, 'That file is from a newer version of the app');
-  assert.deepEqual(Backup.parse(JSON.stringify({ ...file, version: 1 })).data, { version: 1, machines: [], lines: [] });
+  assert.deepEqual(Backup.parse(JSON.stringify({ ...file, version: 1 })).data, { version: 1, machines: [], plans: [], lines: [] });
 });
 
 test('parse: ignores fields and line types it does not know', () => {
@@ -92,4 +92,43 @@ test('describe: counts, with singular and plural', () => {
   const many = { machines: [{}, {}], lines: [{ type: 'date', date: `${thisYear}-03-05` }, { type: 'text' }, { type: 'date', date: `${thisYear}-01-02` }] };
   assert.deepEqual(Backup.describe(many), ['3 lines, from 02/01 to 05/03', '2 machines']);
   assert.deepEqual(Backup.describe({ machines: [], lines: [] }), ['0 lines', '0 machines']);
+});
+
+/* ---- Plans ---- */
+
+test('round trip: plans and pencil (plan) lines come back as they were', () => {
+  const withPlans = {
+    ...data,
+    plans: [{ id: 'p1', name: 'Leg day', machineIds: ['m1'], colour: 'red' }],
+    lines: [...data.lines, { id: 'd', type: 'plan', machineId: 'm1', name: 'Leg press', example: true }],
+  };
+  const { data: back } = Backup.parse(Backup.toJson(withPlans, NOW));
+  assert.deepEqual(back.plans, [{ id: 'p1', name: 'Leg day', machineIds: ['m1'] }]);
+  assert.deepEqual(back.lines.at(-1), { id: 'd', type: 'plan', machineId: 'm1', name: 'Leg press' });
+});
+
+test('parse: a file from before plans has no plans', () => {
+  const file = { app: 'fitness-notebook', version: 1, machines: [], lines: [] };
+  assert.deepEqual(Backup.parse(JSON.stringify(file)).data.plans, []);
+  assert.deepEqual(Backup.toObject(data, NOW).plans, []);
+});
+
+test('cleanPlan: needs an id and a name; machine ids are text, each once', () => {
+  assert.deepEqual(Backup.cleanPlan({ id: 'p', name: ' Leg  day ', machineIds: ['a', 7, 'a', 'b'] }), { id: 'p', name: 'Leg day', machineIds: ['a', 'b'] });
+  assert.deepEqual(Backup.cleanPlan({ id: 'p', name: 'Leg day' }), { id: 'p', name: 'Leg day', machineIds: [] });
+  assert.equal(Backup.cleanPlan({ name: 'no id' }), null);
+  assert.equal(Backup.cleanPlan({ id: 'p', name: '  ' }), null);
+  assert.equal(Backup.cleanPlan(null), null);
+  assert.deepEqual(Backup.cleanPlans('nope'), []);
+});
+
+test('cleanLine: a plan line needs a machine and a name', () => {
+  assert.equal(Backup.cleanLine({ id: 'x', type: 'plan', machineId: 'm1' }), null);
+  assert.equal(Backup.cleanLine({ id: 'x', type: 'plan', name: 'Leg press' }), null);
+});
+
+test('describe: names the plans only when there are any', () => {
+  const some = { machines: [], lines: [], plans: [{ id: 'p', name: 'Leg day', machineIds: [] }] };
+  assert.deepEqual(Backup.describe(some), ['0 lines', '0 machines', '1 plan']);
+  assert.deepEqual(Backup.describe({ machines: [], lines: [], plans: [] }), ['0 lines', '0 machines']);
 });

@@ -191,3 +191,169 @@ test('exampleData: five days, every machine line points at a machine, every id i
   assert.ok(data.lines.filter((l) => l.type === 'machine').every((l) => ids.has(l.machineId)));
   assert.equal(new Set(data.lines.map((l) => l.id)).size, data.lines.length);
 });
+
+test('exampleData: a long list of machines with ids of their own, and no plans', () => {
+  const data = Notebook.exampleData();
+  assert.ok(data.machines.length >= 20);
+  assert.equal(new Set(data.machines.map((m) => m.id)).size, data.machines.length);
+  assert.equal(new Set(data.machines.map((m) => m.name.toLowerCase())).size, data.machines.length);
+  assert.ok(data.machines.some((m) => m.id === 'm-leg-press' && m.name === 'Leg press')); // the ids older notebooks use
+  assert.deepEqual(data.plans, []);
+});
+
+test('ready: data saved before plans existed gets an empty list of plans', () => {
+  const { notebook } = makeNotebook();
+  assert.deepEqual(notebook.plans, []);
+  notebook.replaceAll({ version: 1, machines: [], lines: [] });
+  assert.deepEqual(notebook.plans, []);
+  notebook.reload({ version: 1, machines: [], lines: [] });
+  assert.deepEqual(notebook.plans, []);
+});
+
+/* ---- Plans ---- */
+
+/** The small notebook with a third machine and a plan "Leg day": Leg press, then Chest press. */
+function makePlanned() {
+  const made = makeNotebook();
+  const { notebook } = made;
+  notebook.machines.push({ id: 'm-row', name: 'Seated row' });
+  const plan = notebook.addPlan('  Leg   day ');
+  notebook.addPlanMachine(plan.id, 'm-leg');
+  notebook.addPlanMachine(plan.id, 'm-chest');
+  made.saved.count = 0;
+  return { ...made, plan };
+}
+
+const planIds = (notebook, plan) => notebook.planMachines(plan.id).map((m) => m.id);
+
+test('addPlan: a clean name, no machines yet, and it saves', () => {
+  const { notebook, saved } = makeNotebook();
+  const plan = notebook.addPlan('  Upper   body ');
+  assert.equal(plan.name, 'Upper body');
+  assert.deepEqual(plan.machineIds, []);
+  assert.ok(plan.id.startsWith('p'));
+  assert.equal(notebook.plan(plan.id), plan);
+  assert.equal(notebook.plan('nope'), null);
+  assert.equal(saved.count, 1);
+});
+
+test('plansAZ and planNameTaken: alphabetical; upper and lower case do not count', () => {
+  const { notebook, plan } = makePlanned();
+  notebook.addPlan('arms');
+  assert.deepEqual(notebook.plansAZ().map((p) => p.name), ['arms', 'Leg day']);
+  assert.equal(notebook.planNameTaken('LEG day'), true);
+  assert.equal(notebook.planNameTaken('Leg day', plan.id), false);
+  assert.equal(notebook.planNameTaken('Back'), false);
+});
+
+test('renamePlan and removePlan: the undo puts the plan back in its place', () => {
+  const { notebook, plan } = makePlanned();
+  assert.equal(notebook.renamePlan(plan.id, ' Legs '), true);
+  assert.equal(notebook.plan(plan.id).name, 'Legs');
+  assert.equal(notebook.renamePlan('nope', 'x'), false);
+  const undo = notebook.removePlan(plan.id);
+  assert.deepEqual(notebook.plans, []);
+  undo();
+  assert.equal(notebook.plans[0], plan);
+  assert.equal(notebook.removePlan('nope'), null);
+});
+
+test('addPlanMachine: at the end, each machine once, and only machines that exist', () => {
+  const { notebook, plan, saved } = makePlanned();
+  assert.equal(notebook.addPlanMachine(plan.id, 'm-row'), true);
+  assert.deepEqual(planIds(notebook, plan), ['m-leg', 'm-chest', 'm-row']);
+  assert.equal(notebook.addPlanMachine(plan.id, 'm-row'), false);
+  assert.equal(notebook.addPlanMachine(plan.id, 'nope'), false);
+  assert.equal(notebook.addPlanMachine('nope', 'm-row'), false);
+  assert.equal(saved.count, 1);
+});
+
+test('machinesNotInPlan: what you can still add, A to Z', () => {
+  const { notebook, plan } = makePlanned();
+  assert.deepEqual(notebook.machinesNotInPlan(plan.id).map((m) => m.id), ['m-row']);
+  assert.deepEqual(notebook.machinesNotInPlan('nope').map((m) => m.name), ['Chest press', 'Leg press', 'Seated row']);
+});
+
+test('removePlanMachine: takes it out, and the undo puts it back in its place', () => {
+  const { notebook, plan } = makePlanned();
+  const undo = notebook.removePlanMachine(plan.id, 'm-leg');
+  assert.deepEqual(planIds(notebook, plan), ['m-chest']);
+  undo();
+  assert.deepEqual(planIds(notebook, plan), ['m-leg', 'm-chest']);
+  assert.equal(notebook.removePlanMachine(plan.id, 'm-row'), null);
+});
+
+test('movePlanMachine: to a place in the order, never past the ends', () => {
+  const { notebook, plan } = makePlanned();
+  notebook.addPlanMachine(plan.id, 'm-row');
+  assert.equal(notebook.movePlanMachine(plan.id, 'm-row', 0), true);
+  assert.deepEqual(planIds(notebook, plan), ['m-row', 'm-leg', 'm-chest']);
+  notebook.movePlanMachine(plan.id, 'm-row', 1);
+  assert.deepEqual(planIds(notebook, plan), ['m-leg', 'm-row', 'm-chest']);
+  notebook.movePlanMachine(plan.id, 'm-leg', 99);
+  assert.deepEqual(planIds(notebook, plan), ['m-row', 'm-chest', 'm-leg']);
+  notebook.movePlanMachine(plan.id, 'm-leg', -5);
+  assert.deepEqual(planIds(notebook, plan), ['m-leg', 'm-row', 'm-chest']);
+  assert.equal(notebook.movePlanMachine(plan.id, 'nope', 0), false);
+  assert.equal(notebook.movePlanMachine('nope', 'm-leg', 0), false);
+});
+
+test('a machine removed in settings drops out of the plan, and comes back with the machine', () => {
+  const { notebook, plan } = makePlanned();
+  const undo = notebook.removeMachine('m-leg');
+  assert.deepEqual(planIds(notebook, plan), ['m-chest']);
+  notebook.movePlanMachine(plan.id, 'm-chest', 0); // moving what is left does not lose the hidden one
+  undo();
+  assert.deepEqual(planIds(notebook, plan).sort(), ['m-chest', 'm-leg']);
+});
+
+test('startDay: without a plan it writes only the date', () => {
+  const { notebook, saved } = makePlanned();
+  const { dateLine, planLines } = notebook.startDay('2026-11-23');
+  assert.deepEqual(planLines, []);
+  assert.equal(notebook.lines.at(-1), dateLine);
+  assert.deepEqual({ type: dateLine.type, date: dateLine.date }, { type: 'date', date: '2026-11-23' });
+  assert.equal(notebook.lines.length, 3);
+  assert.equal(saved.count, 1);
+});
+
+test('startDay: with a plan it writes the date, the name, and a pencil line per machine: names only', () => {
+  const { notebook, plan, saved } = makePlanned();
+  const { planLines } = notebook.startDay('2026-11-23', plan.id);
+  const day = notebook.lines.slice(2);
+  assert.deepEqual(day.map((l) => l.type), ['date', 'text', 'plan', 'plan']);
+  assert.equal(day[1].text, 'Leg day');
+  assert.deepEqual(planLines, day.slice(2));
+  assert.deepEqual(planLines.map(({ machineId, name }) => ({ machineId, name })), [
+    { machineId: 'm-leg', name: 'Leg press' }, { machineId: 'm-chest', name: 'Chest press' },
+  ]);
+  assert.ok(planLines.every((l) => !('weight' in l) && !('sets' in l) && !('reps' in l)));
+  assert.equal(new Set(notebook.lines.map((l) => l.id)).size, notebook.lines.length);
+  assert.equal(saved.count, 1);
+});
+
+test('startDay: leaves out machines that are gone; a plan that is gone is no plan', () => {
+  const { notebook, plan } = makePlanned();
+  notebook.removeMachine('m-leg');
+  assert.deepEqual(notebook.startDay('2026-11-23', plan.id).planLines.map((l) => l.machineId), ['m-chest']);
+  assert.deepEqual(notebook.startDay('2026-11-24', 'nope').planLines, []);
+});
+
+test('startDay: pencil lines never logged on an earlier day are thrown away', () => {
+  const { notebook, plan } = makePlanned();
+  const first = notebook.startDay('2026-11-22', plan.id);
+  notebook.replaceLine(first.planLines[0].id, { type: 'machine', machineId: 'm-leg', name: 'Leg press', weight: 80, sets: 1, reps: 12 });
+  notebook.startDay('2026-11-23', plan.id);
+  assert.deepEqual(notebook.lines.map((l) => l.type), ['date', 'machine', 'date', 'text', 'machine', 'date', 'text', 'plan', 'plan']);
+});
+
+test('addLineAfter: right under a line; at the bottom when that line is gone', () => {
+  const { notebook, saved } = makeNotebook();
+  notebook.addLine(text('t1', 'last'));
+  const under = notebook.addLineAfter('l1', leg(80, 10));
+  assert.deepEqual(notebook.lines.map((l) => l.id), ['d1', 'l1', under.id, notebook.lines.at(-1).id]);
+  assert.equal(notebook.lines.at(-1).text, 'last');
+  const bottom = notebook.addLineAfter('nope', text('x', 'end'));
+  assert.equal(notebook.lines.at(-1), bottom);
+  assert.equal(saved.count, 3);
+});
