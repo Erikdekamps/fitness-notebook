@@ -1271,7 +1271,7 @@ button {
  */
 (function (FN) {
   'use strict';
-  const { newId, cleanName, sameName } = FN.util;
+  const { newId, cleanName, sameName, round2 } = FN.util;
 
   class Notebook {
     /** data: { version, machines, lines }. onSave(data) runs after every change. */
@@ -1324,6 +1324,30 @@ button {
       this.lines.push(line);
       this.save();
       return line;
+    }
+
+    /**
+     * The bottom line, when one more set of `fields` belongs on it: the same machine, kg and reps.
+     * Null when the set needs a line of its own. Example lines are never counted on.
+     */
+    setLineFor(fields) {
+      const last = this.lines[this.lines.length - 1];
+      const same =
+        last && !last.example && last.type === 'machine' && fields && fields.type === 'machine' &&
+        last.machineId === fields.machineId && round2(last.weight) === round2(fields.weight) && last.reps === fields.reps;
+      return same ? last : null;
+    }
+
+    /**
+     * Logs one set. It counts up the sets of the bottom line when that is the same machine, kg and reps;
+     * otherwise it writes a new line with 1 set. Returns the line.
+     */
+    logSet(fields) {
+      const line = this.setLineFor(fields);
+      if (!line) return this.addLine({ ...fields, sets: 1 });
+      const { id, ...rest } = line;
+      this.replaceLine(id, { ...rest, sets: line.sets + 1 });
+      return this.line(id);
     }
 
     /** Rewrites a line in place, keeping its id and its position. */
@@ -1894,6 +1918,11 @@ button {
       this.listen();
     }
 
+    /** Changes the text on the big button while the sheet is open. */
+    setActionLabel(text) {
+      if (this.config) this.action.textContent = text;
+    }
+
     /** What is typed in the text field ('' when the sheet has none). */
     text() {
       return this.textField.hidden ? '' : this.textField.value.trim();
@@ -2223,12 +2252,11 @@ button {
  */
 (function (FN) {
   'use strict';
-  const { SETS, REPS, FIRST_TIME_VALUES, PREVIEW_ID } = FN.config;
+  const { REPS, FIRST_TIME_VALUES, PREVIEW_ID } = FN.config;
   const { round2, formatKg, indexOr } = FN.util;
   const { Progress } = FN.progress;
   const { LineMarkup } = FN.lineMarkup;
 
-  const SETS_FALLBACK = SETS.indexOf(FIRST_TIME_VALUES.sets);
   const REPS_FALLBACK = REPS.indexOf(FIRST_TIME_VALUES.reps);
 
   class LineEditor {
@@ -2244,6 +2272,7 @@ button {
     open(editing) {
       this.editing = editing;
       this.editingMachine = editing && editing.type === 'machine' ? editing : null;
+      this.shownOn = null; // the bottom line, while it shows one more set in pencil
       this.machines = this.pickableMachines();
       this.latest = Progress.analyzeLines(this.notebook.lines).latest;
       this.wheels = null;
@@ -2260,21 +2289,23 @@ button {
           value: editing && editing.type === 'text' ? editing.text : '',
           placeholder: hasWheels ? 'or write your own line' : 'write a line',
         },
-        columns: 'minmax(0, 1fr) 56px 40px 40px',
-        labels: [{ text: 'Machine', left: true }, { text: 'kg' }, { text: 'reps' }, { text: 'sets' }],
+        columns: 'minmax(0, 1fr) 64px 48px',
+        labels: [{ text: 'Machine', left: true }, { text: 'kg' }, { text: 'reps' }],
         wheels: hasWheels
           ? [
               { label: 'Machine', align: 'left', items: this.machines.map((m) => m.name), index: machineIndex },
               { label: 'Weight in kg', items: this.kgList.map(formatKg), index: indexOr(this.kgList, round2(start.weight)) },
               { label: 'Reps', items: REPS.map(String), index: indexOr(REPS, start.reps, REPS_FALLBACK) },
-              { label: 'Sets', items: SETS.map(String), index: indexOr(SETS, start.sets, SETS_FALLBACK) },
             ]
           : [],
         actionLabel: editing ? 'Save' : 'Log',
         onChange: () => this.preview(),
         onSettle: (i) => { if (i === 0) this.followMachine(); },
         onAction: () => this.commit(),
-        onCancel: () => this.page.done(),
+        onCancel: () => {
+          this.shownOn = null;
+          this.page.done();
+        },
       });
       this.preview();
       this.page.makeRoom(editing, 'line');
@@ -2288,10 +2319,16 @@ button {
       return machines;
     }
 
-    /** Where the machine wheel starts: the line's own machine, or the first one not done today. */
+    /**
+     * Where the machine wheel starts: the line's own machine; else the machine of the bottom line,
+     * so the next set is one tap; else the first one not done today.
+     */
     startMachineIndex() {
       if (this.editingMachine) return this.machines.findIndex((m) => m.id === this.editingMachine.machineId);
       if (!this.machines.length) return 0;
+      const last = this.notebook.lines[this.notebook.lines.length - 1];
+      const current = last && last.type === 'machine' && !last.example ? this.machines.findIndex((m) => m.id === last.machineId) : -1;
+      if (current !== -1) return current;
       const done = Progress.machinesInCurrentDay(this.notebook.lines);
       return Math.max(0, this.machines.findIndex((m) => !done.has(m.id)));
     }
@@ -2302,11 +2339,14 @@ button {
     }
 
     wheelValues() {
-      const [, kg, reps, sets] = this.wheels;
-      return { weight: this.kgList[kg.index], sets: SETS[sets.index], reps: REPS[reps.index] };
+      const [, kg, reps] = this.wheels;
+      return { weight: this.kgList[kg.index], reps: REPS[reps.index] };
     }
 
-    /** What Log would write: a text line when something is typed, else a machine line. Null when there is nothing. */
+    /**
+     * What Log would write: a text line when something is typed, else a machine line. Null when there is nothing.
+     * A new machine line has no sets yet: logging counts them. A changed line keeps its sets.
+     */
     fields() {
       const text = this.sheet.text();
       if (text) return { type: 'text', text };
@@ -2315,24 +2355,43 @@ button {
       const machine = this.machines[index];
       // While the machine wheel is still moving, show the numbers it will fill in.
       const moving = !this.editingMachine && index !== this.settledIndex;
-      const { weight, sets, reps } = moving ? this.lastTime(machine) : this.wheelValues();
+      const { weight, reps } = moving ? this.lastTime(machine) : this.wheelValues();
       const keepName = this.editingMachine && machine.id === this.editingMachine.machineId; // old lines keep their written name
-      return { type: 'machine', machineId: machine.id, name: keepName ? this.editingMachine.name : machine.name, weight, sets, reps };
+      const line = { type: 'machine', machineId: machine.id, name: keepName ? this.editingMachine.name : machine.name, weight, reps };
+      if (this.editingMachine) line.sets = this.editingMachine.sets;
+      return line;
     }
 
-    /** Shows the line in pencil, with the mark it would get. */
+    /**
+     * Shows the line in pencil, with the mark it would get. One more set of the bottom line
+     * shows on that line itself (80 × 12 × 2); anything else on the empty line below.
+     */
     preview() {
       if (!this.wheels) return;
       const next = this.fields();
+      const setLine = this.editing ? null : this.notebook.setLineFor(next);
+      if (this.shownOn && this.shownOn !== setLine) this.page.restoreRow(this.shownOn);
+      this.shownOn = setLine;
+      if (!this.editing) this.sheet.setActionLabel(next && next.type === 'machine' ? `Log set ${setLine ? setLine.sets + 1 : 1}` : 'Log');
       if (!next) {
         this.page.preview(this.editing, 'text', '');
         return;
       }
+      if (setLine) {
+        const line = { ...setLine, sets: setLine.sets + 1 };
+        this.page.clearNext();
+        this.page.preview(setLine, 'machine', LineMarkup.content(line, this.markFor(line, setLine.id)));
+        return;
+      }
       const editing = this.editing;
-      const line = { id: editing ? editing.id : PREVIEW_ID, ...next };
-      const lines = editing ? this.notebook.lines.map((l) => (l.id === editing.id ? line : l)) : this.notebook.lines.concat(line);
-      const mark = Progress.analyzeLines(lines).marks.get(line.id);
-      this.page.preview(editing, line.type, LineMarkup.content(line, mark));
+      const line = { id: editing ? editing.id : PREVIEW_ID, sets: 1, ...next };
+      this.page.preview(editing, line.type, LineMarkup.content(line, this.markFor(line, editing && editing.id)));
+    }
+
+    /** The mark a line would get: `replacesId` is the line it stands in for, or none for a new line. */
+    markFor(line, replacesId) {
+      const lines = replacesId ? this.notebook.lines.map((l) => (l.id === replacesId ? line : l)) : this.notebook.lines.concat(line);
+      return Progress.analyzeLines(lines).marks.get(line.id);
     }
 
     /** When the machine wheel stops on another machine, load that machine's numbers. */
@@ -2341,10 +2400,9 @@ button {
       if (index === this.settledIndex) return;
       this.settledIndex = index;
       const values = this.editingMachine ? this.wheelValues() : this.lastTime(this.machines[index]);
-      const [, kg, reps, sets] = this.wheels;
+      const [, kg, reps] = this.wheels;
       this.kgList = Progress.kgOptions(values.weight);
       kg.setItems(this.kgList.map(formatKg), indexOr(this.kgList, round2(values.weight)));
-      sets.setIndex(indexOr(SETS, values.sets, SETS_FALLBACK), false);
       reps.setIndex(indexOr(REPS, values.reps, REPS_FALLBACK), false);
       this.preview();
     }
@@ -2353,8 +2411,10 @@ button {
       const next = this.fields();
       if (next) {
         if (this.editing) this.notebook.replaceLine(this.editing.id, next);
+        else if (next.type === 'machine') this.notebook.logSet(next);
         else this.notebook.addLine(next);
       }
+      this.shownOn = null;
       this.page.done({ scroll: !this.editing && !!next });
     }
   }
@@ -2554,6 +2614,21 @@ button {
       const limit = window.innerHeight - sheetHeight - 16;
       const bottom = target.getBoundingClientRect().bottom;
       if (bottom > limit) window.scrollBy({ top: bottom - limit, behavior: 'smooth' });
+    }
+
+    /** Writes a line back in pen, after its row showed a preview. */
+    restoreRow(line) {
+      const row = this.rowFor(line);
+      const current = this.notebook.line(line.id);
+      if (!row || !current) return;
+      const { marks } = Progress.analyzeLines(this.notebook.lines);
+      row.outerHTML = LineMarkup.row(current, marks.get(current.id));
+    }
+
+    /** Empties the add line, while a set is counted on the line above it. */
+    clearNext() {
+      clearRow(this.rowNext);
+      clearRow(this.rowDate);
     }
 
     rowFor(line) {

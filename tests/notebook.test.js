@@ -29,6 +29,37 @@ test('addLine: writes at the bottom with a new id, and saves', () => {
   assert.equal(saved.count, 1);
 });
 
+const leg = (weight, reps) => ({ type: 'machine', machineId: 'm-leg', name: 'Leg press', weight, reps });
+
+test('logSet: the same machine, kg and reps as the bottom line counts one more set on it', () => {
+  const { notebook, saved } = makeNotebook();
+  const line = notebook.logSet(leg(80, 12));
+  assert.equal(line.id, 'l1');
+  assert.equal(line.sets, 4);
+  assert.equal(notebook.lines.length, 2);
+  assert.equal(saved.count, 1);
+});
+
+test('logSet: other reps, kg or machine start a new line with 1 set', () => {
+  const { notebook } = makeNotebook();
+  const fewer = notebook.logSet(leg(80, 10));
+  assert.notEqual(fewer.id, 'l1');
+  assert.equal(fewer.sets, 1);
+  assert.equal(notebook.logSet(leg(80, 10)).sets, 2); // now the bottom line, so it counts on
+  assert.equal(notebook.logSet(leg(85, 10)).sets, 1);
+  assert.equal(notebook.logSet({ ...leg(85, 10), machineId: 'm-chest', name: 'Chest press' }).sets, 1);
+  assert.equal(notebook.lines.length, 5);
+});
+
+test('logSet: only the bottom line counts, and never an example line', () => {
+  const { notebook } = makeNotebook();
+  notebook.addLine({ type: 'text', text: 'Biking' });
+  assert.equal(notebook.logSet(leg(80, 12)).sets, 1);
+  notebook.lines.at(-1).example = true;
+  assert.equal(notebook.logSet(leg(80, 12)).sets, 1);
+  assert.equal(notebook.setLineFor({ type: 'text', text: 'x' }), null);
+});
+
 test('replaceLine: same id and place, new contents', () => {
   const { notebook, saved } = makeNotebook();
   assert.equal(notebook.replaceLine('d1', { type: 'date', date: '2026-11-17' }), true);
