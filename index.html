@@ -172,6 +172,7 @@ button {
 .row-content.is-animating { transition: transform .22s var(--ease); }
 .row--text > .row-content, .row-content.is-text { display: block; overflow-wrap: anywhere; }
 .row--date > .row-content, .is-bold { font-weight: 700; }
+.plan-name { min-width: 0; font-weight: 500; overflow-wrap: anywhere; } /* the plan a day was started from, after its date */
 .is-pencil { color: var(--pencil); }
 
 .name { min-width: 0; overflow-wrap: anywhere; }
@@ -439,6 +440,27 @@ button {
   color: var(--pen);
 }
 
+#planTitle { flex: 1 1 auto; min-width: 0; }
+.title-btn { display: block; width: 100%; height: var(--line); overflow: hidden; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
+
+.row-handle { /* drag it to move a machine up or down in a plan */
+  flex: none;
+  align-self: center;
+  display: grid;
+  place-items: center;
+  width: 44px;
+  height: 44px;
+  margin: 0 -12px 0 auto;
+  border-radius: 12px;
+  color: var(--pencil);
+  cursor: grab;
+  touch-action: none;
+}
+
+.row.is-moving { z-index: 2; }
+.row.is-moving > .row-content { background: var(--paper); box-shadow: 0 4px 12px rgba(70, 45, 20, .18); }
+.row.is-shifting { transition: transform .15s var(--ease); }
+
 .text-btn {
   display: block;
   height: var(--line);
@@ -523,6 +545,7 @@ button {
     <div id="addArea" class="bleed">
       <div id="rowNext" class="add-row"></div>
       <div id="rowDate" class="add-row"></div>
+      <div id="rowPlan"></div>
     </div>
     <div id="notebookFiller" class="filler"></div>
   </div>
@@ -536,6 +559,10 @@ button {
       </button>
       <h1 id="settingsTitle">Settings</h1>
     </div>
+    <div class="blank" aria-hidden="true"></div>
+    <h2 class="section-title">plans</h2>
+    <div id="planList" class="bleed" role="list" aria-label="Plans"></div>
+    <div id="addPlanRow" class="bleed add-row add-row--pencil"><button class="pencil-btn" type="button">tap here to add a plan</button></div>
     <div class="blank" aria-hidden="true"></div>
     <h2 class="section-title">machines</h2>
     <div id="machineList" class="bleed" role="list" aria-label="Machines"></div>
@@ -551,6 +578,22 @@ button {
     <input id="importFile" type="file" accept="application/json,.json" aria-label="Backup file to import" hidden>
     <div class="blank" aria-hidden="true"></div>
     <button id="removeExamples" class="text-btn" type="button" hidden>remove the example lines</button>
+    <div class="filler" aria-hidden="true"></div>
+  </div>
+</section>
+
+<section id="plan" aria-labelledby="planTitle" hidden>
+  <div class="page">
+    <div class="title-row">
+      <button class="back-btn" type="button" data-back="settings" aria-label="Back to settings">
+        <svg width="14" height="24" viewBox="0 0 14 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M11 3l-8 9 8 9"/></svg>
+      </button>
+      <h1 id="planTitle"></h1>
+    </div>
+    <div class="blank" aria-hidden="true"></div>
+    <h2 class="section-title">machines, in order</h2>
+    <div id="planMachines" class="bleed" role="list" aria-label="Machines in this plan"></div>
+    <div id="planAddRow" class="bleed add-row add-row--pencil"></div>
     <div class="filler" aria-hidden="true"></div>
   </div>
 </section>
@@ -631,7 +674,7 @@ button {
     1. Logic    Calendar, Progress, ChartMath, Backup, Store, LineMarkup and the Notebook class
     2. Parts    Toast, LineInput, Wheel, Sheet, SwipeRows
     3. Panels   LineEditor, DateEditor
-    4. Screens  NotebookScreen, SettingsScreen, MonthScreen, MachineScreen, and the App
+    4. Screens  NotebookScreen, SettingsScreen, PlanScreen, MonthScreen, MachineScreen, and the App
   A class is used where something has to remember things; a plain object of functions where nothing does.
   Every block adds one entry to the shared "FN" object and takes what it needs from blocks above it,
   so the order of the blocks matters.
@@ -720,6 +763,8 @@ button {
   const Icons = {
     up: svg(16, 22, 2, '<path d="M8 20V3M2 9l6-6 6 6"/>'),
     down: svg(16, 22, 2, '<path d="M8 2v17M2 13l6 6 6-6"/>'),
+    chevron: svg(12, 22, 2.5, '<path d="M2 3l8 8-8 8"/>'),
+    handle: svg(22, 14, 2.2, '<path d="M2 3h18M2 11h18"/>'),
   };
 
   FN.config = { STORAGE_KEY, PREFS_KEY, TIMER_KEY, DAY_NAMES, MONTH_NAMES, MONTH_SHORT, KG_STEP, KG_MAX, SETS, REPS, FIRST_TIME_VALUES, YEARS_BACK, REST_TIMES_S, DEFAULT_PREFS, WHEEL_ITEM_PX, DELETE_WIDTH_PX, RULE_INSET_PX, OPEN_OFFSET_PX, FULL_SWIPE, UNDO_MS, PREVIEW_ID, BLANK_ROW, svg, Icons };
@@ -864,10 +909,12 @@ button {
  * What the lines say about your training. Pure functions over lines.
  *
  * A line is one of
- *   { id, type: 'date', date }                                   date = "YYYY-MM-DD"
+ *   { id, type: 'date', date, plan }                             date = "YYYY-MM-DD"; plan = the name of the plan the day started from, if any
  *   { id, type: 'text', text }
  *   { id, type: 'machine', machineId, name, weight, sets, reps }
+ *   { id, type: 'plan', machineId, name }                        a machine a plan put on the page, not logged yet
  * Lines stay in the order they were written; a date line starts a new day.
+ * A plan line is pencil: it never counts. Logging its first set turns it into a machine line.
  */
 (function (FN) {
   'use strict';
@@ -891,6 +938,17 @@ button {
         if (lines[i].type === 'machine') ids.add(lines[i].machineId);
       }
       return ids;
+    },
+
+    /** The plan lines (machines not logged yet) of the day that line `id` is in, top to bottom. */
+    plannedInDay(lines, id) {
+      const at = lines.findIndex((line) => line.id === id);
+      if (at === -1) return [];
+      let from = at;
+      while (from > 0 && lines[from].type !== 'date') from--;
+      let to = at + 1;
+      while (to < lines.length && lines[to].type !== 'date') to++;
+      return lines.slice(from, to).filter((line) => line.type === 'plan');
     },
 
     /**
@@ -1089,8 +1147,10 @@ button {
  * File shape
  *   { "app": "fitness-notebook", "version": 1, "exportedAt": "<ISO time>", "unit": "kg",
  *     "machines": [{ id, name }],
- *     "lines": [{ id, type: "date", date } | { id, type: "text", text } |
- *               { id, type: "machine", machineId, name, weight, sets, reps }] }
+ *     "plans": [{ id, name, machineIds: [machine id] }],          (may be missing in older files)
+ *     "lines": [{ id, type: "date", date, plan (optional) } | { id, type: "text", text } |
+ *               { id, type: "machine", machineId, name, weight, sets, reps } |
+ *               { id, type: "plan", machineId, name }] }
  * Rules for reading a file
  *   - it must say app "fitness-notebook"; anything else is refused
  *   - a newer version than this app knows is refused, never half-read
@@ -1119,11 +1179,26 @@ button {
       return { id: machine.id, name: cleanName(machine.name) };
     },
 
+    /** A plan with only the fields this app knows, or null when it cannot be used. */
+    cleanPlan(plan) {
+      if (!plan || typeof plan.id !== 'string' || typeof plan.name !== 'string' || !cleanName(plan.name)) return null;
+      const machineIds = Array.isArray(plan.machineIds) ? plan.machineIds.filter((id) => typeof id === 'string') : [];
+      return { id: plan.id, name: cleanName(plan.name), machineIds: [...new Set(machineIds)] };
+    },
+
+    /** The plans of notebook data or of a file; none when it has no list of plans. */
+    cleanPlans(plans) {
+      return Array.isArray(plans) ? plans.map((p) => Backup.cleanPlan(p)).filter(Boolean) : [];
+    },
+
     /** A line with only the fields this app knows, or null when it cannot be used. */
     cleanLine(line) {
       if (!line) return null;
       const id = typeof line.id === 'string' && line.id ? line.id : newId('l');
-      if (line.type === 'date' && /^\d{4}-\d{2}-\d{2}$/.test(line.date)) return { id, type: 'date', date: line.date };
+      if (line.type === 'date' && /^\d{4}-\d{2}-\d{2}$/.test(line.date)) {
+        const plan = typeof line.plan === 'string' ? cleanName(line.plan) : '';
+        return plan ? { id, type: 'date', date: line.date, plan } : { id, type: 'date', date: line.date };
+      }
       if (line.type === 'text' && typeof line.text === 'string' && line.text.trim()) return { id, type: 'text', text: line.text.trim() };
       if (
         line.type === 'machine' &&
@@ -1133,6 +1208,9 @@ button {
       ) {
         const { machineId, name, weight, sets, reps } = line;
         return { id, type: 'machine', machineId, name, weight, sets, reps };
+      }
+      if (line.type === 'plan' && typeof line.machineId === 'string' && typeof line.name === 'string' && line.name.trim()) {
+        return { id, type: 'plan', machineId: line.machineId, name: line.name };
       }
       return null;
     },
@@ -1145,6 +1223,7 @@ button {
         exportedAt: now.toISOString(),
         unit: 'kg',
         machines: data.machines.map((m) => Backup.cleanMachine(m)).filter(Boolean),
+        plans: Backup.cleanPlans(data.plans),
         lines: data.lines.map((l) => Backup.cleanLine(l)).filter(Boolean),
       };
     },
@@ -1172,18 +1251,20 @@ button {
         data: {
           version: 1,
           machines: file.machines.map((m) => Backup.cleanMachine(m)).filter(Boolean),
+          plans: Backup.cleanPlans(file.plans),
           lines: file.lines.map((l) => Backup.cleanLine(l)).filter(Boolean),
         },
       };
     },
 
-    /** A short description of notebook data, for the "replace?" question: [lines and dates, machines]. */
+    /** A short description of notebook data, for the "replace?" question: [lines and dates, machines], and the plans when it has any. */
     describe(data) {
       const dates = data.lines.filter((l) => l.type === 'date').map((l) => l.date).sort();
       let lines = count(data.lines.length, 'line');
       if (dates.length === 1) lines += `, on ${Calendar.written(dates[0]).date}`;
       else if (dates.length > 1) lines += `, from ${Calendar.written(dates[0]).date} to ${Calendar.written(dates[dates.length - 1]).date}`;
-      return [lines, count(data.machines.length, 'machine')];
+      const plans = Array.isArray(data.plans) ? data.plans.length : 0;
+      return [lines, count(data.machines.length, 'machine')].concat(plans ? count(plans, 'plan') : []);
     },
   };
 
@@ -1331,22 +1412,24 @@ button {
 
 <script data-module="notebook" data-testable>
 /**
- * The notebook: its machines and its lines, and every change to them.
+ * The notebook: its machines, its plans and its lines, and every change to them.
  * This is the one place that changes the data. Each change saves right away;
  * a change that can be undone returns its undo.
  *
  * Data shape
- *   { version: 1, machines: [{ id, name }], lines: [ ...see progress... ] }
+ *   { version: 1, machines: [{ id, name }], plans: [{ id, name, machineIds }], lines: [ ...see progress... ] }
  *   `example: true` marks the demo lines a new notebook starts with.
+ *   A plan is a named list of machines, in the order you do them. It holds no kg or reps:
+ *   those come from the last time you did the machine.
  */
 (function (FN) {
   'use strict';
-  const { newId, cleanName, sameName, round2 } = FN.util;
+  const { newId, cleanName, sameName, round2, clamp } = FN.util;
 
   class Notebook {
-    /** data: { version, machines, lines }. onSave(data) runs after every change. */
+    /** data: { version, machines, plans, lines }. onSave(data) runs after every change. */
     constructor(data, { onSave = () => {} } = {}) {
-      this.data = data;
+      this.data = Notebook.ready(data);
       this.onSave = onSave;
     }
 
@@ -1356,6 +1439,10 @@ button {
 
     get machines() {
       return this.data.machines;
+    }
+
+    get plans() {
+      return this.data.plans;
     }
 
     save() {
@@ -1426,6 +1513,37 @@ button {
       return this.line(id);
     }
 
+    /** Writes a new line right under line `id` (at the bottom when there is no such line). Returns the new line. */
+    addLineAfter(id, fields) {
+      const index = this.lines.findIndex((l) => l.id === id);
+      if (index === -1) return this.addLine(fields);
+      const line = { id: newId('l'), ...fields };
+      this.lines.splice(index + 1, 0, line);
+      this.save();
+      return line;
+    }
+
+    /**
+     * Starts a new day: writes the date and, with a plan, the plan's name after it and one pencil (plan) line per machine.
+     * Pencil lines left over from an earlier day are thrown away: what was never logged is not kept.
+     * Returns { dateLine, planLines }.
+     */
+    startDay(date, planId = null) {
+      const plan = planId ? this.plan(planId) : null;
+      this.data.lines = this.lines.filter((l) => l.type !== 'plan');
+      const dateLine = plan ? { id: newId('l'), type: 'date', date, plan: plan.name } : { id: newId('l'), type: 'date', date };
+      this.lines.push(dateLine);
+      const planLines = [];
+      if (plan) {
+        for (const machine of this.planMachines(plan.id)) {
+          planLines.push({ id: newId('l'), type: 'plan', machineId: machine.id, name: machine.name });
+        }
+        this.lines.push(...planLines);
+      }
+      this.save();
+      return { dateLine, planLines };
+    }
+
     /** Rewrites a line in place, keeping its id and its position. */
     replaceLine(id, fields) {
       const index = this.lines.findIndex((l) => l.id === id);
@@ -1443,6 +1561,23 @@ button {
       this.save();
       return () => {
         this.lines.splice(Math.min(index, this.lines.length), 0, line);
+        this.save();
+      };
+    }
+
+    /**
+     * Removes a whole day: the date line and every line under it, up to the next date.
+     * Returns its undo, or null when there is no such date line.
+     */
+    removeDay(id) {
+      const index = this.lines.findIndex((l) => l.id === id);
+      if (index === -1 || this.lines[index].type !== 'date') return null;
+      let end = index + 1;
+      while (end < this.lines.length && this.lines[end].type !== 'date') end++;
+      const day = this.lines.splice(index, end - index);
+      this.save();
+      return () => {
+        this.lines.splice(Math.min(index, this.lines.length), 0, ...day);
         this.save();
       };
     }
@@ -1482,6 +1617,99 @@ button {
       };
     }
 
+    /* ---- Plans ---- */
+
+    plan(id) {
+      return this.plans.find((p) => p.id === id) || null;
+    }
+
+    /** The plans in alphabetical order. */
+    plansAZ() {
+      return Notebook.sortMachines(this.plans);
+    }
+
+    /** True when another plan already has this name (upper and lower case do not count). */
+    planNameTaken(name, exceptId) {
+      return this.plans.some((p) => p.id !== exceptId && sameName(p.name, name));
+    }
+
+    /** The machines of a plan, in the plan's order. A machine removed in settings is left out. */
+    planMachines(id) {
+      const plan = this.plan(id);
+      return plan ? plan.machineIds.map((machineId) => this.machine(machineId)).filter(Boolean) : [];
+    }
+
+    /** The machines you can still add to a plan, A to Z. */
+    machinesNotInPlan(id) {
+      const plan = this.plan(id);
+      const taken = new Set(plan ? plan.machineIds : []);
+      return this.machinesAZ().filter((m) => !taken.has(m.id));
+    }
+
+    /** Adds an empty plan. Returns it. */
+    addPlan(name) {
+      const plan = { id: newId('p'), name: cleanName(name), machineIds: [] };
+      this.plans.push(plan);
+      this.save();
+      return plan;
+    }
+
+    renamePlan(id, name) {
+      const plan = this.plan(id);
+      if (!plan) return false;
+      plan.name = cleanName(name);
+      this.save();
+      return true;
+    }
+
+    /** Removes a plan. Days already started from it stay as they are. Returns its undo, or null. */
+    removePlan(id) {
+      const index = this.plans.findIndex((p) => p.id === id);
+      if (index === -1) return null;
+      const [plan] = this.plans.splice(index, 1);
+      this.save();
+      return () => {
+        this.plans.splice(Math.min(index, this.plans.length), 0, plan);
+        this.save();
+      };
+    }
+
+    /** Puts a machine at the end of a plan. False when the plan or machine is missing, or it is in the plan already. */
+    addPlanMachine(planId, machineId) {
+      const plan = this.plan(planId);
+      if (!plan || !this.machine(machineId) || plan.machineIds.includes(machineId)) return false;
+      plan.machineIds.push(machineId);
+      this.save();
+      return true;
+    }
+
+    /** Takes a machine out of a plan. Returns its undo, or null. */
+    removePlanMachine(planId, machineId) {
+      const plan = this.plan(planId);
+      if (!plan || !plan.machineIds.includes(machineId)) return null;
+      const before = plan.machineIds;
+      plan.machineIds = before.filter((id) => id !== machineId);
+      this.save();
+      return () => {
+        plan.machineIds = before;
+        this.save();
+      };
+    }
+
+    /** Moves a machine to place `to` (0 is the top) among the machines the plan shows. False when it is not in the plan. */
+    movePlanMachine(planId, machineId, to) {
+      const plan = this.plan(planId);
+      const shown = this.planMachines(planId).map((m) => m.id);
+      const from = shown.indexOf(machineId);
+      if (!plan || from === -1) return false;
+      const hidden = plan.machineIds.filter((id) => !shown.includes(id)); // machines removed in settings keep their spot in the list's tail
+      shown.splice(from, 1);
+      shown.splice(clamp(to, 0, shown.length), 0, machineId);
+      plan.machineIds = shown.concat(hidden);
+      this.save();
+      return true;
+    }
+
     /* ---- The whole notebook ---- */
 
     /** Removes the demo lines. Returns the undo. */
@@ -1498,7 +1726,7 @@ button {
     /** Replaces everything, for an import. Returns the undo. */
     replaceAll(data) {
       const before = this.data;
-      this.data = data;
+      this.data = Notebook.ready(data);
       this.save();
       return () => {
         this.data = before;
@@ -1508,12 +1736,18 @@ button {
 
     /** Takes over data another tab saved. Not saved again: it already is. */
     reload(data) {
-      this.data = data;
+      this.data = Notebook.ready(data);
     }
 
     /* ---- Helpers that need no notebook ---- */
 
-    /** Machines in alphabetical order, ignoring upper and lower case. Returns a new list. */
+    /** Notebook data with a list of plans, which data saved by an older version does not have yet. */
+    static ready(data) {
+      if (!Array.isArray(data.plans)) data.plans = [];
+      return data;
+    }
+
+    /** Machines (or plans) in alphabetical order of their name, ignoring upper and lower case. Returns a new list. */
     static sortMachines(machines) {
       return machines.slice().sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
     }
@@ -1531,15 +1765,21 @@ button {
         .map((line) => (keepDates.has(line.id) ? { ...line, example: undefined } : line));
     }
 
-    /** The data a new notebook starts with: six machines and five example days. */
+    /** The data a new notebook starts with: twelve machines, no plans and five example days. */
     static exampleData() {
       const machines = [
-        { id: 'm-leg-press', name: 'Leg press' },
+        { id: 'm-abdominal', name: 'Abdominal' },
+        { id: 'm-biceps-curl', name: 'Biceps curl' },
         { id: 'm-chest-press', name: 'Chest press' },
+        { id: 'm-dumbbells', name: 'Dumbbells' },
+        { id: 'm-fly', name: 'Fly' },
         { id: 'm-lat-pulldown', name: 'Lat pulldown' },
-        { id: 'm-shoulder-press', name: 'Shoulder press' },
-        { id: 'm-seated-row', name: 'Seated row' },
         { id: 'm-leg-curl', name: 'Leg curl' },
+        { id: 'm-leg-press', name: 'Leg press' },
+        { id: 'm-row-rear-deltoid', name: 'Row rear deltoid' },
+        { id: 'm-seated-row', name: 'Seated row' },
+        { id: 'm-shoulder-press', name: 'Shoulder press' },
+        { id: 'm-triceps-press', name: 'Triceps press' },
       ];
       const byName = new Map(machines.map((m) => [m.name, m]));
       const sessions = [
@@ -1558,7 +1798,7 @@ button {
           lines.push({ id: newId('l'), type: 'machine', machineId: byName.get(name).id, name, weight, sets, reps, example: true });
         }
       }
-      return { version: 1, machines, lines };
+      return { version: 1, machines, plans: [], lines };
     }
   }
 
@@ -1589,9 +1829,11 @@ button {
     content(line, mark) {
       if (line.type === 'date') {
         const { date, day } = Calendar.written(line.date);
-        return `<span>${date}</span><span>${day}</span>`;
+        const plan = line.plan ? `<span class="plan-name">(${escapeHtml(line.plan)})</span>` : ''; // the plan the day started from
+        return `<span>${date}</span><span>${day}</span>${plan}`;
       }
       if (line.type === 'text') return escapeHtml(line.text);
+      if (line.type === 'plan') return `<span class="name">${escapeHtml(line.name)}</span>`;
       return (
         `<span class="name">${escapeHtml(line.name)}</span>` +
         `<span class="nums">${formatKg(line.weight)} × ${Number(line.reps)} × ${Number(line.sets)}</span>` +
@@ -1599,11 +1841,11 @@ button {
       );
     },
 
-    /** A line as a row you can tap and drag. */
+    /** A line as a row you can tap and drag. A plan line is in pencil: it is not logged yet. */
     row(line, mark) {
       return (
         `<div class="row row--${line.type}" role="listitem" tabindex="0" data-key="${escapeHtml(line.id)}">` +
-        `<div class="row-content">${LineMarkup.content(line, mark)}</div>` +
+        `<div class="row-content${line.type === 'plan' ? ' is-pencil' : ''}">${LineMarkup.content(line, mark)}</div>` +
         '<button class="row-delete" type="button" tabindex="-1" aria-label="Delete line"><span>Delete</span></button>' +
         '</div>'
       );
@@ -1989,7 +2231,7 @@ button {
       this.action = byId('sheetAction');
       this.cancelButton = byId('sheetCancel');
       this.info = byId('sheetInfo');
-      this.behind = ['notebook', 'settings', 'cogBtn', 'statsBtn', 'timerBtn', 'todayBtn'].map(byId);
+      this.behind = ['notebook', 'settings', 'plan', 'cogBtn', 'statsBtn', 'timerBtn', 'todayBtn'].map(byId);
       this.config = null;
       this.listen();
     }
@@ -2014,9 +2256,9 @@ button {
 
     /**
      * Opens the sheet and returns its wheels.
-     * config: { title, info: { heading, details: [..], note } (optional), text: { value, placeholder } (optional),
+     * config: { title, info: { heading, details: [..], note } (optional), text: { value, placeholder, label } (optional),
      *           columns, center, labels: [{ text, left }], wheels: [{ label, align, items, index }],
-     *           actionLabel, cancelLabel (optional),
+     *           actionLabel, cancelLabel (optional), otherLabel + onOther() (optional: a second button with a job of its own),
      *           onChange(i), onSettle(i), onAction(), onCancel() }   onChange(-1) = the text changed
      */
     open(cfg) {
@@ -2051,8 +2293,8 @@ button {
     fill(cfg) {
       this.title.textContent = cfg.title;
       this.action.textContent = cfg.actionLabel;
-      this.cancelButton.hidden = !cfg.cancelLabel;
-      this.cancelButton.textContent = cfg.cancelLabel || '';
+      this.cancelButton.hidden = !(cfg.otherLabel || cfg.cancelLabel);
+      this.cancelButton.textContent = cfg.otherLabel || cfg.cancelLabel || '';
       this.info.hidden = !cfg.info;
       this.info.innerHTML = cfg.info
         ? `<h3>${escapeHtml(cfg.info.heading)}</h3>` +
@@ -2062,6 +2304,7 @@ button {
       this.textField.hidden = !cfg.text;
       this.textField.value = cfg.text ? cfg.text.value || '' : '';
       this.textField.placeholder = cfg.text ? cfg.text.placeholder : '';
+      this.textField.setAttribute('aria-label', (cfg.text && cfg.text.label) || 'Write your own line');
       for (const el of [this.labels, this.wheelsEl]) {
         el.style.gridTemplateColumns = cfg.columns;
         el.style.justifyContent = cfg.center ? 'center' : '';
@@ -2087,6 +2330,15 @@ button {
       if (cfg && cfg.onCancel) cfg.onCancel();
     }
 
+    /** The small button under the big one: its own job when the config gave it one, else Cancel. */
+    other() {
+      if (!this.config || !this.config.onOther) {
+        this.cancel();
+        return;
+      }
+      this.close().onOther();
+    }
+
     /** While typing, the wheels fold away so the field and the button fit above the keyboard. */
     updateTyping() {
       const field = this.textField;
@@ -2102,7 +2354,7 @@ button {
         if (cfg) cfg.onAction();
       });
       this.backdrop.addEventListener('click', () => this.cancel());
-      this.cancelButton.addEventListener('click', () => this.cancel());
+      this.cancelButton.addEventListener('click', () => this.other());
 
       const field = this.textField;
       field.addEventListener('input', () => {
@@ -2230,7 +2482,7 @@ button {
       this.gesture = null;
       if (this.swallowClick || (e.pointerType === 'mouse' && e.button !== 0)) return;
       const row = e.target.closest('.row');
-      if (!row || row.classList.contains('is-removing') || e.target.closest('input, .row-delete')) return;
+      if (!row || row.classList.contains('is-removing') || e.target.closest('input, .row-delete, .row-handle')) return;
       this.gesture = {
         row,
         pointerId: e.pointerId,
@@ -2295,7 +2547,7 @@ button {
         this.removeRow(deleteButton.closest('.row'));
         return;
       }
-      if (e.target.closest('input')) return;
+      if (e.target.closest('input, .row-handle')) return;
       const row = e.target.closest('.row');
       if (!row || row.classList.contains('is-removing')) return;
       if (row === this.openRow) this.closeOpenRow();
@@ -2393,6 +2645,10 @@ button {
 /**
  * The add-or-change-a-line panel: machine wheels, or your own text.
  * While you pick, the line shows on the paper in pencil; Log or Save writes it in pen.
+ *
+ * In a day that was started from a plan the panel keeps going after every set ("logging"):
+ * it opens again on the line just logged, with "Log set 2" and a second button to the next
+ * machine of the plan. Other kg or reps then start a new line right under it.
  */
 (function (FN) {
   'use strict';
@@ -2413,10 +2669,17 @@ button {
       this.wheels = null;
     }
 
-    /** Opens the panel for a new line (editing = null), or to change a text or machine line. */
-    open(editing) {
+    /**
+     * Opens the panel for a new line (editing = null), to change a text or machine line,
+     * or to log the first set of a plan line. `logging`: go on with the machine line just logged.
+     */
+    open(editing, { logging = false } = {}) {
       this.editing = editing;
+      this.planLine = editing && editing.type === 'plan' ? editing : null;
       this.editingMachine = editing && editing.type === 'machine' ? editing : null;
+      this.logging = logging && !!this.editingMachine;
+      this.fixing = !!editing && !this.planLine && !this.logging; // a real change: the button says Save
+      this.fixingMachine = this.fixing ? this.editingMachine : null;
       this.shownOn = null; // the bottom line, while it shows one more set in pencil
       this.machines = this.pickableMachines();
       this.latest = Progress.analyzeLines(this.notebook.lines).latest;
@@ -2428,8 +2691,22 @@ button {
       this.settledIndex = machineIndex;
       this.kgList = Progress.kgOptions(start.weight);
 
+      // After a set in a plan's day, the second button goes to the next machine that is still in pencil.
+      const upNext = this.logging ? Progress.plannedInDay(this.notebook.lines, editing.id)[0] || null : null;
+      const nextButton = this.logging
+        ? {
+            otherLabel: upNext ? `Next: ${upNext.name}` : 'Done',
+            onOther: () => {
+              this.shownOn = null;
+              this.page.done({ keepRoom: !!upNext });
+              if (upNext) this.page.openLineEditor(upNext);
+            },
+          }
+        : {};
+
       this.wheels = this.sheet.open({
-        title: editing ? 'Change this line' : 'Add a line',
+        title: this.fixing ? 'Change this line' : editing ? 'Log a set' : 'Add a line',
+        ...nextButton,
         text: {
           value: editing && editing.type === 'text' ? editing.text : '',
           placeholder: hasWheels ? 'or write your own line' : 'write a line',
@@ -2443,7 +2720,7 @@ button {
               { label: 'Reps', items: REPS.map(String), index: indexOr(REPS, start.reps, REPS_FALLBACK) },
             ]
           : [],
-        actionLabel: editing ? 'Save' : 'Log',
+        actionLabel: this.fixing ? 'Save' : 'Log',
         onChange: () => this.preview(),
         onSettle: (i) => { if (i === 0) this.followMachine(); },
         onAction: () => this.commit(),
@@ -2453,13 +2730,13 @@ button {
         },
       });
       this.preview();
-      this.page.makeRoom(editing, 'line');
+      this.page.makeRoom(editing, this.logging ? 'log' : 'line');
     }
 
     /** The machines on the wheel, A to Z. A machine removed in settings stays pickable for its own old line. */
     pickableMachines() {
       const machines = this.notebook.machinesAZ();
-      const old = this.editingMachine;
+      const old = this.editingMachine || this.planLine;
       if (old && !machines.some((m) => m.id === old.machineId)) machines.unshift({ id: old.machineId, name: old.name });
       return machines;
     }
@@ -2469,7 +2746,8 @@ button {
      * so the next set is one tap; else the first one not done today.
      */
     startMachineIndex() {
-      if (this.editingMachine) return this.machines.findIndex((m) => m.id === this.editingMachine.machineId);
+      const own = this.editingMachine || this.planLine;
+      if (own) return this.machines.findIndex((m) => m.id === own.machineId);
       if (!this.machines.length) return 0;
       const last = this.notebook.lines[this.notebook.lines.length - 1];
       const current = last && last.type === 'machine' && !last.example ? this.machines.findIndex((m) => m.id === last.machineId) : -1;
@@ -2491,6 +2769,7 @@ button {
     /**
      * What Log would write: a text line when something is typed, else a machine line. Null when there is nothing.
      * A changed machine line keeps its sets; a new one starts at 1 (logging counts them).
+     * A plan line and a line you are logging on count as new: the wheel loads each machine's own numbers.
      */
     fields() {
       const text = this.sheet.text();
@@ -2499,10 +2778,10 @@ button {
       const index = this.wheels[0].index;
       const machine = this.machines[index];
       // While the machine wheel is still moving, show the numbers it will fill in.
-      const moving = !this.editingMachine && index !== this.settledIndex;
+      const moving = !this.fixingMachine && index !== this.settledIndex;
       const { weight, reps } = moving ? this.lastTime(machine) : this.wheelValues();
       const keepName = this.editingMachine && machine.id === this.editingMachine.machineId; // old lines keep their written name
-      const sets = this.editingMachine ? this.editingMachine.sets : 1;
+      const sets = this.fixingMachine ? this.fixingMachine.sets : 1;
       return { type: 'machine', machineId: machine.id, name: keepName ? this.editingMachine.name : machine.name, weight, reps, sets };
     }
 
@@ -2517,6 +2796,7 @@ button {
       if (this.shownOn && this.shownOn !== setLine) this.page.restoreRow(this.shownOn);
       this.shownOn = setLine;
       this.sheet.setActionLabel(this.actionLabel(next, setLine));
+      this.page.clearAfter();
       if (!next) {
         this.page.preview(this.editing, 'text', '');
         return;
@@ -2528,6 +2808,12 @@ button {
         return;
       }
       const editing = this.editing;
+      if (this.logging) {
+        // Other kg, reps or machine than the line just logged: that becomes a line of its own, right under it.
+        const under = { id: PREVIEW_ID, ...next };
+        this.page.previewAfter(editing, under.type, LineMarkup.content(under, this.markFor(under, null, editing.id)));
+        return;
+      }
       const line = { id: editing ? editing.id : PREVIEW_ID, ...next };
       this.page.preview(editing, line.type, LineMarkup.content(line, this.markFor(line, editing && editing.id)));
     }
@@ -2547,13 +2833,24 @@ button {
     /** "Log set 3" when the button logs a set; "Save" when it changes a line; "Log" for a text line. */
     actionLabel(next, setLine) {
       if (setLine) return `Log set ${setLine.sets + 1}`;
-      if (this.editing) return 'Save';
+      if (this.fixing) return 'Save';
       return next && next.type === 'machine' ? 'Log set 1' : 'Log';
     }
 
-    /** The mark a line would get: `replacesId` is the line it stands in for, or none for a new line. */
-    markFor(line, replacesId) {
-      const lines = replacesId ? this.notebook.lines.map((l) => (l.id === replacesId ? line : l)) : this.notebook.lines.concat(line);
+    /**
+     * The mark a line would get. `replacesId` is the line it stands in for; `afterId` the line it comes right under;
+     * with neither it is a new line at the bottom.
+     */
+    markFor(line, replacesId, afterId) {
+      let lines;
+      if (replacesId) {
+        lines = this.notebook.lines.map((l) => (l.id === replacesId ? line : l));
+      } else if (afterId) {
+        lines = this.notebook.lines.slice();
+        lines.splice(lines.findIndex((l) => l.id === afterId) + 1, 0, line);
+      } else {
+        lines = this.notebook.lines.concat(line);
+      }
       return Progress.analyzeLines(lines).marks.get(line.id);
     }
 
@@ -2562,7 +2859,7 @@ button {
       const index = this.wheels[0].index;
       if (index === this.settledIndex) return;
       this.settledIndex = index;
-      const values = this.editingMachine ? this.wheelValues() : this.lastTime(this.machines[index]);
+      const values = this.fixingMachine ? this.wheelValues() : this.lastTime(this.machines[index]);
       const [, kg, reps] = this.wheels;
       this.kgList = Progress.kgOptions(values.weight);
       kg.setItems(this.kgList.map(formatKg), indexOr(this.kgList, round2(values.weight)));
@@ -2573,19 +2870,28 @@ button {
     commit() {
       const next = this.fields();
       const setLine = this.setLineFor(next);
+      const editing = this.editing;
+      let logged = null; // the machine line a set was just logged on
       if (setLine) {
-        this.notebook.addSet(setLine.id);
-        this.timer.start();
-      } else if (next && this.editing) {
-        this.notebook.replaceLine(this.editing.id, next);
+        logged = this.notebook.addSet(setLine.id);
+      } else if (next && this.logging) {
+        const line = this.notebook.addLineAfter(editing.id, next);
+        if (next.type === 'machine') logged = line;
+      } else if (next && editing) {
+        this.notebook.replaceLine(editing.id, next);
+        if (this.planLine && next.type === 'machine') logged = this.notebook.line(editing.id); // the pencil line is now in pen, with 1 set
       } else if (next && next.type === 'machine') {
-        this.notebook.logSet(next);
-        this.timer.start();
+        logged = this.notebook.logSet(next);
       } else if (next) {
         this.notebook.addLine(next);
       }
+      if (logged) this.timer.start();
       this.shownOn = null;
-      this.page.done({ scroll: !this.editing && !!next });
+
+      // In a plan's day the panel comes straight back for the next set.
+      const goOn = !!logged && (this.logging || !!this.planLine || Progress.plannedInDay(this.notebook.lines, logged.id).length > 0);
+      this.page.done({ scroll: !editing && !!next && !goOn, keepRoom: goOn });
+      if (goOn) this.page.openLineEditor(logged, { logging: true });
     }
   }
 
@@ -2594,16 +2900,22 @@ button {
 </script>
 
 <script data-module="dateEditor">
-/** The date panel: day, month and year wheels for a new date or to change one. No dates after today. */
+/**
+ * The date panel: day, month and year wheels for a new date or to change one. No dates after today.
+ * A new date also gets a plan wheel when there are plans. It starts on "No plan"; with a plan picked,
+ * the day is written out from it and the panel for its first machine opens.
+ */
 (function (FN) {
   'use strict';
   const { YEARS_BACK } = FN.config;
   const { range, indexOr } = FN.util;
   const { Calendar } = FN.calendar;
   const { LineMarkup } = FN.lineMarkup;
+  const { escapeHtml } = FN.util;
 
   const DAYS = range(1, 31);
   const MONTHS = range(1, 12);
+  const PLAN_WHEEL = 3; // the plan wheel comes after day, month and year
 
   class DateEditor {
     /** page: the notebook screen. It draws the pencil preview and hears when the panel closes. */
@@ -2623,20 +2935,25 @@ button {
       const start = Calendar.parts(editing ? editing.date : this.today);
       const writtenYears = this.notebook.lines.filter((l) => l.type === 'date').map((l) => Calendar.parts(l.date).y);
       this.years = range(Math.min(now.y - YEARS_BACK, start.y, ...writtenYears), Math.max(now.y, start.y));
+      this.plans = editing ? [] : this.notebook.plansAZ(); // only a new date can start from a plan
+      const withPlans = this.plans.length > 0;
 
       this.wheels = this.sheet.open({
         title: editing ? 'Change the date' : 'Start a new date',
-        columns: '64px 64px 84px',
-        center: true,
-        labels: [{ text: 'day' }, { text: 'month' }, { text: 'year' }],
+        columns: withPlans ? '52px 56px 72px minmax(0, 1fr)' : '64px 64px 84px',
+        center: !withPlans,
+        labels: [{ text: 'day' }, { text: 'month' }, { text: 'year' }].concat(withPlans ? { text: 'plan', left: true } : []),
         wheels: [
           { label: 'Day', items: DAYS.map(String), index: start.d - 1 },
           { label: 'Month', items: MONTHS.map(String), index: start.m - 1 },
           { label: 'Year', items: this.years.map(String), index: indexOr(this.years, start.y, this.years.length - 1) },
-        ],
+        ].concat(withPlans ? { label: 'Plan', align: 'left', items: ['No plan'].concat(this.plans.map((p) => p.name)), index: 0 } : []),
         actionLabel: editing ? 'Save' : 'Log',
         onChange: () => this.preview(),
-        onSettle: () => this.snapToValid(),
+        onSettle: (i) => {
+          if (i === PLAN_WHEEL) this.page.makeRoom(null, 'date'); // the plan's lines are now on the page: keep them in view
+          else this.snapToValid();
+        },
         onAction: () => this.commit(),
         onCancel: () => this.page.done(),
       });
@@ -2664,16 +2981,37 @@ button {
       if (year.index !== yearIndex) year.setIndex(yearIndex, true);
     }
 
+    /** The plan the plan wheel is on, or null: "No plan", or no plan wheel at all. */
+    pickedPlan() {
+      const wheel = this.wheels[PLAN_WHEEL];
+      return wheel ? this.plans[wheel.index - 1] || null : null;
+    }
+
+    /** The date in pencil, with the picked plan's name after it and its machines under it. */
     preview() {
       if (!this.wheels) return;
-      this.page.preview(this.editing, 'date', LineMarkup.content({ type: 'date', date: this.picked() }));
+      const plan = this.pickedPlan();
+      const planRows = plan
+        ? this.notebook.planMachines(plan.id).map((m) => `<div class="row-content is-pencil">${escapeHtml(m.name)}</div>`).join('')
+        : '';
+      const written = this.editing ? this.editing.plan : plan && plan.name; // a changed date keeps the plan it was started from
+      this.sheet.setActionLabel(this.editing ? 'Save' : plan ? `Start ${plan.name}` : 'Log');
+      this.page.preview(this.editing, 'date', LineMarkup.content({ type: 'date', date: this.picked(), plan: written }), planRows);
     }
 
     commit() {
       const date = this.picked();
-      if (this.editing) this.notebook.replaceLine(this.editing.id, { type: 'date', date });
-      else this.notebook.addLine({ type: 'date', date });
-      this.page.done({ scroll: !this.editing });
+      if (this.editing) {
+        const { plan } = this.editing;
+        this.notebook.replaceLine(this.editing.id, plan ? { type: 'date', date, plan } : { type: 'date', date });
+        this.page.done();
+        return;
+      }
+      const plan = this.pickedPlan();
+      const { planLines } = this.notebook.startDay(date, plan && plan.id);
+      // With a plan the day is ready to log: straight on to its first machine.
+      this.page.done({ scroll: !planLines.length, keepRoom: planLines.length > 0 });
+      if (planLines.length) this.page.openLineEditor(planLines[0]);
     }
   }
 
@@ -2707,6 +3045,7 @@ button {
       this.addArea = byId('addArea');
       this.rowNext = byId('rowNext');
       this.rowDate = byId('rowDate');
+      this.rowPlan = byId('rowPlan'); // the pencil lines of a plan, while a new date is being picked
       this.filler = byId('notebookFiller');
       this.todayBtn = byId('todayBtn');
       this.busy = false; // a panel is open
@@ -2715,11 +3054,12 @@ button {
       this.listen();
     }
 
-    render() {
+    /** keepRoom: leave the room under the page as it is, because a panel opens again right away. */
+    render({ keepRoom = false } = {}) {
       const { marks } = Progress.analyzeLines(this.notebook.lines);
       this.linesEl.innerHTML = LineMarkup.page(this.notebook.lines, marks);
       this.showAddLines();
-      this.filler.style.height = '';
+      if (!keepRoom) this.filler.style.height = '';
       this.updateTodayButton();
     }
 
@@ -2729,13 +3069,15 @@ button {
       this.rowNext.hidden = empty;
       setButton(this.rowNext, 'line', 'tap to add a line');
       setButton(this.rowDate, 'date', empty ? 'tap to start with a date' : '', 'Start a new date');
+      this.rowPlan.innerHTML = '';
     }
 
     /* ---- The panels ---- */
 
-    openLineEditor(line) {
+    /** options: { logging } to go on with a machine line that was just logged. */
+    openLineEditor(line, options) {
       this.busy = true;
-      this.lineEditor.open(line);
+      this.lineEditor.open(line, options);
     }
 
     openDateEditor(line) {
@@ -2743,18 +3085,19 @@ button {
       this.dateEditor.open(line);
     }
 
-    /** An editor calls this when its panel closes. */
-    done({ scroll } = {}) {
+    /** An editor calls this when its panel closes. keepRoom: the next panel opens at once, so the page must not jump. */
+    done({ scroll, keepRoom } = {}) {
       this.busy = false;
-      this.render();
+      this.render({ keepRoom });
       if (scroll) scrollToBottom(true);
     }
 
     /**
      * Shows the line being picked, in pencil: in its own row when changing a line,
-     * else on the empty lines (a date skips a line first).
+     * else on the empty lines (a date skips a line first). `planRows`: the lines a plan would write under a new date.
      */
-    preview(editing, type, html) {
+    preview(editing, type, html, planRows = '') {
+      this.rowPlan.innerHTML = editing ? '' : planRows;
       if (editing) {
         this.previewInRow(editing, type, html);
       } else if (type === 'date') {
@@ -2775,13 +3118,16 @@ button {
       content.innerHTML = html;
     }
 
-    /** Leaves room under the page and scrolls so the line being picked stays visible above the panel. */
+    /**
+     * Leaves room under the page and scrolls so the line being picked stays visible above the panel.
+     * kind: 'line', 'date' (down to the last pencil line of a plan) or 'log' (one more line, for a set with other numbers).
+     */
     makeRoom(editing, kind) {
-      const target = editing ? this.rowFor(editing) : kind === 'date' ? this.rowDate : this.rowNext;
+      const target = editing ? this.rowFor(editing) : kind === 'date' ? this.rowPlan.lastElementChild || this.rowDate : this.rowNext;
       const sheetHeight = this.sheet.height();
       this.filler.style.height = `calc(var(--line) * 4 + ${sheetHeight}px)`;
       if (!target) return;
-      const limit = window.innerHeight - sheetHeight - 16;
+      const limit = window.innerHeight - sheetHeight - 16 - (kind === 'log' ? target.offsetHeight : 0);
       const bottom = target.getBoundingClientRect().bottom;
       if (bottom > limit) window.scrollBy({ top: bottom - limit, behavior: 'smooth' });
     }
@@ -2793,6 +3139,22 @@ button {
       if (!row || !current) return;
       const { marks } = Progress.analyzeLines(this.notebook.lines);
       row.outerHTML = LineMarkup.row(current, marks.get(current.id));
+    }
+
+    /** Shows a line in pencil right under a written line: where a set with other numbers will be written. */
+    previewAfter(line, type, html) {
+      this.clearAfter();
+      const row = this.rowFor(line);
+      if (!row) return;
+      row.insertAdjacentHTML(
+        'afterend',
+        `<div class="row row--${type}" data-preview><div class="row-content is-pencil${type === 'text' ? ' is-text' : ''}">${html}</div></div>`
+      );
+    }
+
+    clearAfter() {
+      const row = this.linesEl.querySelector('[data-preview]');
+      if (row) row.remove();
     }
 
     /** Empties the add line, while a set is counted on the line above it. */
@@ -2814,12 +3176,14 @@ button {
       else this.openLineEditor(line);
     }
 
+    /** Removes a line. The date of a day that was started from a plan takes its whole day with it. */
     removeLine(id) {
       const line = this.notebook.line(id);
-      const undo = this.notebook.removeLine(id);
+      const wholeDay = !!line && line.type === 'date' && !!line.plan;
+      const undo = wholeDay ? this.notebook.removeDay(id) : this.notebook.removeLine(id);
       if (!undo) return;
       this.render();
-      this.toast.show(line.type === 'date' ? 'Date removed' : 'Line removed', () => {
+      this.toast.show(wholeDay ? 'Day removed' : line.type === 'date' ? 'Date removed' : 'Line removed', () => {
         undo();
         this.render();
       });
@@ -2878,7 +3242,7 @@ button {
 </script>
 
 <script data-module="settingsScreen">
-/** The settings screen: the machines list, and the backup (export and import). */
+/** The settings screen: the plans, the machines list, the rest timer and the backup (export and import). */
 (function (FN) {
   'use strict';
   const { escapeHtml } = FN.util;
@@ -2887,7 +3251,7 @@ button {
   const { Backup } = FN.backup;
   const { LineInput } = FN.lineInput;
   const { SwipeRows } = FN.swipeRows;
-  const { REST_TIMES_S } = FN.config;
+  const { REST_TIMES_S, Icons } = FN.config;
   const { indexOr } = FN.util;
   const { Prefs } = FN.prefs;
 
@@ -2900,6 +3264,7 @@ button {
       this.app = app;
       this.root = byId('settings');
       this.list = byId('machineList');
+      this.planList = byId('planList');
       this.addRow = byId('addMachineRow');
       this.examplesBtn = byId('removeExamples');
       this.importFile = byId('importFile');
@@ -2909,6 +3274,7 @@ button {
     }
 
     render() {
+      this.renderPlans();
       this.renderList();
       this.renderAddRow();
       this.renderTimer();
@@ -2922,6 +3288,44 @@ button {
     renderAddRow() {
       this.addRow.className = 'bleed add-row add-row--pencil';
       this.addRow.innerHTML = '<button class="pencil-btn" type="button">tap here to add a machine</button>';
+    }
+
+    /* ---- Plans ---- */
+
+    renderPlans() {
+      this.planList.innerHTML = this.notebook.plansAZ().map((plan) => planRowHtml(plan, this.notebook.planMachines(plan.id).length)).join('');
+    }
+
+    /** Asks for a name, then opens the new plan so its machines can be added. */
+    addPlan() {
+      this.sheet.open({
+        title: 'New plan',
+        text: { value: '', placeholder: 'name of the plan', label: 'Name of the plan' },
+        columns: 'none',
+        labels: [],
+        wheels: [],
+        actionLabel: 'Add plan',
+        onAction: () => {
+          const name = this.sheet.textField.value.trim();
+          if (!name) return;
+          if (this.notebook.planNameTaken(name)) {
+            this.toast.show('There is a plan with that name already');
+            return;
+          }
+          const plan = this.notebook.addPlan(name);
+          this.app.open({ view: 'plan', planId: plan.id });
+        },
+      });
+    }
+
+    removePlan(id) {
+      const undo = this.notebook.removePlan(id);
+      if (!undo) return;
+      this.renderPlans();
+      this.toast.show('Plan removed', () => {
+        undo();
+        this.app.refresh();
+      });
     }
 
     /* ---- Machines ---- */
@@ -3071,6 +3475,14 @@ button {
       });
       this.examplesBtn.addEventListener('click', () => this.removeExamples());
 
+      byId('addPlanRow').addEventListener('click', (e) => {
+        if (e.target.closest('.pencil-btn')) this.addPlan();
+      });
+      new SwipeRows(this.planList, {
+        onTap: (row) => this.app.open({ view: 'plan', planId: row.dataset.key }),
+        onDelete: (row) => this.removePlan(row.dataset.key),
+      });
+
       new SwipeRows(this.list, {
         onTap: (row) => this.rename(row),
         onDelete: (row) => this.removeMachine(row.dataset.key),
@@ -3099,7 +3511,232 @@ button {
     );
   }
 
+  function planRowHtml(plan, count) {
+    const name = escapeHtml(plan.name);
+    return (
+      `<div class="row row--machine" role="listitem" tabindex="0" data-key="${escapeHtml(plan.id)}">` +
+      `<div class="row-content"><span class="name">${name}</span>` +
+      `<span class="mark stat-value">${count} ${count === 1 ? 'machine' : 'machines'}${Icons.chevron}</span></div>` +
+      `<button class="row-delete" type="button" tabindex="-1" aria-label="Remove ${name}"><span>Delete</span></button>` +
+      '</div>'
+    );
+  }
+
   FN.settingsScreen = { SettingsScreen };
+})(globalThis.FN = globalThis.FN || {});
+</script>
+
+<script data-module="planScreen">
+/**
+ * One plan: its machines in the order you do them. Names only, no kg or reps.
+ * Drag the handle of a machine to move it, drag the row left to take it out.
+ * Tap the name at the top to change it. A plan is removed in settings, like a machine: drag it left.
+ */
+(function (FN) {
+  'use strict';
+  const { Icons } = FN.config;
+  const { escapeHtml, sameName, clamp } = FN.util;
+  const { byId, shake } = FN.dom;
+  const { LineInput } = FN.lineInput;
+  const { SwipeRows } = FN.swipeRows;
+
+  class PlanScreen {
+    /** app: to draw the screen again after an undo. */
+    constructor({ notebook, sheet, toast, app }) {
+      this.notebook = notebook;
+      this.sheet = sheet;
+      this.toast = toast;
+      this.app = app;
+      this.root = byId('plan');
+      this.title = byId('planTitle');
+      this.list = byId('planMachines');
+      this.addRow = byId('planAddRow');
+      this.planId = null;
+      this.drag = null;
+      this.listen();
+    }
+
+    render({ planId }) {
+      this.planId = planId;
+      this.renderTitle();
+      this.renderList();
+      this.renderAddRow();
+    }
+
+    /** The plan's name, as a button: tap it to change the name. */
+    renderTitle() {
+      const plan = this.notebook.plan(this.planId);
+      const name = escapeHtml(plan ? plan.name : 'Plan');
+      this.title.innerHTML = `<button class="title-btn" type="button" aria-label="${name}: tap to change the name">${name}</button>`;
+    }
+
+    renderList() {
+      this.list.innerHTML = this.notebook.planMachines(this.planId).map(machineRowHtml).join('');
+    }
+
+    renderAddRow() {
+      this.addRow.className = 'bleed add-row add-row--pencil';
+      this.addRow.innerHTML = '<button class="pencil-btn" type="button">tap here to add a machine</button>';
+    }
+
+    /* ---- Machines ---- */
+
+    /**
+     * The panel to add a machine: a wheel with the machines not in the plan yet, or a new name.
+     * After each machine it opens again for the next one, until you tap outside it.
+     */
+    addMachine(startIndex = 0) {
+      const plan = this.notebook.plan(this.planId);
+      if (!plan) return;
+      const options = this.notebook.machinesNotInPlan(plan.id);
+      const hasWheel = options.length > 0;
+      const showPicked = () => {
+        if (!hasWheel) return;
+        const typed = this.sheet.text();
+        this.addRow.className = 'bleed add-row';
+        this.addRow.innerHTML = `<div class="row-content is-pencil">${escapeHtml(typed || options[wheel.index].name)}</div>`;
+      };
+      const [wheel] = this.sheet.open({
+        title: `Add a machine to ${plan.name}`,
+        text: { value: '', placeholder: hasWheel ? 'or write a new machine' : 'write a new machine', label: 'New machine' },
+        columns: 'minmax(0, 1fr)',
+        labels: hasWheel ? [{ text: 'Machine', left: true }] : [],
+        wheels: hasWheel ? [{ label: 'Machine', align: 'left', items: options.map((m) => m.name), index: clamp(startIndex, 0, options.length - 1) }] : [],
+        actionLabel: `Add to ${plan.name}`,
+        onChange: showPicked,
+        onCancel: () => this.renderAddRow(),
+        onAction: () => {
+          const typed = this.sheet.textField.value.trim();
+          const index = hasWheel ? wheel.index : 0;
+          const machine = typed
+            ? this.notebook.machines.find((m) => sameName(m.name, typed)) || this.notebook.addMachine(typed)
+            : options[index];
+          const added = !!machine && this.notebook.addPlanMachine(plan.id, machine.id);
+          this.renderList();
+          this.renderAddRow();
+          if (typed && !added) this.toast.show('That machine is in the plan already');
+          else if (this.notebook.machinesNotInPlan(plan.id).length) this.addMachine(index);
+        },
+      });
+      showPicked();
+    }
+
+    removeMachine(machineId) {
+      const undo = this.notebook.removePlanMachine(this.planId, machineId);
+      if (!undo) return;
+      this.renderList();
+      this.toast.show('Taken out of the plan', () => {
+        undo();
+        this.app.refresh();
+      });
+    }
+
+    /* ---- The name ---- */
+
+    /** Turns the name into a text field, the way a machine is renamed in settings. */
+    rename() {
+      const plan = this.notebook.plan(this.planId);
+      if (!plan) return;
+      const field = new LineInput({
+        value: plan.name,
+        label: 'Name of the plan',
+        onSubmit: (name, el) => {
+          if (!name || name === plan.name) return 'close';
+          if (this.notebook.planNameTaken(name, plan.id)) {
+            shake(el);
+            return 'keep';
+          }
+          this.notebook.renamePlan(plan.id, name);
+          return 'close';
+        },
+        onClose: () => this.renderTitle(),
+      });
+      this.title.replaceChildren(field.el);
+      field.focus();
+    }
+
+    /* ---- Moving a machine up or down ---- */
+
+    startDrag(e) {
+      const handle = e.target.closest('.row-handle');
+      if (!handle || this.drag || (e.pointerType === 'mouse' && e.button !== 0)) return;
+      const row = handle.closest('.row');
+      const rows = Array.from(this.list.children);
+      const from = rows.indexOf(row);
+      this.drag = { row, rows, from, to: from, startY: e.clientY, pointerId: e.pointerId, step: row.offsetHeight };
+      try { handle.setPointerCapture(e.pointerId); } catch (_) { /* pointer already released */ }
+      row.classList.add('is-moving');
+    }
+
+    moveDrag(e) {
+      const d = this.drag;
+      if (!d || e.pointerId !== d.pointerId) return;
+      const dy = clamp(e.clientY - d.startY, -d.from * d.step, (d.rows.length - 1 - d.from) * d.step);
+      d.to = d.from + Math.round(dy / d.step);
+      d.row.style.transform = `translateY(${dy}px)`;
+      d.rows.forEach((other, i) => { // the rows in between step aside
+        if (other === d.row) return;
+        const shift = i > d.from && i <= d.to ? -d.step : i < d.from && i >= d.to ? d.step : 0;
+        other.classList.add('is-shifting');
+        other.style.transform = shift ? `translateY(${shift}px)` : '';
+      });
+    }
+
+    endDrag(e) {
+      const d = this.drag;
+      if (!d || e.pointerId !== d.pointerId) return;
+      this.drag = null;
+      if (e.type === 'pointerup' && d.to !== d.from) this.notebook.movePlanMachine(this.planId, d.row.dataset.key, d.to);
+      this.renderList();
+    }
+
+    /** Arrow up and down on a handle move its machine one place. */
+    moveWithKey(e) {
+      const handle = e.target.closest('.row-handle');
+      const step = { ArrowUp: -1, ArrowDown: 1 }[e.key];
+      if (!handle || !step) return;
+      e.preventDefault();
+      const key = handle.closest('.row').dataset.key;
+      const from = Array.from(this.list.children).findIndex((row) => row.dataset.key === key);
+      this.notebook.movePlanMachine(this.planId, key, from + step);
+      this.renderList();
+      const moved = this.list.querySelector(`.row[data-key="${CSS.escape(key)}"] .row-handle`);
+      if (moved) moved.focus();
+    }
+
+    listen() {
+      this.addRow.addEventListener('click', (e) => {
+        if (e.target.closest('.pencil-btn')) this.addMachine();
+      });
+      this.title.addEventListener('click', (e) => {
+        if (e.target.closest('.title-btn')) this.rename();
+      });
+
+      new SwipeRows(this.list, {
+        onTap: () => {},
+        onDelete: (row) => this.removeMachine(row.dataset.key),
+      });
+
+      this.list.addEventListener('pointerdown', (e) => this.startDrag(e));
+      this.list.addEventListener('pointermove', (e) => this.moveDrag(e));
+      this.list.addEventListener('pointerup', (e) => this.endDrag(e));
+      this.list.addEventListener('pointercancel', (e) => this.endDrag(e));
+      this.list.addEventListener('keydown', (e) => this.moveWithKey(e));
+    }
+  }
+
+  function machineRowHtml(machine) {
+    const name = escapeHtml(machine.name);
+    return (
+      `<div class="row row--machine" role="listitem" tabindex="0" data-key="${escapeHtml(machine.id)}">` +
+      `<div class="row-content"><span class="name">${name}</span>` +
+      `<button class="row-handle" type="button" aria-label="Move ${name}: drag, or use arrow up and down">${Icons.handle}</button></div>` +
+      `<button class="row-delete" type="button" tabindex="-1" aria-label="Take ${name} out of the plan"><span>Delete</span></button>` +
+      '</div>'
+    );
+  }
+
+  FN.planScreen = { PlanScreen };
 })(globalThis.FN = globalThis.FN || {});
 </script>
 
@@ -3318,7 +3955,7 @@ button {
 </script>
 
 <script data-module="app">
-/** Start-up and moving between the screens: notebook, settings, statistics, machine chart. */
+/** Start-up and moving between the screens: notebook, settings, one plan, statistics, machine chart. */
 (function (FN) {
   'use strict';
   const { STORAGE_KEY, PREFS_KEY, TIMER_KEY } = FN.config;
@@ -3331,6 +3968,7 @@ button {
   const { TimerButton } = FN.timerButton;
   const { NotebookScreen } = FN.notebookScreen;
   const { SettingsScreen } = FN.settingsScreen;
+  const { PlanScreen } = FN.planScreen;
   const { MonthScreen } = FN.monthScreen;
   const { MachineScreen } = FN.machineScreen;
 
@@ -3346,6 +3984,7 @@ button {
       this.screens = {
         notebook: new NotebookScreen(parts),
         settings: new SettingsScreen(parts),
+        plan: new PlanScreen(parts),
         stats: new MonthScreen(parts),
         machineStats: new MachineScreen(parts),
       };
@@ -3354,9 +3993,13 @@ button {
       this.notebookScrollY = 0;
     }
 
-    /** Shows a screen. `next` is { view } or, for a machine chart, { view: 'machineStats', machineId }. */
+    /**
+     * Shows a screen. `next` is { view }, or { view: 'machineStats', machineId } for a machine chart,
+     * or { view: 'plan', planId } for a plan. A plan that is gone shows the settings instead.
+     */
     show(next) {
-      const target = next && this.screens[next.view] ? next : { view: 'notebook' };
+      let target = next && this.screens[next.view] ? next : { view: 'notebook' };
+      if (target.view === 'plan' && !this.notebook.plan(target.planId)) target = { view: 'settings' };
       this.sheet.cancel();
       if (this.current.view === 'notebook' && target.view !== 'notebook') {
         this.notebookScrollY = window.scrollY;

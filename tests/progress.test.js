@@ -93,3 +93,31 @@ test('kgOptions: steps of 2.5 from 0, and always holds the asked value', () => {
   assert.equal(odd[odd.indexOf(41) + 1], 42.5);
   assert.equal(Progress.kgOptions(320).at(-1), 320);
 });
+
+/* ---- Plan lines: machines a plan put on the page, not logged yet ---- */
+
+const planned = (id, machineId) => ({ id, type: 'plan', machineId, name: machineId });
+
+test('plannedInDay: the pencil lines of the day a line is in, top to bottom', () => {
+  const lines = [
+    date('d1', '2026-11-16'), planned('old', 'leg'),
+    date('d2', '2026-11-18'), text('t', 'Leg day'), lift('a', 'leg', 80), planned('p1', 'curl'), planned('p2', 'calf'),
+    date('d3', '2026-11-20'), lift('b', 'leg', 80),
+  ];
+  assert.deepEqual(Progress.plannedInDay(lines, 'a').map((l) => l.id), ['p1', 'p2']);
+  assert.deepEqual(Progress.plannedInDay(lines, 'p2').map((l) => l.id), ['p1', 'p2']);
+  assert.deepEqual(Progress.plannedInDay(lines, 'd2').map((l) => l.id), ['p1', 'p2']);
+  assert.deepEqual(Progress.plannedInDay(lines, 'd1').map((l) => l.id), ['old']);
+  assert.deepEqual(Progress.plannedInDay(lines, 'b'), []);
+  assert.deepEqual(Progress.plannedInDay(lines, 'nope'), []);
+});
+
+test('plan lines never count: no mark, no history, not done today', () => {
+  const lines = [date('d1', '2026-11-16'), lift('a', 'leg', 80), date('d2', '2026-11-18'), planned('p', 'leg'), planned('q', 'curl')];
+  const { marks, latest } = Progress.analyzeLines(lines);
+  assert.deepEqual([...marks.keys()], ['a']);
+  assert.deepEqual([...latest.keys()], ['leg']);
+  assert.deepEqual(Progress.machineHistory(lines, 'leg'), [{ date: '2026-11-16', weight: 80 }]);
+  assert.deepEqual([...Progress.machinesInCurrentDay(lines)], []);
+  assert.deepEqual([...Progress.sessionDates(lines)].sort(), ['2026-11-16', '2026-11-18']);
+});

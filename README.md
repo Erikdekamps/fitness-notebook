@@ -28,22 +28,32 @@ CI runs the tests on every pull request. On `main` the deploy runs them first an
 | `util` | small pure helpers | yes |
 | `config` | every fixed value | yes |
 | `calendar` | dates, weeks and months as "YYYY-MM-DD" | yes |
-| `progress` | marks (↑ or –N), machine history, wheel values | yes |
+| `progress` | marks (↑ or –N), machine history, wheel values, the pencil lines of a plan's day | yes |
 | `chartMath` | how a chart is scaled and laid out | yes |
 | `backup` | notebook to JSON file and back | yes |
 | `store` | reading and writing localStorage | yes |
 | `prefs` | the settings (rest timer on or off, rest time), saved apart from the notebook | yes |
-| `notebook` | the `Notebook` class: every change to lines and machines, with undo | yes |
+| `notebook` | the `Notebook` class: every change to lines, machines and plans, with undo | yes |
 | `lineMarkup` | the HTML for one notebook line | yes |
 | **Parts** | | |
 | `dom`, `toast`, `lineInput`, `wheel`, `sheet`, `swipeRows` | building blocks the screens use | |
 | **Panels** | | |
 | `lineEditor`, `dateEditor` | the bottom panel for writing a line or a date | |
 | **Screens** | | |
-| `notebookScreen`, `settingsScreen`, `monthScreen`, `machineScreen` | one class per screen | |
+| `notebookScreen`, `settingsScreen`, `planScreen`, `monthScreen`, `machineScreen` | one class per screen | |
 | `app` | the `App` class: start-up and moving between screens | |
 
 The rule of thumb: anything that decides something (what mark a line gets, what a backup file may contain, how a chart is scaled) lives in a block marked `data-testable`. Those blocks never touch the page, so `tests/load.js` can read them out of `index.html` and run them in Node. The other blocks only draw and listen.
+
+## Plans
+
+A plan is a named list of machines in the order you do them, such as "Leg day". You make plans in Settings.
+
+- A plan holds machine names only. It never holds kg or reps: those come from the last time you did the machine.
+- A new date can start from a plan. The plan's name is written after the date in brackets, its machines under it in pencil, and the panel opens on the first one.
+- Logging the first set turns a pencil line into pen. After each set the panel comes back for the next set, with a button to the next machine.
+- Dragging the date of such a day left removes the whole day: the date and every line under it. Undo brings it back.
+- A pencil line never counts in the statistics. Pencil lines you did not log are thrown away when you start the next date.
 
 ## Other folders
 

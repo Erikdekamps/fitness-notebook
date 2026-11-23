@@ -48,3 +48,20 @@ test('page: a skipped line before every date but the first', () => {
   assert.ok(html.indexOf('class="blank"') > html.indexOf('data-key="t1"'));
   assert.ok(html.indexOf('class="blank"') < html.indexOf('data-key="d2"'));
 });
+
+test('a plan line: only the name, in pencil, and it can still be tapped and removed', () => {
+  const plan = { id: 'p1', type: 'plan', machineId: 'm', name: 'Leg <curl>' };
+  assert.equal(LineMarkup.content(plan), '<span class="name">Leg &lt;curl&gt;</span>');
+  const html = LineMarkup.row(plan, null);
+  assert.match(html, /class="row row--plan"/);
+  assert.match(html, /class="row-content is-pencil"/);
+  assert.match(html, /data-key="p1"/);
+  assert.match(html, /class="row-delete"/);
+  assert.doesNotMatch(LineMarkup.row(machine, null), /is-pencil/);
+});
+
+test('content: a date started from a plan has the plan name after it in brackets, escaped', () => {
+  const html = LineMarkup.content({ type: 'date', date: `${thisYear}-11-18`, plan: 'Legs & <more>' });
+  assert.match(html, /<span>18\/11<\/span><span>\w+<\/span><span class="plan-name">\(Legs &amp; &lt;more&gt;\)<\/span>$/);
+  assert.doesNotMatch(LineMarkup.content({ type: 'date', date: `${thisYear}-11-18` }), /plan-name/);
+});
