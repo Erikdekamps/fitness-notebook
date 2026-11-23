@@ -32,6 +32,7 @@ CI runs the tests on every pull request. On `main` the deploy runs them first an
 | `chartMath` | how a chart is scaled and laid out | yes |
 | `backup` | notebook to JSON file and back | yes |
 | `store` | reading and writing localStorage | yes |
+| `prefs` | the settings (rest timer on or off, rest time), saved apart from the notebook | yes |
 | `notebook` | the `Notebook` class: every change to lines and machines, with undo | yes |
 | `lineMarkup` | the HTML for one notebook line | yes |
 | **Parts** | | |
