@@ -1,36 +1,33 @@
 # Design screens
 
-The design for Fitness Notebook, one screen per file. Every screen is 390 × 844 (iPhone 13).
+Screenshots of the app, one per screen, in the order you meet them. Every screen is 390 × 844 (iPhone 13), taken at 2×.
 
-Each screen is here twice:
+They are pictures of the real `index.html`, so they show what is built. The numbers and dates are examples: "today" is 23/11. Screens 16, 17 and 19 use a made-up year of training.
 
-- `.png` is a picture of the screen.
-- `.html` is the same screen as a plain page. Open it in any browser. The links between screens work.
-
-The numbers and dates on the screens are examples.
-
-| Group | Screen | Picture | Page |
-| --- | --- | --- | --- |
-| 1. The notebook | Today, bottom of the page | [png](1-notebook-today.png) | [html](1-notebook-today.html) |
-| 1. The notebook | Scrolled up into older days | [png](1-notebook-scrolled-up.png) | [html](1-notebook-scrolled-up.html) |
-| 2. Add a line | Tap the add line: wheels or your own text | [png](2-add-line.png) | [html](2-add-line.html) |
-| 2. Add a line | Typing your own line | [png](2-add-line-typing.png) | [html](2-add-line-typing.html) |
-| 3. Start a new date | Tap below the add line, pick the date | [png](3-new-date.png) | [html](3-new-date.html) |
-| 4. Remove a line | Drag left to delete | [png](4-remove-line.png) | [html](4-remove-line.html) |
-| 5. Settings | Machines and backup, cog icon | [png](5-settings-machines.png) | [html](5-settings-machines.html) |
-| 5. Settings | Export: saved as a JSON file | [png](5-settings-export.png) | [html](5-settings-export.html) |
-| 5. Settings | Import: check the file, then replace | [png](5-settings-import.png) | [html](5-settings-import.html) |
-| 6. Statistics | This month: only an arrow back | [png](6-statistics-month.png) | [html](6-statistics-month.html) |
-| 6. Statistics | An older month: arrows both ways | [png](6-statistics-older-month.png) | [html](6-statistics-older-month.html) |
-| 6. Statistics | One machine: weights and dates | [png](6-statistics-machine.png) | [html](6-statistics-machine.html) |
-| 6. Statistics | One machine with a year of data | [png](6-statistics-machine-year.png) | [html](6-statistics-machine-year.html) |
-
-## What is built
-
-All six groups are built in [`../index.html`](../index.html).
+| Group | Screen | What it shows |
+| --- | --- | --- |
+| The notebook | [01-notebook-today.png](01-notebook-today.png) | Bottom of the page: the latest days, and "tap to add a line" |
+| The notebook | [02-notebook-older-days.png](02-notebook-older-days.png) | Scrolled up into older days; the arrow goes back to today |
+| A new day | [03-new-date.png](03-new-date.png) | Tap below the add line, pick the date |
+| A new day | [04-add-line-typing.png](04-add-line-typing.png) | Write your own line, such as the class |
+| Logging sets | [05-add-line.png](05-add-line.png) | Pick machine, kg and reps, then "Log set 1" |
+| Logging sets | [06-rest-timer.png](06-rest-timer.png) | The rest timer starts top left; the line reads kg × reps × sets |
+| Logging sets | [07-log-next-set.png](07-log-next-set.png) | Same machine, kg and reps: "Log set 2" counts up on the same line |
+| Logging sets | [08-rest-over.png](08-rest-over.png) | Rest is over: "go", then it counts up. Tap it to stop |
+| Change a line | [09-change-line.png](09-change-line.png) | Tap a line: "Log set 4" adds a set to it |
+| Change a line | [10-change-line-save.png](10-change-line-save.png) | Change kg or reps: the line shows in pencil and the button says Save |
+| Remove a line | [11-remove-line.png](11-remove-line.png) | Drag left to delete |
+| Settings | [12-settings.png](12-settings.png) | Machines, rest timer (on or off, rest time) and backup |
+| Settings | [13-settings-rest-time.png](13-settings-rest-time.png) | Pick the rest time, 0:15 to 10:00 |
+| Settings | [14-settings-export.png](14-settings-export.png) | Export: saved as a JSON file |
+| Settings | [15-settings-import.png](15-settings-import.png) | Import: check the file, then replace |
+| Statistics | [16-statistics-month.png](16-statistics-month.png) | This month: only an arrow back |
+| Statistics | [17-statistics-older-month.png](17-statistics-older-month.png) | An older month: arrows both ways |
+| Statistics | [18-statistics-machine.png](18-statistics-machine.png) | One machine: weights and dates |
+| Statistics | [19-statistics-machine-year.png](19-statistics-machine-year.png) | One machine with a year of data |
 
 ## Look
 
 - Paper `#e8d3bc`, ruled lines `#5a5048`, one line every 44 px, stopping 20 px short of both edges.
 - Pen `#1d3a8a`, pencil `#4d535c`, handwriting font Caveat at 27 px.
-- Pen is for what has been logged. Pencil is for hints and for a line that is still being picked.
+- Pen is for what has been logged. Pencil is for hints, the running timer, and a line that is still being picked.
