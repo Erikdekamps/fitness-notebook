@@ -2,7 +2,7 @@
 
 Screenshots of the app, one per screen, in the order you meet them. Every screen is 390 × 844 (iPhone 13), taken at 2×.
 
-They are pictures of the real `index.html`, so they show what is built. Screens 13 and 14 were taken before settings had its plans part, so that part is missing behind their panels. The numbers and dates are examples: "today" is 23/11. Screens 15, 16 and 18 use a made-up year of training.
+They are pictures of the real `index.html`, so they show what is built. Screens 07 to 10 and 13 to 18 were taken when a new notebook had six machines and settings had no plans part; it now starts with twelve machines, so those show a shorter list than you see today. The numbers and dates are examples: "today" is 23/11. Screens 15, 16 and 18 use a made-up year of training.
 
 | Group | Screen | What it shows |
 | --- | --- | --- |

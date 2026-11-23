@@ -192,9 +192,12 @@ test('exampleData: five days, every machine line points at a machine, every id i
   assert.equal(new Set(data.lines.map((l) => l.id)).size, data.lines.length);
 });
 
-test('exampleData: six machines and no plans', () => {
+test('exampleData: twelve machines, each with its own id and name, and no plans', () => {
   const data = Notebook.exampleData();
-  assert.equal(data.machines.length, 6);
+  assert.equal(data.machines.length, 12);
+  assert.equal(new Set(data.machines.map((m) => m.id)).size, 12);
+  assert.equal(new Set(data.machines.map((m) => m.name.toLowerCase())).size, 12);
+  assert.ok(data.machines.some((m) => m.id === 'm-leg-press' && m.name === 'Leg press')); // the ids older notebooks use
   assert.deepEqual(data.plans, []);
 });
 

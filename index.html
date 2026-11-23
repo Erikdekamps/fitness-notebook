@@ -1765,15 +1765,21 @@ button {
         .map((line) => (keepDates.has(line.id) ? { ...line, example: undefined } : line));
     }
 
-    /** The data a new notebook starts with: six machines, no plans and five example days. */
+    /** The data a new notebook starts with: twelve machines, no plans and five example days. */
     static exampleData() {
       const machines = [
-        { id: 'm-leg-press', name: 'Leg press' },
+        { id: 'm-abdominal', name: 'Abdominal' },
+        { id: 'm-biceps-curl', name: 'Biceps curl' },
         { id: 'm-chest-press', name: 'Chest press' },
+        { id: 'm-dumbbells', name: 'Dumbbells' },
+        { id: 'm-fly', name: 'Fly' },
         { id: 'm-lat-pulldown', name: 'Lat pulldown' },
-        { id: 'm-shoulder-press', name: 'Shoulder press' },
-        { id: 'm-seated-row', name: 'Seated row' },
         { id: 'm-leg-curl', name: 'Leg curl' },
+        { id: 'm-leg-press', name: 'Leg press' },
+        { id: 'm-row-rear-deltoid', name: 'Row rear deltoid' },
+        { id: 'm-seated-row', name: 'Seated row' },
+        { id: 'm-shoulder-press', name: 'Shoulder press' },
+        { id: 'm-triceps-press', name: 'Triceps press' },
       ];
       const byName = new Map(machines.map((m) => [m.name, m]));
       const sessions = [
