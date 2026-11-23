@@ -349,6 +349,26 @@ test('startDay: pencil lines never logged on an earlier day are thrown away', ()
   assert.deepEqual(notebook.lines.map((l) => l.type), ['date', 'machine', 'date', 'machine', 'date', 'plan', 'plan']);
 });
 
+test('removeDay: the date and every line under it up to the next date; the undo puts them all back', () => {
+  const { notebook, plan, saved } = makePlanned();
+  const { dateLine } = notebook.startDay('2026-11-22', plan.id);
+  notebook.addLine(text('t1', 'extra'));
+  notebook.startDay('2026-11-23');
+  notebook.addLine(text('t2', 'next day'));
+  const before = notebook.lines.map((l) => l.id);
+  saved.count = 0;
+  const undo = notebook.removeDay(dateLine.id);
+  assert.deepEqual(notebook.lines.map((l) => l.type), ['date', 'machine', 'date', 'text']);
+  assert.equal(notebook.lines.at(-1).text, 'next day');
+  assert.equal(saved.count, 1);
+  undo();
+  assert.deepEqual(notebook.lines.map((l) => l.id), before);
+  assert.equal(notebook.removeDay('l1'), null); // not a date
+  assert.equal(notebook.removeDay('nope'), null);
+  assert.equal(notebook.removeDay(notebook.lines.at(-2).id) !== null, true); // the last day runs to the bottom
+  assert.equal(notebook.lines.at(-1).text, 'extra');
+});
+
 test('addLineAfter: right under a line; at the bottom when that line is gone', () => {
   const { notebook, saved } = makeNotebook();
   notebook.addLine(text('t1', 'last'));

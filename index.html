@@ -1565,6 +1565,23 @@ button {
       };
     }
 
+    /**
+     * Removes a whole day: the date line and every line under it, up to the next date.
+     * Returns its undo, or null when there is no such date line.
+     */
+    removeDay(id) {
+      const index = this.lines.findIndex((l) => l.id === id);
+      if (index === -1 || this.lines[index].type !== 'date') return null;
+      let end = index + 1;
+      while (end < this.lines.length && this.lines[end].type !== 'date') end++;
+      const day = this.lines.splice(index, end - index);
+      this.save();
+      return () => {
+        this.lines.splice(Math.min(index, this.lines.length), 0, ...day);
+        this.save();
+      };
+    }
+
     /* ---- Machines ---- */
 
     /** Adds a machine. Re-adding one that was removed earlier picks its history back up. */
@@ -1810,7 +1827,7 @@ button {
     content(line, mark) {
       if (line.type === 'date') {
         const { date, day } = Calendar.written(line.date);
-        const plan = line.plan ? `<span class="plan-name">${escapeHtml(line.plan)}</span>` : ''; // the plan the day started from
+        const plan = line.plan ? `<span class="plan-name">(${escapeHtml(line.plan)})</span>` : ''; // the plan the day started from
         return `<span>${date}</span><span>${day}</span>${plan}`;
       }
       if (line.type === 'text') return escapeHtml(line.text);
@@ -3156,12 +3173,14 @@ button {
       else this.openLineEditor(line);
     }
 
+    /** Removes a line. The date of a day that was started from a plan takes its whole day with it. */
     removeLine(id) {
       const line = this.notebook.line(id);
-      const undo = this.notebook.removeLine(id);
+      const wholeDay = !!line && line.type === 'date' && !!line.plan;
+      const undo = wholeDay ? this.notebook.removeDay(id) : this.notebook.removeLine(id);
       if (!undo) return;
       this.render();
-      this.toast.show(line.type === 'date' ? 'Date removed' : 'Line removed', () => {
+      this.toast.show(wholeDay ? 'Day removed' : line.type === 'date' ? 'Date removed' : 'Line removed', () => {
         undo();
         this.render();
       });
