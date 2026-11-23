@@ -2524,8 +2524,8 @@ button {
     }
 
     /**
-     * Shows the line in pencil, with the mark it would get. One more set of the bottom line
-     * shows on that line itself (80 × 12 × 2); anything else on the empty line below.
+     * Shows the line in pencil, with the mark it would get. When Log adds a set to a line,
+     * nothing is previewed: that line keeps showing what is logged so far.
      */
     preview() {
       if (!this.wheels) return;
@@ -2539,9 +2539,9 @@ button {
         return;
       }
       if (setLine) {
-        const line = { ...setLine, sets: setLine.sets + 1 };
+        // The set is not there until it is logged: the line stays as it is, the button says which set comes.
         if (!this.editing) this.page.clearNext();
-        this.page.preview(setLine, 'machine', LineMarkup.content(line, this.markFor(line, setLine.id)));
+        this.page.restoreRow(setLine);
         return;
       }
       const editing = this.editing;
