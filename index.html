@@ -1765,20 +1765,16 @@ button {
         .map((line) => (keepDates.has(line.id) ? { ...line, example: undefined } : line));
     }
 
-    /** The machines a new notebook starts with: what most gyms have. */
-    static starterMachines() {
-      const names = [
-        'Ab crunch', 'Back extension', 'Bicep curl', 'Cable crossover', 'Calf raise', 'Chest fly', 'Chest press',
-        'Glute kickback', 'Hack squat', 'Hip abductor', 'Hip adductor', 'Incline press', 'Lat pulldown', 'Lateral raise',
-        'Leg curl', 'Leg extension', 'Leg press', 'Pull-up assist', 'Rear delt fly', 'Seated row', 'Shoulder press',
-        'Smith machine', 'Torso rotation', 'Tricep pushdown',
-      ];
-      return names.map((name) => ({ id: 'm-' + name.toLowerCase().replace(/[^a-z0-9]+/g, '-'), name }));
-    }
-
-    /** The data a new notebook starts with: the starter machines, no plans and five example days. */
+    /** The data a new notebook starts with: six machines, no plans and five example days. */
     static exampleData() {
-      const machines = Notebook.starterMachines();
+      const machines = [
+        { id: 'm-leg-press', name: 'Leg press' },
+        { id: 'm-chest-press', name: 'Chest press' },
+        { id: 'm-lat-pulldown', name: 'Lat pulldown' },
+        { id: 'm-shoulder-press', name: 'Shoulder press' },
+        { id: 'm-seated-row', name: 'Seated row' },
+        { id: 'm-leg-curl', name: 'Leg curl' },
+      ];
       const byName = new Map(machines.map((m) => [m.name, m]));
       const sessions = [
         ['2026-11-07', 'Biking Basics New Zealand #11', [['Leg press', 75, 3, 12], ['Chest press', 32.5, 3, 10], ['Seated row', 37.5, 3, 12]]],
@@ -2696,7 +2692,7 @@ button {
             otherLabel: upNext ? `Next: ${upNext.name}` : 'Done',
             onOther: () => {
               this.shownOn = null;
-              this.page.done();
+              this.page.done({ keepRoom: !!upNext });
               if (upNext) this.page.openLineEditor(upNext);
             },
           }
@@ -2888,7 +2884,7 @@ button {
 
       // In a plan's day the panel comes straight back for the next set.
       const goOn = !!logged && (this.logging || !!this.planLine || Progress.plannedInDay(this.notebook.lines, logged.id).length > 0);
-      this.page.done({ scroll: !editing && !!next && !goOn });
+      this.page.done({ scroll: !editing && !!next && !goOn, keepRoom: goOn });
       if (goOn) this.page.openLineEditor(logged, { logging: true });
     }
   }
@@ -3008,7 +3004,7 @@ button {
       const plan = this.pickedPlan();
       const { planLines } = this.notebook.startDay(date, plan && plan.id);
       // With a plan the day is ready to log: straight on to its first machine.
-      this.page.done({ scroll: !planLines.length });
+      this.page.done({ scroll: !planLines.length, keepRoom: planLines.length > 0 });
       if (planLines.length) this.page.openLineEditor(planLines[0]);
     }
   }
@@ -3052,11 +3048,12 @@ button {
       this.listen();
     }
 
-    render() {
+    /** keepRoom: leave the room under the page as it is, because a panel opens again right away. */
+    render({ keepRoom = false } = {}) {
       const { marks } = Progress.analyzeLines(this.notebook.lines);
       this.linesEl.innerHTML = LineMarkup.page(this.notebook.lines, marks);
       this.showAddLines();
-      this.filler.style.height = '';
+      if (!keepRoom) this.filler.style.height = '';
       this.updateTodayButton();
     }
 
@@ -3082,10 +3079,10 @@ button {
       this.dateEditor.open(line);
     }
 
-    /** An editor calls this when its panel closes. */
-    done({ scroll } = {}) {
+    /** An editor calls this when its panel closes. keepRoom: the next panel opens at once, so the page must not jump. */
+    done({ scroll, keepRoom } = {}) {
       this.busy = false;
-      this.render();
+      this.render({ keepRoom });
       if (scroll) scrollToBottom(true);
     }
 
