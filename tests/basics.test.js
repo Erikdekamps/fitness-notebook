@@ -2,9 +2,8 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { load } from './load.js';
 
-const { range, clamp, round2, formatKg, cleanName, sameName, newId, indexOr, escapeHtml } = load('util');
-const { Dates } = load('dates');
-const { isNotebook, loadNotebook, saveNotebook } = load('storage');
+const { range, clamp, round2, formatKg, cleanName, sameName, newId, indexOr, inRows, escapeHtml } = load('util');
+const { Store } = load('store');
 const { STORAGE_KEY } = load('config');
 
 test('util: numbers', () => {
@@ -22,32 +21,14 @@ test('util: names', () => {
   assert.ok(!sameName('Leg press', 'Leg curl'));
 });
 
-test('util: ids, lookups, escaping', () => {
+test('util: ids, lookups, rows, escaping', () => {
   assert.notEqual(newId('l'), newId('l'));
   assert.ok(newId('m').startsWith('m'));
   assert.equal(indexOr([5, 6, 7], 6), 1);
   assert.equal(indexOr([5, 6, 7], 9, 2), 2);
+  assert.deepEqual(inRows([1, 2, 3, 4, 5], 2), [[1, 2], [3, 4], [5]]);
+  assert.deepEqual(inRows([], 7), []);
   assert.equal(escapeHtml(`<b a="1">Tom & 'Jerry'</b>`), '&lt;b a=&quot;1&quot;&gt;Tom &amp; &#39;Jerry&#39;&lt;/b&gt;');
-});
-
-test('Dates: iso and parts', () => {
-  assert.equal(Dates.toIso(2026, 3, 5), '2026-03-05');
-  assert.deepEqual(Dates.parts('2026-03-05'), { y: 2026, m: 3, d: 5 });
-  assert.match(Dates.today(), /^\d{4}-\d{2}-\d{2}$/);
-});
-
-test('Dates: days in a month, leap years', () => {
-  assert.equal(Dates.daysInMonth(2026, 2), 28);
-  assert.equal(Dates.daysInMonth(2028, 2), 29);
-  assert.equal(Dates.daysInMonth(2026, 11), 30);
-});
-
-test('Dates.written: Dutch day, year only when it is not this year', () => {
-  const thisYear = new Date().getFullYear();
-  const now = Dates.written(`${thisYear}-01-07`);
-  assert.equal(now.date, '07/01');
-  assert.deepEqual(Dates.written('2020-11-18'), { date: '18/11/20', day: 'wo' });
-  assert.equal(Dates.written('2020-11-22').day, 'zo');
 });
 
 /** A stand-in for localStorage. */
@@ -56,22 +37,22 @@ function memoryStorage(initial = {}) {
   return { getItem: (k) => (k in items ? items[k] : null), setItem: (k, v) => { items[k] = String(v); }, items };
 }
 
-test('storage: saves and loads a notebook', () => {
+test('Store: saves and loads notebook data', () => {
   const storage = memoryStorage();
-  assert.equal(loadNotebook(storage), null);
-  assert.equal(saveNotebook({ machines: [], lines: [{ id: 'a' }] }, storage), true);
-  assert.deepEqual(loadNotebook(storage), { machines: [], lines: [{ id: 'a' }] });
+  assert.equal(Store.load(storage), null);
+  assert.equal(Store.save({ machines: [], lines: [{ id: 'a' }] }, storage), true);
+  assert.deepEqual(Store.load(storage), { machines: [], lines: [{ id: 'a' }] });
 });
 
-test('storage: unreadable or wrong data counts as nothing saved', () => {
-  assert.equal(loadNotebook(memoryStorage({ [STORAGE_KEY]: 'not json' })), null);
-  assert.equal(loadNotebook(memoryStorage({ [STORAGE_KEY]: '{"lines":[]}' })), null);
-  assert.equal(isNotebook({ lines: [], machines: [] }), true);
-  assert.equal(isNotebook(null), false);
+test('Store: unreadable or wrong data counts as nothing saved', () => {
+  assert.equal(Store.load(memoryStorage({ [STORAGE_KEY]: 'not json' })), null);
+  assert.equal(Store.load(memoryStorage({ [STORAGE_KEY]: '{"lines":[]}' })), null);
+  assert.equal(Store.isNotebookData({ lines: [], machines: [] }), true);
+  assert.equal(Store.isNotebookData(null), false);
 });
 
-test('storage: a blocked storage does not throw', () => {
+test('Store: a blocked storage does not throw', () => {
   const blocked = { getItem() { throw new Error('blocked'); }, setItem() { throw new Error('blocked'); } };
-  assert.equal(loadNotebook(blocked), null);
-  assert.equal(saveNotebook({ machines: [], lines: [] }, blocked), false);
+  assert.equal(Store.load(blocked), null);
+  assert.equal(Store.save({ machines: [], lines: [] }, blocked), false);
 });

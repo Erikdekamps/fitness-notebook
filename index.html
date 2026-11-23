@@ -600,18 +600,27 @@ button {
 </div>
 
 <!--
-  The script is split into blocks, one job each. Every block adds one object to the shared
-  "FN" object and takes what it needs from blocks above it, so the order of the blocks matters.
+  The script is split into blocks, one subject each, in four groups:
+    1. Logic    Calendar, Progress, ChartMath, Backup, Store, LineMarkup and the Notebook class
+    2. Parts    Toast, LineInput, Wheel, Sheet, SwipeRows
+    3. Panels   LineEditor, DateEditor
+    4. Screens  NotebookScreen, SettingsScreen, MonthScreen, MachineScreen, and the App
+  A class is used where something has to remember things; a plain object of functions where nothing does.
+  Every block adds one entry to the shared "FN" object and takes what it needs from blocks above it,
+  so the order of the blocks matters.
 
   Blocks marked data-testable never touch the page. The unit tests in tests/ read them
   straight out of this file and run them in Node:  npm test
 -->
 
+<!-- ==== 1. Logic: never touches the page, unit tested ========================================= -->
+
 <script data-module="util" data-testable>
-/** Small pure helpers. */
+/** Small pure helpers that every other block may use. */
 (function (FN) {
   'use strict';
 
+  /** The whole numbers from `from` up to and including `to`. */
   function range(from, to) {
     const list = [];
     for (let n = from; n <= to; n++) list.push(n);
@@ -625,16 +634,24 @@ button {
   const sameName = (a, b) => cleanName(a).toLowerCase() === cleanName(b).toLowerCase();
   const newId = (prefix) => prefix + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
 
+  /** The position of `value` in `list`, or `fallback` when it is not there. */
   function indexOr(list, value, fallback = 0) {
     const i = list.indexOf(value);
     return i === -1 ? fallback : i;
+  }
+
+  /** Splits a list into rows of `size`. */
+  function inRows(list, size) {
+    const rows = [];
+    for (let i = 0; i < list.length; i += size) rows.push(list.slice(i, i + size));
+    return rows;
   }
 
   function escapeHtml(value) {
     return String(value).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
   }
 
-  FN.util = { range, clamp, round2, formatKg, cleanName, sameName, newId, indexOr, escapeHtml };
+  FN.util = { range, clamp, round2, formatKg, cleanName, sameName, newId, indexOr, inRows, escapeHtml };
 })(globalThis.FN = globalThis.FN || {});
 </script>
 
@@ -677,213 +694,365 @@ button {
 })(globalThis.FN = globalThis.FN || {});
 </script>
 
-<script data-module="dates" data-testable>
-/** Dates, stored as "YYYY-MM-DD" and always in local time. */
+<script data-module="calendar" data-testable>
+/**
+ * Days, weeks and months. Pure functions.
+ * A date is "YYYY-MM-DD" and a month is "YYYY-MM", always in local time.
+ */
 (function (FN) {
   'use strict';
   const { DAY_NAMES } = FN.config;
 
-  const Dates = {
+  const pad = (n) => String(n).padStart(2, '0');
+
+  const Calendar = {
+    /* ---- Days ---- */
+
     toIso(y, m, d) {
-      return `${y}-${String(m).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+      return `${y}-${pad(m)}-${pad(d)}`;
     },
+
     today() {
       const now = new Date();
-      return Dates.toIso(now.getFullYear(), now.getMonth() + 1, now.getDate());
+      return Calendar.toIso(now.getFullYear(), now.getMonth() + 1, now.getDate());
     },
+
     parts(iso) {
       const [y, m, d] = iso.split('-').map(Number);
       return { y, m, d };
     },
+
     daysInMonth(y, m) {
       return new Date(y, m, 0).getDate();
     },
+
     /** How a date is written in the notebook: "18/11" + "wo" ("18/11/25" when it is not this year). */
     written(iso) {
-      const { y, m, d } = Dates.parts(iso);
+      const { y, m, d } = Calendar.parts(iso);
       const year = y === new Date().getFullYear() ? '' : '/' + String(y).slice(-2);
-      return {
-        date: `${String(d).padStart(2, '0')}/${String(m).padStart(2, '0')}${year}`,
-        day: DAY_NAMES[new Date(y, m - 1, d).getDay()],
-      };
+      return { date: `${pad(d)}/${pad(m)}${year}`, day: DAY_NAMES[new Date(y, m - 1, d).getDay()] };
+    },
+
+    /* ---- Weeks ---- */
+
+    /** The Monday of the week a date falls in. */
+    mondayOf(iso) {
+      const { y, m, d } = Calendar.parts(iso);
+      const date = new Date(y, m - 1, d);
+      date.setDate(date.getDate() - ((date.getDay() + 6) % 7));
+      return Calendar.toIso(date.getFullYear(), date.getMonth() + 1, date.getDate());
+    },
+
+    /** The Monday one week before the given Monday. */
+    weekBefore(mondayIso) {
+      const { y, m, d } = Calendar.parts(mondayIso);
+      const date = new Date(y, m - 1, d - 7);
+      return Calendar.toIso(date.getFullYear(), date.getMonth() + 1, date.getDate());
+    },
+
+    /**
+     * Weeks in a row with at least one of `dates` in them, counting back from this week
+     * (or from last week, when this week is still empty).
+     */
+    weeksInARow(dates, today) {
+      const weeks = new Set(Array.from(dates, (date) => Calendar.mondayOf(date)));
+      let week = Calendar.mondayOf(today);
+      if (!weeks.has(week)) week = Calendar.weekBefore(week);
+      let count = 0;
+      while (weeks.has(week)) {
+        count++;
+        week = Calendar.weekBefore(week);
+      }
+      return count;
+    },
+
+    /* ---- Months ---- */
+
+    /** The month a date falls in. */
+    monthOf(iso) {
+      return iso.slice(0, 7);
+    },
+
+    monthParts(month) {
+      return { y: Number(month.slice(0, 4)), m: Number(month.slice(5, 7)) };
+    },
+
+    /** The month `by` months after (or, when negative, before) a month. */
+    shiftMonth(month, by) {
+      const { y, m } = Calendar.monthParts(month);
+      const date = new Date(y, m - 1 + by, 1);
+      return `${date.getFullYear()}-${pad(date.getMonth() + 1)}`;
+    },
+
+    /** The months you can look at: from the oldest month among `dates` up to the month of `today`. */
+    monthRange(dates, today) {
+      const last = Calendar.monthOf(today);
+      let first = last;
+      for (const date of dates) {
+        if (Calendar.monthOf(date) < first) first = Calendar.monthOf(date);
+      }
+      return { first, last };
+    },
+
+    /** The month itself when it is inside the range, else the nearest end of the range. */
+    clampMonth(month, range) {
+      if (month < range.first) return range.first;
+      if (month > range.last) return range.last;
+      return month;
+    },
+
+    /**
+     * The cells of a month's week grid, Monday first.
+     * Each cell is 'blank' (before the 1st), 'trained' (one of `dates`) or 'rest'. Days after `today` are left out.
+     */
+    monthCells(dates, year, month, today) {
+      const cells = [];
+      const leading = (new Date(year, month - 1, 1).getDay() + 6) % 7;
+      for (let i = 0; i < leading; i++) cells.push({ day: null, state: 'blank' });
+      for (let day = 1; day <= Calendar.daysInMonth(year, month); day++) {
+        const iso = Calendar.toIso(year, month, day);
+        if (iso > today) break;
+        cells.push({ day, state: dates.has(iso) ? 'trained' : 'rest' });
+      }
+      return cells;
+    },
+
+    /** How many of the cells are days trained. */
+    countTrained(cells) {
+      return cells.filter((cell) => cell.state === 'trained').length;
     },
   };
 
-  FN.dates = { Dates };
+  FN.calendar = { Calendar };
 })(globalThis.FN = globalThis.FN || {});
 </script>
 
-<script data-module="storage" data-testable>
-/** Reading and writing the notebook in the browser's localStorage. */
-(function (FN) {
-  'use strict';
-  const { STORAGE_KEY } = FN.config;
-
-  /** True when a value has the shape of a saved notebook. */
-  function isNotebook(value) {
-    return Boolean(value) && Array.isArray(value.lines) && Array.isArray(value.machines);
-  }
-
-  /** The saved notebook, or null when there is none or it cannot be read. */
-  function loadNotebook(storage = localStorage) {
-    try {
-      const saved = JSON.parse(storage.getItem(STORAGE_KEY));
-      return isNotebook(saved) ? saved : null;
-    } catch (_) {
-      return null; // storage blocked or unreadable
-    }
-  }
-
-  /** Saves the notebook. Returns false when storage is blocked; the app then keeps working in memory. */
-  function saveNotebook(notebook, storage = localStorage) {
-    try {
-      storage.setItem(STORAGE_KEY, JSON.stringify(notebook));
-      return true;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  FN.storage = { isNotebook, loadNotebook, saveNotebook };
-})(globalThis.FN = globalThis.FN || {});
-</script>
-
-<script data-module="notebook" data-testable>
+<script data-module="progress" data-testable>
 /**
- * The notebook's rules. Pure functions: they take lines and return answers,
- * and never touch the page or storage.
+ * What the lines say about your training. Pure functions over lines.
  *
- * Data shape
- *   machines: [{ id, name }]
- *   lines:    [{ id, type: 'date', date }      date = "YYYY-MM-DD"
- *              { id, type: 'text', text }
- *              { id, type: 'machine', machineId, name, weight, sets, reps }]
- * Lines stay in the order they were written. `example: true` marks demo lines.
+ * A line is one of
+ *   { id, type: 'date', date }                                   date = "YYYY-MM-DD"
+ *   { id, type: 'text', text }
+ *   { id, type: 'machine', machineId, name, weight, sets, reps }
+ * Lines stay in the order they were written; a date line starts a new day.
  */
 (function (FN) {
   'use strict';
   const { KG_STEP, KG_MAX } = FN.config;
-  const { round2, newId } = FN.util;
+  const { round2 } = FN.util;
 
-  /**
-   * The lines grouped per day and put in date order (lines written before any date come first).
-   * Days with the same date keep the order they were written in.
-   */
-  function linesInDateOrder(lines) {
-    const undated = [];
-    const days = [];
-    lines.forEach((line, order) => {
-      if (line.type === 'date') days.push({ date: line.date, order, lines: [] });
-      else if (days.length) days[days.length - 1].lines.push(line);
-      else undated.push(line);
-    });
-    days.sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.order - b.order));
-    return undated.concat(...days.map((day) => day.lines));
-  }
+  const byDateThenOrder = (a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.order - b.order);
 
-  /** How a weight compares with last time: 'up', 'down', or how many times in a row it stayed the same. */
-  function markFor(weight, previous) {
-    if (!previous) return { mark: null, repeats: 0 };
-    if (weight > previous.weight) return { mark: 'up', repeats: 0 };
-    if (weight < previous.weight) return { mark: 'down', repeats: 0 };
-    const repeats = previous.repeats + 1;
-    return { mark: repeats, repeats };
-  }
+  const Progress = {
+    /* ---- Days ---- */
 
-  /**
-   * Compares every machine line with the previous time on that machine, in date order.
-   *   marks:  line id → 'up' (heavier), 'down' (lighter), a number (same weight, times in a row) or null (first time)
-   *   latest: machine id → { weight, sets, reps, repeats } of the most recent time
-   */
-  function analyzeLines(lines) {
-    const marks = new Map();
-    const latest = new Map();
-    for (const line of linesInDateOrder(lines)) {
-      if (line.type !== 'machine') continue;
-      const { mark, repeats } = markFor(line.weight, latest.get(line.machineId));
-      latest.set(line.machineId, { weight: line.weight, sets: line.sets, reps: line.reps, repeats });
-      marks.set(line.id, mark);
-    }
-    return { marks, latest };
-  }
+    /** The dates that have a date line, as a Set of "YYYY-MM-DD". */
+    sessionDates(lines) {
+      return new Set(lines.filter((line) => line.type === 'date').map((line) => line.date));
+    },
 
-  /** Machines already written since the last date line. */
-  function machinesInCurrentDay(lines) {
-    const ids = new Set();
-    for (let i = lines.length - 1; i >= 0 && lines[i].type !== 'date'; i--) {
-      if (lines[i].type === 'machine') ids.add(lines[i].machineId);
-    }
-    return ids;
-  }
-
-  /** The kg values on the wheel: 0 to KG_MAX in steps of KG_STEP, always including `mustInclude`. */
-  function kgOptions(mustInclude) {
-    const value = round2(Number(mustInclude) || 0);
-    const max = Math.max(KG_MAX, value);
-    const options = [];
-    for (let i = 0; round2(i * KG_STEP) <= max; i++) options.push(round2(i * KG_STEP));
-    if (!options.includes(value)) {
-      options.push(value);
-      options.sort((a, b) => a - b);
-    }
-    return options;
-  }
-
-  /** Machines in alphabetical order, ignoring upper and lower case. Returns a new list. */
-  function sortMachines(machines) {
-    return machines.slice().sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
-  }
-
-  /** Removes the demo lines. An example date stays when lines of your own were written under it. */
-  function withoutExamples(lines) {
-    const keepDates = new Set();
-    let date = null;
-    for (const line of lines) {
-      if (line.type === 'date') date = line;
-      else if (!line.example && date && date.example) keepDates.add(date.id);
-    }
-    return lines
-      .filter((line) => !line.example || keepDates.has(line.id))
-      .map((line) => (keepDates.has(line.id) ? { ...line, example: undefined } : line));
-  }
-
-  /** The notebook a new user starts with: six machines and five example days. */
-  function exampleNotebook() {
-    const machines = [
-      { id: 'm-leg-press', name: 'Leg press' },
-      { id: 'm-chest-press', name: 'Chest press' },
-      { id: 'm-lat-pulldown', name: 'Lat pulldown' },
-      { id: 'm-shoulder-press', name: 'Shoulder press' },
-      { id: 'm-seated-row', name: 'Seated row' },
-      { id: 'm-leg-curl', name: 'Leg curl' },
-    ];
-    const byName = new Map(machines.map((m) => [m.name, m]));
-    const sessions = [
-      ['2026-11-07', 'Biking Basics New Zealand #11', [['Leg press', 75, 3, 12], ['Chest press', 32.5, 3, 10], ['Seated row', 37.5, 3, 12]]],
-      ['2026-11-09', 'Biking Basics New Zealand #12', [['Leg press', 75, 3, 12], ['Shoulder press', 20, 3, 10], ['Lat pulldown', 45, 3, 12]]],
-      ['2026-11-11', 'Biking Basics New Zealand #13', [['Chest press', 32.5, 3, 10], ['Shoulder press', 20, 3, 10], ['Seated row', 40, 3, 12]]],
-      ['2026-11-14', 'Biking Basics New Zealand #14', [['Leg press', 75, 3, 12], ['Chest press', 35, 3, 10], ['Lat pulldown', 45, 3, 12]]],
-      ['2026-11-16', 'Biking Basics New Zealand #15', [['Leg press', 80, 3, 12], ['Shoulder press', 20, 3, 10], ['Seated row', 40, 3, 12]]],
-    ];
-
-    const lines = [];
-    for (const [date, ride, exercises] of sessions) {
-      lines.push({ id: newId('l'), type: 'date', date, example: true });
-      lines.push({ id: newId('l'), type: 'text', text: ride, example: true });
-      for (const [name, weight, sets, reps] of exercises) {
-        lines.push({ id: newId('l'), type: 'machine', machineId: byName.get(name).id, name, weight, sets, reps, example: true });
+    /** Machines already written since the last date line. */
+    machinesInCurrentDay(lines) {
+      const ids = new Set();
+      for (let i = lines.length - 1; i >= 0 && lines[i].type !== 'date'; i--) {
+        if (lines[i].type === 'machine') ids.add(lines[i].machineId);
       }
-    }
-    return { version: 1, machines, lines };
-  }
+      return ids;
+    },
 
-  FN.notebook = { linesInDateOrder, markFor, analyzeLines, machinesInCurrentDay, kgOptions, sortMachines, withoutExamples, exampleNotebook };
+    /**
+     * The lines without the date lines, put in date order (lines written before any date come first).
+     * Days with the same date keep the order they were written in.
+     */
+    linesInDateOrder(lines) {
+      const undated = [];
+      const days = [];
+      lines.forEach((line, order) => {
+        if (line.type === 'date') days.push({ date: line.date, order, lines: [] });
+        else if (days.length) days[days.length - 1].lines.push(line);
+        else undated.push(line);
+      });
+      days.sort(byDateThenOrder);
+      return undated.concat(...days.map((day) => day.lines));
+    },
+
+    /* ---- Marks: ↑, ↓ or –N ---- */
+
+    /** How a weight compares with last time: 'up', 'down', or how many times in a row it stayed the same. */
+    markFor(weight, previous) {
+      if (!previous) return { mark: null, repeats: 0 };
+      if (weight > previous.weight) return { mark: 'up', repeats: 0 };
+      if (weight < previous.weight) return { mark: 'down', repeats: 0 };
+      const repeats = previous.repeats + 1;
+      return { mark: repeats, repeats };
+    },
+
+    /**
+     * Compares every machine line with the previous time on that machine, in date order.
+     *   marks:  line id → 'up' (heavier), 'down' (lighter), a number (same weight, times in a row) or null (first time)
+     *   latest: machine id → { weight, sets, reps, repeats } of the most recent time
+     */
+    analyzeLines(lines) {
+      const marks = new Map();
+      const latest = new Map();
+      for (const line of Progress.linesInDateOrder(lines)) {
+        if (line.type !== 'machine') continue;
+        const { mark, repeats } = Progress.markFor(line.weight, latest.get(line.machineId));
+        latest.set(line.machineId, { weight: line.weight, sets: line.sets, reps: line.reps, repeats });
+        marks.set(line.id, mark);
+      }
+      return { marks, latest };
+    },
+
+    /* ---- One machine over time ---- */
+
+    /** Every dated time a machine was logged, oldest first: [{ date, weight }]. */
+    machineHistory(lines, machineId) {
+      const points = [];
+      let date = null;
+      lines.forEach((line, order) => {
+        if (line.type === 'date') date = line.date;
+        else if (line.type === 'machine' && line.machineId === machineId && date) points.push({ date, order, weight: line.weight });
+      });
+      return points.sort(byDateThenOrder).map(({ date: when, weight }) => ({ date: when, weight }));
+    },
+
+    /** The positions in a history where the weight is new: the first time, and every time it changed. */
+    changeIndexes(points) {
+      const indexes = [];
+      points.forEach((point, i) => {
+        if (i === 0 || point.weight !== points[i - 1].weight) indexes.push(i);
+      });
+      return indexes;
+    },
+
+    /** The times the weight was new, oldest first: [{ date, weight }]. */
+    weightChanges(points) {
+      return Progress.changeIndexes(points).map((i) => points[i]);
+    },
+
+    /* ---- The kg wheel ---- */
+
+    /** The kg values on the wheel: 0 to KG_MAX in steps of KG_STEP, always including `mustInclude`. */
+    kgOptions(mustInclude) {
+      const value = round2(Number(mustInclude) || 0);
+      const max = Math.max(KG_MAX, value);
+      const options = [];
+      for (let i = 0; round2(i * KG_STEP) <= max; i++) options.push(round2(i * KG_STEP));
+      if (!options.includes(value)) {
+        options.push(value);
+        options.sort((a, b) => a - b);
+      }
+      return options;
+    },
+  };
+
+  FN.progress = { Progress };
+})(globalThis.FN = globalThis.FN || {});
+</script>
+
+<script data-module="chartMath" data-testable>
+/** The geometry of what the statistics draw: a chart on the ruled lines, and tally marks. Pure functions. */
+(function (FN) {
+  'use strict';
+  const { round2, clamp } = FN.util;
+  const { Calendar } = FN.calendar;
+
+  const ChartMath = {
+    /** The kg one ruled line can stand for, smallest first. */
+    KG_PER_LINE: [2.5, 5, 10, 20, 25, 50, 100],
+
+    /**
+     * The scale of a chart drawn on at most `maxRows` ruled lines: the kg on the top line and the kg per line,
+     * chosen as small as possible while every weight still fits.
+     */
+    scale(weights, maxRows) {
+      const min = Math.min(...weights);
+      const max = Math.max(...weights);
+      for (const perLine of ChartMath.KG_PER_LINE) {
+        const top = Math.ceil(max / perLine) * perLine;
+        if ((top - min) / perLine <= maxRows - 1) return { top, perLine };
+      }
+      const perLine = ChartMath.KG_PER_LINE[ChartMath.KG_PER_LINE.length - 1];
+      return { top: Math.ceil(max / perLine) * perLine, perLine };
+    },
+
+    /** How many ruled lines the chart needs to reach its lowest weight: at least 2, at most `maxRows`. */
+    rowsNeeded(weights, scale, maxRows) {
+      const needed = Math.ceil((scale.top - Math.min(...weights)) / scale.perLine) + 1;
+      return clamp(needed, 2, maxRows);
+    },
+
+    /** The kg written next to each ruled line, top line first: [{ row, value }]. Never below 0. */
+    axisValues(scale, rows) {
+      const values = [];
+      for (let row = 0; row < rows; row++) {
+        const value = round2(scale.top - row * scale.perLine);
+        if (value >= 0) values.push({ row, value });
+      }
+      return values;
+    },
+
+    /**
+     * Where each point goes, in pixels.
+     * Points are spread evenly from `left` to `right`; a weight on a ruled line sits exactly on it.
+     */
+    pointPositions(points, scale, { left, right, firstLineY, lineHeight }) {
+      const step = points.length > 1 ? (right - left) / (points.length - 1) : 0;
+      return points.map((point, i) => ({
+        x: round2(points.length > 1 ? left + i * step : right),
+        y: round2(firstLineY + ((scale.top - point.weight) / scale.perLine) * lineHeight),
+      }));
+    },
+
+    /** True when every position is at least `minGap` pixels after the one before it. */
+    spacedOut(xs, minGap) {
+      return xs.every((x, i) => i === 0 || x - xs[i - 1] >= minGap);
+    },
+
+    /**
+     * Which points get a month label under the chart: the first point of each month,
+     * skipping a label that would sit closer than `minGap` pixels to the one before.
+     * Returns [{ x, year, month }] with month 1 to 12.
+     */
+    monthLabels(points, positions, minGap) {
+      const labels = [];
+      let lastMonth = '';
+      let lastX = -Infinity;
+      points.forEach((point, i) => {
+        const month = Calendar.monthOf(point.date);
+        if (month === lastMonth) return;
+        lastMonth = month;
+        if (positions[i].x - lastX < minGap) return;
+        lastX = positions[i].x;
+        const { y, m } = Calendar.monthParts(month);
+        labels.push({ x: positions[i].x, year: y, month: m });
+      });
+      return labels;
+    },
+
+    /** Hand-drawn tally marks as an SVG path: four strokes and a slash for every five. Returns { path, width }. */
+    tallyMarks(count) {
+      const fives = Math.floor(count / 5);
+      const rest = count % 5;
+      let path = '';
+      for (let g = 0; g < fives; g++) {
+        const x = g * 46;
+        path += `M${x + 4} 3l-1 20M${x + 13} 2l-1 21M${x + 22} 3l0 20M${x + 31} 2l-1 21M${x} 19L${x + 36} 6`;
+      }
+      for (let i = 0; i < rest; i++) path += `M${fives * 46 + 4 + i * 9} ${i % 2 ? 2 : 3}l-1 20`;
+      return { path, width: fives * 46 + (rest ? rest * 9 + 2 : 0) };
+    },
+  };
+
+  FN.chartMath = { ChartMath };
 })(globalThis.FN = globalThis.FN || {});
 </script>
 
 <script data-module="backup" data-testable>
 /**
- * Backup: turning a notebook into a JSON file and back. Pure functions.
+ * Backup: notebook data as a JSON file, and back. Pure functions.
  *
  * File shape
  *   { "app": "fitness-notebook", "version": 1, "exportedAt": "<ISO time>", "unit": "kg",
@@ -898,326 +1067,398 @@ button {
 (function (FN) {
   'use strict';
   const { cleanName, newId } = FN.util;
-  const { Dates } = FN.dates;
+  const { Calendar } = FN.calendar;
 
-  const BACKUP_APP = 'fitness-notebook';
-  const BACKUP_VERSION = 1;
+  const isCount = (n) => Number.isFinite(n) && n >= 0;
+  const count = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
-  /** The name of a backup file made on `today` ("YYYY-MM-DD"). */
-  function backupFileName(today) {
-    return `fitness-notebook-${today}.json`;
-  }
+  const Backup = {
+    APP: 'fitness-notebook',
+    VERSION: 1,
 
-  /** A machine with only the fields this app knows, or null when it cannot be used. */
-  function cleanMachine(machine) {
-    if (!machine || typeof machine.id !== 'string' || typeof machine.name !== 'string' || !cleanName(machine.name)) return null;
-    return { id: machine.id, name: cleanName(machine.name) };
-  }
+    /** The name of a backup file made on `today` ("YYYY-MM-DD"). */
+    fileName(today) {
+      return `fitness-notebook-${today}.json`;
+    },
 
-  /** A line with only the fields this app knows, or null when it cannot be used. */
-  function cleanLine(line) {
-    if (!line) return null;
-    const id = typeof line.id === 'string' && line.id ? line.id : newId('l');
-    const isCount = (n) => Number.isFinite(n) && n >= 0;
-    if (line.type === 'date' && /^\d{4}-\d{2}-\d{2}$/.test(line.date)) return { id, type: 'date', date: line.date };
-    if (line.type === 'text' && typeof line.text === 'string' && line.text.trim()) return { id, type: 'text', text: line.text.trim() };
-    if (
-      line.type === 'machine' &&
-      typeof line.machineId === 'string' &&
-      typeof line.name === 'string' &&
-      isCount(line.weight) && isCount(line.sets) && isCount(line.reps)
-    ) {
-      const { machineId, name, weight, sets, reps } = line;
-      return { id, type: 'machine', machineId, name, weight, sets, reps };
-    }
-    return null;
-  }
+    /** A machine with only the fields this app knows, or null when it cannot be used. */
+    cleanMachine(machine) {
+      if (!machine || typeof machine.id !== 'string' || typeof machine.name !== 'string' || !cleanName(machine.name)) return null;
+      return { id: machine.id, name: cleanName(machine.name) };
+    },
 
-  /** The notebook as a backup object. `now` is the Date of the export. */
-  function toBackup(notebook, now) {
-    return {
-      app: BACKUP_APP,
-      version: BACKUP_VERSION,
-      exportedAt: now.toISOString(),
-      unit: 'kg',
-      machines: notebook.machines.map(cleanMachine).filter(Boolean),
-      lines: notebook.lines.map(cleanLine).filter(Boolean),
-    };
-  }
+    /** A line with only the fields this app knows, or null when it cannot be used. */
+    cleanLine(line) {
+      if (!line) return null;
+      const id = typeof line.id === 'string' && line.id ? line.id : newId('l');
+      if (line.type === 'date' && /^\d{4}-\d{2}-\d{2}$/.test(line.date)) return { id, type: 'date', date: line.date };
+      if (line.type === 'text' && typeof line.text === 'string' && line.text.trim()) return { id, type: 'text', text: line.text.trim() };
+      if (
+        line.type === 'machine' &&
+        typeof line.machineId === 'string' &&
+        typeof line.name === 'string' &&
+        isCount(line.weight) && isCount(line.sets) && isCount(line.reps)
+      ) {
+        const { machineId, name, weight, sets, reps } = line;
+        return { id, type: 'machine', machineId, name, weight, sets, reps };
+      }
+      return null;
+    },
 
-  /** The notebook as the text of a backup file. */
-  function toBackupJson(notebook, now) {
-    return JSON.stringify(toBackup(notebook, now), null, 2);
-  }
+    /** Notebook data as a backup object. `now` is the Date of the export. */
+    toObject(data, now) {
+      return {
+        app: Backup.APP,
+        version: Backup.VERSION,
+        exportedAt: now.toISOString(),
+        unit: 'kg',
+        machines: data.machines.map((m) => Backup.cleanMachine(m)).filter(Boolean),
+        lines: data.lines.map((l) => Backup.cleanLine(l)).filter(Boolean),
+      };
+    },
 
-  /** Reads the text of a backup file. Returns { notebook } or { error }. */
-  function parseBackup(text) {
-    let file;
-    try {
-      file = JSON.parse(text);
-    } catch (_) {
-      return { error: 'That is not a JSON file' };
-    }
-    if (!file || file.app !== BACKUP_APP || !Array.isArray(file.machines) || !Array.isArray(file.lines)) {
-      return { error: 'That is not a Fitness Notebook file' };
-    }
-    if (typeof file.version !== 'number' || file.version > BACKUP_VERSION) {
-      return { error: 'That file is from a newer version of the app' };
-    }
-    return {
-      notebook: {
-        version: 1,
-        machines: file.machines.map(cleanMachine).filter(Boolean),
-        lines: file.lines.map(cleanLine).filter(Boolean),
-      },
-    };
-  }
+    /** Notebook data as the text of a backup file. */
+    toJson(data, now) {
+      return JSON.stringify(Backup.toObject(data, now), null, 2);
+    },
 
-  /** A short description of a notebook, for the "replace?" question: [lines and dates, machines]. */
-  function describeNotebook(notebook) {
-    const dates = notebook.lines.filter((l) => l.type === 'date').map((l) => l.date).sort();
-    const count = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
-    let lines = count(notebook.lines.length, 'line');
-    if (dates.length === 1) lines += `, on ${Dates.written(dates[0]).date}`;
-    else if (dates.length > 1) lines += `, from ${Dates.written(dates[0]).date} to ${Dates.written(dates[dates.length - 1]).date}`;
-    return [lines, count(notebook.machines.length, 'machine')];
-  }
+    /** Reads the text of a backup file. Returns { data } (notebook data) or { error }. */
+    parse(text) {
+      let file;
+      try {
+        file = JSON.parse(text);
+      } catch (_) {
+        return { error: 'That is not a JSON file' };
+      }
+      if (!file || file.app !== Backup.APP || !Array.isArray(file.machines) || !Array.isArray(file.lines)) {
+        return { error: 'That is not a Fitness Notebook file' };
+      }
+      if (typeof file.version !== 'number' || file.version > Backup.VERSION) {
+        return { error: 'That file is from a newer version of the app' };
+      }
+      return {
+        data: {
+          version: 1,
+          machines: file.machines.map((m) => Backup.cleanMachine(m)).filter(Boolean),
+          lines: file.lines.map((l) => Backup.cleanLine(l)).filter(Boolean),
+        },
+      };
+    },
 
-  FN.backup = { BACKUP_APP, BACKUP_VERSION, backupFileName, cleanMachine, cleanLine, toBackup, toBackupJson, parseBackup, describeNotebook };
+    /** A short description of notebook data, for the "replace?" question: [lines and dates, machines]. */
+    describe(data) {
+      const dates = data.lines.filter((l) => l.type === 'date').map((l) => l.date).sort();
+      let lines = count(data.lines.length, 'line');
+      if (dates.length === 1) lines += `, on ${Calendar.written(dates[0]).date}`;
+      else if (dates.length > 1) lines += `, from ${Calendar.written(dates[0]).date} to ${Calendar.written(dates[dates.length - 1]).date}`;
+      return [lines, count(data.machines.length, 'machine')];
+    },
+  };
+
+  FN.backup = { Backup };
 })(globalThis.FN = globalThis.FN || {});
 </script>
 
-<script data-module="stats" data-testable>
+<script data-module="store" data-testable>
+/** Reading and writing notebook data in the browser's localStorage. */
+(function (FN) {
+  'use strict';
+  const { STORAGE_KEY } = FN.config;
+
+  const Store = {
+    /** True when a value has the shape of notebook data. */
+    isNotebookData(value) {
+      return Boolean(value) && Array.isArray(value.lines) && Array.isArray(value.machines);
+    },
+
+    /** The saved notebook data, or null when there is none or it cannot be read. */
+    load(storage = globalThis.localStorage) {
+      try {
+        const saved = JSON.parse(storage.getItem(STORAGE_KEY));
+        return Store.isNotebookData(saved) ? saved : null;
+      } catch (_) {
+        return null; // storage blocked or unreadable
+      }
+    },
+
+    /** Saves notebook data. Returns false when storage is blocked; the app then keeps working in memory. */
+    save(data, storage = globalThis.localStorage) {
+      try {
+        storage.setItem(STORAGE_KEY, JSON.stringify(data));
+        return true;
+      } catch (_) {
+        return false;
+      }
+    },
+  };
+
+  FN.store = { Store };
+})(globalThis.FN = globalThis.FN || {});
+</script>
+
+<script data-module="notebook" data-testable>
 /**
- * The numbers behind the statistics screens. Pure functions:
- * they take lines and dates and return plain values the view can draw.
+ * The notebook: its machines and its lines, and every change to them.
+ * This is the one place that changes the data. Each change saves right away;
+ * a change that can be undone returns its undo.
+ *
+ * Data shape
+ *   { version: 1, machines: [{ id, name }], lines: [ ...see progress... ] }
+ *   `example: true` marks the demo lines a new notebook starts with.
  */
 (function (FN) {
   'use strict';
-  const { round2, clamp } = FN.util;
-  const { Dates } = FN.dates;
+  const { newId, cleanName, sameName } = FN.util;
 
-  /** The kg one ruled line can stand for in a chart, smallest first. */
-  const KG_PER_LINE = [2.5, 5, 10, 20, 25, 50, 100];
-
-  /* ---- Sessions and months ---- */
-
-  /** The dates that have a date line in the notebook, as a Set of "YYYY-MM-DD". */
-  function sessionDates(lines) {
-    return new Set(lines.filter((line) => line.type === 'date').map((line) => line.date));
-  }
-
-  /** The month a date falls in, as "YYYY-MM". */
-  function monthOf(iso) {
-    return iso.slice(0, 7);
-  }
-
-  /** The year and month number of a "YYYY-MM". */
-  function monthParts(month) {
-    return { y: Number(month.slice(0, 4)), m: Number(month.slice(5, 7)) };
-  }
-
-  /** The month `by` months after (or, when negative, before) a "YYYY-MM". */
-  function shiftMonth(month, by) {
-    const { y, m } = monthParts(month);
-    const date = new Date(y, m - 1 + by, 1);
-    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-  }
-
-  /** The months you can look at: from the oldest month with a session up to the month of `today`. */
-  function monthRange(dates, today) {
-    const last = monthOf(today);
-    let first = last;
-    for (const date of dates) {
-      if (monthOf(date) < first) first = monthOf(date);
+  class Notebook {
+    /** data: { version, machines, lines }. onSave(data) runs after every change. */
+    constructor(data, { onSave = () => {} } = {}) {
+      this.data = data;
+      this.onSave = onSave;
     }
-    return { first, last };
-  }
 
-  /** The month itself when it is inside the range, else the nearest end of the range. */
-  function clampMonth(month, range) {
-    if (month < range.first) return range.first;
-    if (month > range.last) return range.last;
-    return month;
-  }
-
-  /** The Monday of the week a date falls in. */
-  function mondayOf(iso) {
-    const { y, m, d } = Dates.parts(iso);
-    const date = new Date(y, m - 1, d);
-    date.setDate(date.getDate() - ((date.getDay() + 6) % 7));
-    return Dates.toIso(date.getFullYear(), date.getMonth() + 1, date.getDate());
-  }
-
-  /** The Monday one week before the given Monday. */
-  function weekBefore(mondayIso) {
-    const { y, m, d } = Dates.parts(mondayIso);
-    const date = new Date(y, m - 1, d - 7);
-    return Dates.toIso(date.getFullYear(), date.getMonth() + 1, date.getDate());
-  }
-
-  /**
-   * Weeks in a row with at least one session, counting back from this week
-   * (or from last week, when this week is still empty).
-   */
-  function weeksInARow(dates, today) {
-    const weeks = new Set(Array.from(dates, mondayOf));
-    let week = mondayOf(today);
-    if (!weeks.has(week)) week = weekBefore(week);
-    let count = 0;
-    while (weeks.has(week)) {
-      count++;
-      week = weekBefore(week);
+    get lines() {
+      return this.data.lines;
     }
-    return count;
-  }
 
-  /**
-   * The cells of a month's week grid, Monday first.
-   * Each cell is 'blank' (before the 1st), 'trained' or 'rest'. Days after `today` are left out.
-   */
-  function monthCells(dates, year, month, today) {
-    const cells = [];
-    const leading = (new Date(year, month - 1, 1).getDay() + 6) % 7;
-    for (let i = 0; i < leading; i++) cells.push({ day: null, state: 'blank' });
-    for (let day = 1; day <= Dates.daysInMonth(year, month); day++) {
-      const iso = Dates.toIso(year, month, day);
-      if (iso > today) break;
-      cells.push({ day, state: dates.has(iso) ? 'trained' : 'rest' });
+    get machines() {
+      return this.data.machines;
     }
-    return cells;
-  }
 
-  /** How many of the cells are days trained. */
-  function countTrained(cells) {
-    return cells.filter((cell) => cell.state === 'trained').length;
-  }
-
-  /** Splits a list into rows of `size`. */
-  function inRows(list, size) {
-    const rows = [];
-    for (let i = 0; i < list.length; i += size) rows.push(list.slice(i, i + size));
-    return rows;
-  }
-
-  /** Hand-drawn tally marks as an SVG path: four strokes and a slash for every five. Returns { path, width }. */
-  function tallyMarks(count) {
-    const fives = Math.floor(count / 5);
-    const rest = count % 5;
-    let path = '';
-    for (let g = 0; g < fives; g++) {
-      const x = g * 46;
-      path += `M${x + 4} 3l-1 20M${x + 13} 2l-1 21M${x + 22} 3l0 20M${x + 31} 2l-1 21M${x} 19L${x + 36} 6`;
+    save() {
+      this.onSave(this.data);
     }
-    for (let i = 0; i < rest; i++) path += `M${fives * 46 + 4 + i * 9} ${i % 2 ? 2 : 3}l-1 20`;
-    return { path, width: fives * 46 + (rest ? rest * 9 + 2 : 0) };
-  }
 
-  /* ---- One machine over time ---- */
+    /* ---- Reading ---- */
 
-  /** Every dated time a machine was logged, oldest first: [{ date, weight }]. */
-  function machineHistory(lines, machineId) {
-    const points = [];
-    let date = null;
-    lines.forEach((line, order) => {
-      if (line.type === 'date') date = line.date;
-      else if (line.type === 'machine' && line.machineId === machineId && date) points.push({ date, order, weight: line.weight });
-    });
-    return points
-      .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : a.order - b.order))
-      .map(({ date: when, weight }) => ({ date: when, weight }));
-  }
-
-  /** The positions in a history where the weight is new: the first time, and every time it changed. */
-  function changeIndexes(points) {
-    const indexes = [];
-    points.forEach((point, i) => {
-      if (i === 0 || point.weight !== points[i - 1].weight) indexes.push(i);
-    });
-    return indexes;
-  }
-
-  /** The times the weight was new, oldest first: [{ date, weight }]. */
-  function weightChanges(points) {
-    return changeIndexes(points).map((i) => points[i]);
-  }
-
-  /**
-   * The scale of a chart drawn on at most `maxRows` ruled lines: the kg on the top line and the kg per line,
-   * chosen as small as possible while every weight still fits.
-   */
-  function chartScale(weights, maxRows) {
-    const min = Math.min(...weights);
-    const max = Math.max(...weights);
-    for (const perLine of KG_PER_LINE) {
-      const top = Math.ceil(max / perLine) * perLine;
-      if ((top - min) / perLine <= maxRows - 1) return { top, perLine };
+    line(id) {
+      return this.lines.find((l) => l.id === id) || null;
     }
-    const perLine = KG_PER_LINE[KG_PER_LINE.length - 1];
-    return { top: Math.ceil(max / perLine) * perLine, perLine };
-  }
 
-  /** How many ruled lines the chart needs to reach its lowest weight: at least 2, at most `maxRows`. */
-  function chartRows(weights, scale, maxRows) {
-    const needed = Math.ceil((scale.top - Math.min(...weights)) / scale.perLine) + 1;
-    return clamp(needed, 2, maxRows);
-  }
-
-  /** The kg written next to each ruled line of the chart, top line first: [{ row, value }]. Never below 0. */
-  function axisValues(scale, rows) {
-    const values = [];
-    for (let row = 0; row < rows; row++) {
-      const value = round2(scale.top - row * scale.perLine);
-      if (value >= 0) values.push({ row, value });
+    machine(id) {
+      return this.machines.find((m) => m.id === id) || null;
     }
-    return values;
+
+    /** The machines in alphabetical order, the way every list and wheel shows them. */
+    machinesAZ() {
+      return Notebook.sortMachines(this.machines);
+    }
+
+    /** True when another machine already has this name (upper and lower case do not count). */
+    nameTaken(name, exceptId) {
+      return this.machines.some((m) => m.id !== exceptId && sameName(m.name, name));
+    }
+
+    hasExamples() {
+      return this.lines.some((l) => l.example);
+    }
+
+    /* ---- Lines ---- */
+
+    /** Writes a new line at the bottom. `fields` is everything but the id. Returns the new line. */
+    addLine(fields) {
+      const line = { id: newId('l'), ...fields };
+      this.lines.push(line);
+      this.save();
+      return line;
+    }
+
+    /** Rewrites a line in place, keeping its id and its position. */
+    replaceLine(id, fields) {
+      const index = this.lines.findIndex((l) => l.id === id);
+      if (index === -1) return false;
+      this.lines[index] = { id, ...fields };
+      this.save();
+      return true;
+    }
+
+    /** Removes a line. Returns its undo, or null when there is no such line. */
+    removeLine(id) {
+      const index = this.lines.findIndex((l) => l.id === id);
+      if (index === -1) return null;
+      const [line] = this.lines.splice(index, 1);
+      this.save();
+      return () => {
+        this.lines.splice(Math.min(index, this.lines.length), 0, line);
+        this.save();
+      };
+    }
+
+    /* ---- Machines ---- */
+
+    /** Adds a machine. Re-adding one that was removed earlier picks its history back up. */
+    addMachine(name) {
+      const clean = cleanName(name);
+      const oldLine = [...this.lines]
+        .reverse()
+        .find((l) => l.type === 'machine' && sameName(l.name, clean) && !this.machine(l.machineId));
+      const machine = { id: oldLine ? oldLine.machineId : newId('m'), name: clean };
+      this.machines.push(machine);
+      this.save();
+      return machine;
+    }
+
+    /** Renames a machine. Old lines keep the name they were written with. */
+    renameMachine(id, name) {
+      const machine = this.machine(id);
+      if (!machine) return false;
+      machine.name = cleanName(name);
+      this.save();
+      return true;
+    }
+
+    /** Removes a machine from the list. Its old lines stay. Returns its undo, or null. */
+    removeMachine(id) {
+      const index = this.machines.findIndex((m) => m.id === id);
+      if (index === -1) return null;
+      const [machine] = this.machines.splice(index, 1);
+      this.save();
+      return () => {
+        this.machines.splice(Math.min(index, this.machines.length), 0, machine);
+        this.save();
+      };
+    }
+
+    /* ---- The whole notebook ---- */
+
+    /** Removes the demo lines. Returns the undo. */
+    removeExamples() {
+      const before = this.data.lines;
+      this.data.lines = Notebook.withoutExamples(before);
+      this.save();
+      return () => {
+        this.data.lines = before;
+        this.save();
+      };
+    }
+
+    /** Replaces everything, for an import. Returns the undo. */
+    replaceAll(data) {
+      const before = this.data;
+      this.data = data;
+      this.save();
+      return () => {
+        this.data = before;
+        this.save();
+      };
+    }
+
+    /** Takes over data another tab saved. Not saved again: it already is. */
+    reload(data) {
+      this.data = data;
+    }
+
+    /* ---- Helpers that need no notebook ---- */
+
+    /** Machines in alphabetical order, ignoring upper and lower case. Returns a new list. */
+    static sortMachines(machines) {
+      return machines.slice().sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
+    }
+
+    /** Lines without the demo lines. An example date stays when lines of your own were written under it. */
+    static withoutExamples(lines) {
+      const keepDates = new Set();
+      let date = null;
+      for (const line of lines) {
+        if (line.type === 'date') date = line;
+        else if (!line.example && date && date.example) keepDates.add(date.id);
+      }
+      return lines
+        .filter((line) => !line.example || keepDates.has(line.id))
+        .map((line) => (keepDates.has(line.id) ? { ...line, example: undefined } : line));
+    }
+
+    /** The data a new notebook starts with: six machines and five example days. */
+    static exampleData() {
+      const machines = [
+        { id: 'm-leg-press', name: 'Leg press' },
+        { id: 'm-chest-press', name: 'Chest press' },
+        { id: 'm-lat-pulldown', name: 'Lat pulldown' },
+        { id: 'm-shoulder-press', name: 'Shoulder press' },
+        { id: 'm-seated-row', name: 'Seated row' },
+        { id: 'm-leg-curl', name: 'Leg curl' },
+      ];
+      const byName = new Map(machines.map((m) => [m.name, m]));
+      const sessions = [
+        ['2026-11-07', 'Biking Basics New Zealand #11', [['Leg press', 75, 3, 12], ['Chest press', 32.5, 3, 10], ['Seated row', 37.5, 3, 12]]],
+        ['2026-11-09', 'Biking Basics New Zealand #12', [['Leg press', 75, 3, 12], ['Shoulder press', 20, 3, 10], ['Lat pulldown', 45, 3, 12]]],
+        ['2026-11-11', 'Biking Basics New Zealand #13', [['Chest press', 32.5, 3, 10], ['Shoulder press', 20, 3, 10], ['Seated row', 40, 3, 12]]],
+        ['2026-11-14', 'Biking Basics New Zealand #14', [['Leg press', 75, 3, 12], ['Chest press', 35, 3, 10], ['Lat pulldown', 45, 3, 12]]],
+        ['2026-11-16', 'Biking Basics New Zealand #15', [['Leg press', 80, 3, 12], ['Shoulder press', 20, 3, 10], ['Seated row', 40, 3, 12]]],
+      ];
+
+      const lines = [];
+      for (const [date, ride, exercises] of sessions) {
+        lines.push({ id: newId('l'), type: 'date', date, example: true });
+        lines.push({ id: newId('l'), type: 'text', text: ride, example: true });
+        for (const [name, weight, sets, reps] of exercises) {
+          lines.push({ id: newId('l'), type: 'machine', machineId: byName.get(name).id, name, weight, sets, reps, example: true });
+        }
+      }
+      return { version: 1, machines, lines };
+    }
   }
 
-  /**
-   * Where each point of a chart goes, in pixels.
-   * Points are spread evenly from `left` to `right`; a weight on a ruled line sits exactly on it.
-   */
-  function chartPoints(points, scale, { left, right, firstLineY, lineHeight }) {
-    const step = points.length > 1 ? (right - left) / (points.length - 1) : 0;
-    return points.map((point, i) => ({
-      x: round2(points.length > 1 ? left + i * step : right),
-      y: round2(firstLineY + ((scale.top - point.weight) / scale.perLine) * lineHeight),
-    }));
-  }
-
-  /** True when every position is at least `minGap` pixels after the one before it. */
-  function spacedOut(xs, minGap) {
-    return xs.every((x, i) => i === 0 || x - xs[i - 1] >= minGap);
-  }
-
-  /**
-   * Which points get a month label under the chart: the first point of each month,
-   * skipping a label that would sit closer than `minGap` pixels to the one before.
-   * Returns [{ x, year, month }] with month 1 to 12.
-   */
-  function monthLabels(points, positions, minGap) {
-    const labels = [];
-    let lastMonth = '';
-    let lastX = -Infinity;
-    points.forEach((point, i) => {
-      const month = monthOf(point.date);
-      if (month === lastMonth) return;
-      lastMonth = month;
-      if (positions[i].x - lastX < minGap) return;
-      lastX = positions[i].x;
-      const { y, m } = monthParts(month);
-      labels.push({ x: positions[i].x, year: y, month: m });
-    });
-    return labels;
-  }
-
-  FN.stats = {
-    KG_PER_LINE, sessionDates, monthOf, monthParts, shiftMonth, monthRange, clampMonth, mondayOf, weekBefore, weeksInARow,
-    monthCells, countTrained, inRows, tallyMarks, machineHistory, changeIndexes, weightChanges, chartScale, chartRows,
-    axisValues, chartPoints, spacedOut, monthLabels,
-  };
+  FN.notebook = { Notebook };
 })(globalThis.FN = globalThis.FN || {});
 </script>
+
+<script data-module="lineMarkup" data-testable>
+/** How lines are written on the paper, as HTML. Pure: lines in, text out. */
+(function (FN) {
+  'use strict';
+  const { BLANK_ROW, Icons } = FN.config;
+  const { formatKg, escapeHtml } = FN.util;
+  const { Calendar } = FN.calendar;
+
+  const LineMarkup = {
+    /** The ↑, ↓ or –N at the end of a machine line ('' for the first time). */
+    mark(mark) {
+      if (mark === 'up') return `<span class="mark" role="img" aria-label="heavier than last time">${Icons.up}</span>`;
+      if (mark === 'down') return `<span class="mark" role="img" aria-label="lighter than last time">${Icons.down}</span>`;
+      if (typeof mark === 'number') {
+        return `<span class="mark" role="img" aria-label="same weight, ${mark} ${mark === 1 ? 'time' : 'times'} in a row">–${mark}</span>`;
+      }
+      return '';
+    },
+
+    /** What a line says. */
+    content(line, mark) {
+      if (line.type === 'date') {
+        const { date, day } = Calendar.written(line.date);
+        return `<span>${date}</span><span>${day}</span>`;
+      }
+      if (line.type === 'text') return escapeHtml(line.text);
+      return (
+        `<span class="name">${escapeHtml(line.name)}</span>` +
+        `<span class="nums">${formatKg(line.weight)} × ${Number(line.sets)} × ${Number(line.reps)}</span>` +
+        LineMarkup.mark(mark)
+      );
+    },
+
+    /** A line as a row you can tap and drag. */
+    row(line, mark) {
+      return (
+        `<div class="row row--${line.type}" role="listitem" tabindex="0" data-key="${escapeHtml(line.id)}">` +
+        `<div class="row-content">${LineMarkup.content(line, mark)}</div>` +
+        '<button class="row-delete" type="button" tabindex="-1" aria-label="Delete line"><span>Delete</span></button>' +
+        '</div>'
+      );
+    },
+
+    /** All lines, with a skipped line before every date but the first. `marks`: line id → mark. */
+    page(lines, marks) {
+      return lines
+        .map((line, i) => (line.type === 'date' && i > 0 ? BLANK_ROW : '') + LineMarkup.row(line, marks.get(line.id)))
+        .join('');
+    },
+  };
+
+  FN.lineMarkup = { LineMarkup };
+})(globalThis.FN = globalThis.FN || {});
+</script>
+
+<!-- ==== 2. Parts: the building blocks of the screens ========================================== -->
 
 <script data-module="dom">
 /** Small helpers that touch the page. */
@@ -1263,49 +1504,6 @@ button {
 })(globalThis.FN = globalThis.FN || {});
 </script>
 
-<script data-module="state">
-/** The one notebook the app is showing. Every view reads and changes `state.data`. */
-(function (FN) {
-  'use strict';
-  const { loadNotebook, saveNotebook } = FN.storage;
-  const { exampleNotebook, sortMachines } = FN.notebook;
-
-  const state = { data: loadNotebook() || exampleNotebook() };
-
-  /** Writes the current notebook to storage. Call it after every change. */
-  const save = () => saveNotebook(state.data);
-
-  /** Loads the notebook again, for when another tab changed it. */
-  function reload() {
-    state.data = loadNotebook() || exampleNotebook();
-  }
-
-  /** The machines in alphabetical order, the way every list and wheel shows them. */
-  const machinesAZ = () => sortMachines(state.data.machines);
-
-  FN.state = { state, save, reload, machinesAZ };
-})(globalThis.FN = globalThis.FN || {});
-</script>
-
-<script data-module="navigation">
-/**
- * How a view asks the app to change screen, without importing the app itself.
- * app.js fills these in when it starts.
- *   open({ view, machineId })  shows another screen
- *   refresh()                  draws the current screen again
- */
-(function (FN) {
-  'use strict';
-
-  const navigation = {
-    open() {},
-    refresh() {},
-  };
-
-  FN.navigation = { navigation };
-})(globalThis.FN = globalThis.FN || {});
-</script>
-
 <script data-module="toast">
 /** The small message at the bottom of the screen, with an optional Undo. */
 (function (FN) {
@@ -1313,38 +1511,38 @@ button {
   const { UNDO_MS } = FN.config;
   const { byId } = FN.dom;
 
-  const Toast = (() => {
-    const el = byId('toast');
-    const text = byId('toastText');
-    const button = byId('toastUndo');
-    let timer = 0;
-    let undo = null;
+  class Toast {
+    constructor() {
+      this.el = byId('toast');
+      this.text = byId('toastText');
+      this.button = byId('toastUndo');
+      this.timer = 0;
+      this.undo = null;
 
-    function hide() {
-      clearTimeout(timer);
-      el.classList.remove('is-visible');
-      undo = null;
+      this.button.addEventListener('click', () => {
+        const undo = this.undo;
+        this.hide();
+        if (undo) undo();
+      });
     }
 
     /** Shows a short message. With onUndo it also offers an Undo button. */
-    function show(message, onUndo) {
-      clearTimeout(timer);
-      text.textContent = message;
-      undo = onUndo || null;
-      button.hidden = !undo;
-      el.classList.toggle('is-plain', !undo);
-      el.classList.add('is-visible');
-      timer = setTimeout(hide, UNDO_MS);
+    show(message, onUndo) {
+      clearTimeout(this.timer);
+      this.text.textContent = message;
+      this.undo = onUndo || null;
+      this.button.hidden = !this.undo;
+      this.el.classList.toggle('is-plain', !this.undo);
+      this.el.classList.add('is-visible');
+      this.timer = setTimeout(() => this.hide(), UNDO_MS);
     }
 
-    button.addEventListener('click', () => {
-      const fn = undo;
-      hide();
-      if (fn) fn();
-    });
-
-    return { show, hide };
-  })();
+    hide() {
+      clearTimeout(this.timer);
+      this.el.classList.remove('is-visible');
+      this.undo = null;
+    }
+  }
 
   FN.toast = { Toast };
 })(globalThis.FN = globalThis.FN || {});
@@ -1354,108 +1552,148 @@ button {
 /**
  * A handwriting-styled text field that sits on a ruled line.
  * Enter submits, Escape cancels, tapping anywhere else submits and closes.
- * onSubmit(text, input) returns 'close' (default), 'clear' (stay open for another) or 'keep' (stay, keep the text).
+ * onSubmit(text, el) returns 'close' (default), 'clear' (stay open for another) or 'keep' (stay, keep the text).
  */
 (function (FN) {
   'use strict';
 
-  function createLineInput({ value = '', placeholder = '', label, onSubmit, onClose }) {
-    const input = document.createElement('input');
-    input.type = 'text';
-    input.className = 'line-input';
-    input.value = value;
-    input.placeholder = placeholder;
-    input.autocomplete = 'off';
-    input.setAttribute('aria-label', label || placeholder);
-    input.setAttribute('enterkeyhint', 'done');
-    input.setAttribute('autocapitalize', 'sentences');
+  class LineInput {
+    constructor({ value = '', placeholder = '', label, onSubmit, onClose }) {
+      this.onSubmit = onSubmit;
+      this.onClose = onClose;
+      this.closed = false;
 
-    let closed = false;
+      const el = document.createElement('input');
+      el.type = 'text';
+      el.className = 'line-input';
+      el.value = value;
+      el.placeholder = placeholder;
+      el.autocomplete = 'off';
+      el.setAttribute('aria-label', label || placeholder);
+      el.setAttribute('enterkeyhint', 'done');
+      el.setAttribute('autocapitalize', 'sentences');
+      this.el = el;
 
-    function close() {
-      if (closed) return;
-      closed = true;
-      document.removeEventListener('pointerdown', onPointerDownOutside, true);
-      onClose();
+      // iOS keeps a text field focused when you tap plain paper, so blur it ourselves.
+      this.onPointerDownOutside = (e) => {
+        if (e.target !== el) el.blur();
+      };
+
+      el.addEventListener('keydown', (e) => this.onKey(e));
+      el.addEventListener('blur', () => {
+        if (this.closed) return;
+        this.onSubmit(el.value.trim(), el);
+        this.close();
+      });
+      document.addEventListener('pointerdown', this.onPointerDownOutside, true);
     }
 
-    // iOS keeps a text field focused when you tap plain paper, so blur it ourselves.
-    function onPointerDownOutside(e) {
-      if (e.target !== input) input.blur();
+    /** Puts the cursor in the field, after the text. Call it once the field is on the page. */
+    focus() {
+      this.el.focus();
+      const end = this.el.value.length;
+      this.el.setSelectionRange(end, end);
     }
 
-    input.addEventListener('keydown', (e) => {
+    onKey(e) {
       if (e.isComposing || e.keyCode === 229) return;
       if (e.key === 'Enter') {
         e.preventDefault();
-        const result = onSubmit(input.value.trim(), input) || 'close';
-        if (result === 'clear') input.value = '';
-        else if (result === 'close') close();
+        const result = this.onSubmit(this.el.value.trim(), this.el) || 'close';
+        if (result === 'clear') this.el.value = '';
+        else if (result === 'close') this.close();
       } else if (e.key === 'Escape') {
         e.preventDefault();
-        close();
+        this.close();
       }
-    });
+    }
 
-    input.addEventListener('blur', () => {
-      if (closed) return;
-      onSubmit(input.value.trim(), input);
-      close();
-    });
-
-    document.addEventListener('pointerdown', onPointerDownOutside, true);
-    return input;
+    close() {
+      if (this.closed) return;
+      this.closed = true;
+      document.removeEventListener('pointerdown', this.onPointerDownOutside, true);
+      this.onClose();
+    }
   }
 
-  FN.lineInput = { createLineInput };
+  FN.lineInput = { LineInput };
 })(globalThis.FN = globalThis.FN || {});
 </script>
 
 <script data-module="wheel">
-/** One iOS-style picker wheel. */
+/**
+ * One iOS-style picker wheel. It is a native scroll container with scroll snapping,
+ * so momentum and feel come from the browser. Works with touch, mouse wheel,
+ * mouse drag, taps on an item and the arrow keys.
+ */
 (function (FN) {
   'use strict';
   const { WHEEL_ITEM_PX } = FN.config;
   const { clamp, escapeHtml } = FN.util;
   const { onNextFrame } = FN.dom;
 
-  /**
-   * An iOS-style picker wheel. It is a native scroll container with scroll snapping,
-   * so momentum and feel come from the browser. Works with touch, mouse wheel,
-   * mouse drag, taps on an item and the arrow keys.
-   */
-  function createWheel({ label, align, onChange, onSettle }) {
-    const el = document.createElement('div');
-    el.className = align === 'left' ? 'wheel wheel--left' : 'wheel';
-    el.tabIndex = 0;
-    el.setAttribute('role', 'spinbutton');
-    el.setAttribute('aria-label', label);
+  class Wheel {
+    /** onChange(index) while it turns, onSettle(index) once it stops. */
+    constructor({ label, align, onChange, onSettle }) {
+      const el = document.createElement('div');
+      el.className = align === 'left' ? 'wheel wheel--left' : 'wheel';
+      el.tabIndex = 0;
+      el.setAttribute('role', 'spinbutton');
+      el.setAttribute('aria-label', label);
+      this.el = el;
 
-    let items = [];
-    let current = -1;
-    let settleTimer = 0;
-    let drag = null;
-    let swallowClick = false;
-    const styled = new Set();
-    const itemAt = (i) => el.children[i + 1]; // children[0] is the top padding
+      this.align = align;
+      this.onChange = onChange;
+      this.onSettle = onSettle;
+      this.items = [];
+      this.current = -1;
+      this.settleTimer = 0;
+      this.drag = null;
+      this.swallowClick = false;
+      this.styled = new Set();
+      this.syncOnFrame = onNextFrame(() => this.sync(false));
 
-    /** Replaces the items. Must be called once the wheel is in the page. */
-    function setItems(list, index) {
-      items = list;
-      el.innerHTML =
+      this.listen();
+    }
+
+    /** The picked item. */
+    get index() {
+      return this.current;
+    }
+
+    /** Replaces the items. Call it once the wheel is on the page. */
+    setItems(list, index) {
+      this.items = list;
+      this.el.innerHTML =
         '<div class="wheel-pad"></div>' +
         list.map((text, i) => `<div class="wheel-item" data-index="${i}">${escapeHtml(text)}</div>`).join('') +
         '<div class="wheel-pad"></div>';
-      el.setAttribute('aria-valuemin', '0');
-      el.setAttribute('aria-valuemax', String(list.length - 1));
-      styled.clear();
-      current = -1;
-      if (align === 'left') fitText();
-      setIndex(index, false);
+      this.el.setAttribute('aria-valuemin', '0');
+      this.el.setAttribute('aria-valuemax', String(list.length - 1));
+      this.styled.clear();
+      this.current = -1;
+      if (this.align === 'left') this.fitText();
+      this.setIndex(index, false);
+    }
+
+    /** Moves to an item. Instant moves are silent; smooth moves report changes as they scroll. */
+    setIndex(index, smooth) {
+      const top = clamp(index, 0, this.items.length - 1) * WHEEL_ITEM_PX;
+      if (smooth) {
+        this.el.scrollTo({ top, behavior: 'smooth' });
+        return;
+      }
+      this.el.scrollTop = top;
+      this.sync(true);
+    }
+
+    itemAt(i) {
+      return this.el.children[i + 1]; // children[0] is the top padding
     }
 
     /** Shrinks the text until the longest name fits, so names are never cut off. */
-    function fitText() {
+    fitText() {
+      const el = this.el;
       el.style.fontSize = '';
       el.classList.add('is-measuring'); // measure at the bold weight of the picked row
       const nodes = Array.from(el.querySelectorAll('.wheel-item'));
@@ -1467,118 +1705,104 @@ button {
       el.classList.remove('is-measuring');
     }
 
-    /** Moves to an item. Instant moves are silent; smooth moves report changes as they scroll. */
-    function setIndex(index, smooth) {
-      const top = clamp(index, 0, items.length - 1) * WHEEL_ITEM_PX;
-      if (smooth) {
-        el.scrollTo({ top, behavior: 'smooth' });
-        return;
-      }
-      el.scrollTop = top;
-      sync(true);
-    }
-
-    /** Shrinks and fades items away from the middle and reports a new pick. */
-    function sync(silent) {
-      if (!items.length) return;
-      const position = el.scrollTop / WHEEL_ITEM_PX;
-      const index = clamp(Math.round(position), 0, items.length - 1);
+    /** Shrinks and fades items away from the middle, and reports a new pick. */
+    sync(silent) {
+      if (!this.items.length) return;
+      const position = this.el.scrollTop / WHEEL_ITEM_PX;
+      const index = clamp(Math.round(position), 0, this.items.length - 1);
       const first = Math.max(0, Math.floor(position) - 3);
-      const last = Math.min(items.length - 1, Math.ceil(position) + 3);
+      const last = Math.min(this.items.length - 1, Math.ceil(position) + 3);
 
-      for (const i of styled) {
+      for (const i of this.styled) {
         if (i >= first && i <= last) continue;
-        const node = itemAt(i);
+        const node = this.itemAt(i);
         node.style.transform = '';
         node.style.opacity = '';
         node.classList.remove('is-current');
-        styled.delete(i);
+        this.styled.delete(i);
       }
       for (let i = first; i <= last; i++) {
-        const node = itemAt(i);
+        const node = this.itemAt(i);
         const distance = Math.abs(i - position);
         node.style.transform = `scale(${Math.max(0.74, 1 - distance * 0.08).toFixed(3)})`;
         node.style.opacity = Math.max(0.3, 1 - distance * 0.24).toFixed(3);
         node.classList.toggle('is-current', i === index);
-        styled.add(i);
+        this.styled.add(i);
       }
 
-      if (index !== current) {
-        current = index;
-        el.setAttribute('aria-valuenow', String(index));
-        el.setAttribute('aria-valuetext', items[index]);
-        if (!silent && onChange) onChange(index);
+      if (index !== this.current) {
+        this.current = index;
+        this.el.setAttribute('aria-valuenow', String(index));
+        this.el.setAttribute('aria-valuetext', this.items[index]);
+        if (!silent && this.onChange) this.onChange(index);
       }
     }
 
-    function settle() {
-      clearTimeout(settleTimer);
-      sync(false);
-      if (onSettle) onSettle(current);
+    settle() {
+      clearTimeout(this.settleTimer);
+      this.sync(false);
+      if (this.onSettle) this.onSettle(this.current);
     }
 
-    const syncOnFrame = onNextFrame(() => sync(false));
-    el.addEventListener('scroll', () => {
-      syncOnFrame();
-      clearTimeout(settleTimer);
-      settleTimer = setTimeout(settle, 160);
-    }, { passive: true });
-    el.addEventListener('scrollend', settle);
+    listen() {
+      const el = this.el;
 
-    el.addEventListener('click', (e) => {
-      if (swallowClick) {
-        swallowClick = false;
-        return;
+      el.addEventListener('scroll', () => {
+        this.syncOnFrame();
+        clearTimeout(this.settleTimer);
+        this.settleTimer = setTimeout(() => this.settle(), 160);
+      }, { passive: true });
+      el.addEventListener('scrollend', () => this.settle());
+
+      el.addEventListener('click', (e) => {
+        if (this.swallowClick) {
+          this.swallowClick = false;
+          return;
+        }
+        const item = e.target.closest('.wheel-item');
+        if (item) this.setIndex(Number(item.dataset.index), true);
+      });
+
+      el.addEventListener('keydown', (e) => {
+        const step = { ArrowUp: -1, ArrowDown: 1, PageUp: -5, PageDown: 5 }[e.key];
+        let target = null;
+        if (step) target = Math.round(el.scrollTop / WHEEL_ITEM_PX) + step;
+        else if (e.key === 'Home') target = 0;
+        else if (e.key === 'End') target = this.items.length - 1;
+        if (target === null) return;
+        e.preventDefault();
+        el.scrollTop = clamp(target, 0, this.items.length - 1) * WHEEL_ITEM_PX; // the scroll event reports it
+      });
+
+      // Mouse drag (touch and trackpads scroll natively).
+      el.addEventListener('pointerdown', (e) => {
+        this.swallowClick = false;
+        if (e.pointerType !== 'mouse' || e.button !== 0) return;
+        this.drag = { y: e.clientY, top: el.scrollTop, moved: false };
+        el.setPointerCapture(e.pointerId);
+        el.classList.add('is-dragging');
+      });
+      el.addEventListener('pointermove', (e) => {
+        if (!this.drag) return;
+        const dy = e.clientY - this.drag.y;
+        if (Math.abs(dy) > 3) this.drag.moved = true;
+        el.scrollTop = this.drag.top - dy;
+      });
+      for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) {
+        el.addEventListener(type, () => this.endDrag());
       }
-      const item = e.target.closest('.wheel-item');
-      if (item) setIndex(Number(item.dataset.index), true);
-    });
-
-    el.addEventListener('keydown', (e) => {
-      const step = { ArrowUp: -1, ArrowDown: 1, PageUp: -5, PageDown: 5 }[e.key];
-      let target = null;
-      if (step) target = Math.round(el.scrollTop / WHEEL_ITEM_PX) + step;
-      else if (e.key === 'Home') target = 0;
-      else if (e.key === 'End') target = items.length - 1;
-      if (target === null) return;
-      e.preventDefault();
-      el.scrollTop = clamp(target, 0, items.length - 1) * WHEEL_ITEM_PX; // the scroll event reports it
-    });
-
-    // Mouse drag (touch and trackpads scroll natively).
-    el.addEventListener('pointerdown', (e) => {
-      swallowClick = false;
-      if (e.pointerType !== 'mouse' || e.button !== 0) return;
-      drag = { y: e.clientY, top: el.scrollTop, moved: false };
-      el.setPointerCapture(e.pointerId);
-      el.classList.add('is-dragging');
-    });
-    el.addEventListener('pointermove', (e) => {
-      if (!drag) return;
-      const dy = e.clientY - drag.y;
-      if (Math.abs(dy) > 3) drag.moved = true;
-      el.scrollTop = drag.top - dy;
-    });
-    function endDrag() {
-      if (!drag) return;
-      swallowClick = drag.moved;
-      drag = null;
-      el.classList.remove('is-dragging');
-      setIndex(Math.round(el.scrollTop / WHEEL_ITEM_PX), true);
     }
-    el.addEventListener('pointerup', endDrag);
-    el.addEventListener('pointercancel', endDrag);
-    el.addEventListener('lostpointercapture', endDrag);
 
-    return {
-      el,
-      setItems,
-      setIndex,
-      get index() { return current; },
-    };
+    endDrag() {
+      if (!this.drag) return;
+      this.swallowClick = this.drag.moved;
+      this.drag = null;
+      this.el.classList.remove('is-dragging');
+      this.setIndex(Math.round(this.el.scrollTop / WHEEL_ITEM_PX), true);
+    }
   }
 
-  FN.wheel = { createWheel };
+  FN.wheel = { Wheel };
 })(globalThis.FN = globalThis.FN || {});
 </script>
 
@@ -1588,31 +1812,36 @@ button {
   'use strict';
   const { escapeHtml } = FN.util;
   const { byId } = FN.dom;
-  const { Toast } = FN.toast;
-  const { createWheel } = FN.wheel;
+  const { Wheel } = FN.wheel;
 
-  const Sheet = (() => {
-    const sheet = byId('sheet');
-    const backdrop = byId('backdrop');
-    const title = byId('sheetTitle');
-    const textField = byId('sheetText');
-    const labels = byId('sheetLabels');
-    const wheelsEl = byId('sheetWheels');
-    const action = byId('sheetAction');
-    const cancelButton = byId('sheetCancel');
-    const info = byId('sheetInfo');
-    const behind = ['notebook', 'settings', 'cogBtn', 'statsBtn', 'todayBtn'].map(byId);
-    let config = null;
+  class Sheet {
+    constructor({ toast }) {
+      this.toast = toast;
+      this.el = byId('sheet');
+      this.backdrop = byId('backdrop');
+      this.title = byId('sheetTitle');
+      this.textField = byId('sheetText');
+      this.labels = byId('sheetLabels');
+      this.wheelsEl = byId('sheetWheels');
+      this.action = byId('sheetAction');
+      this.cancelButton = byId('sheetCancel');
+      this.info = byId('sheetInfo');
+      this.behind = ['notebook', 'settings', 'cogBtn', 'statsBtn', 'todayBtn'].map(byId);
+      this.config = null;
+      this.listen();
+    }
 
     /** What is typed in the text field ('' when the sheet has none). */
-    const text = () => (textField.hidden ? '' : textField.value.trim());
+    text() {
+      return this.textField.hidden ? '' : this.textField.value.trim();
+    }
 
-    /** While typing, the wheels fold away so the field and the button fit above the keyboard. */
-    function updateTyping() {
-      const typing =
-        !!config &&
-        (config.wheels.length === 0 || (!textField.hidden && (textField.value !== '' || document.activeElement === textField)));
-      sheet.classList.toggle('is-typing', typing);
+    isOpen() {
+      return this.config !== null;
+    }
+
+    height() {
+      return this.el.offsetHeight;
     }
 
     /**
@@ -1622,147 +1851,163 @@ button {
      *           actionLabel, cancelLabel (optional),
      *           onChange(i), onSettle(i), onAction(), onCancel() }   onChange(-1) = the text changed
      */
-    function open(cfg) {
-      close();
-      Toast.hide(); // a leftover message would sit on top of the sheet's buttons
-      config = cfg;
-      title.textContent = cfg.title;
-      action.textContent = cfg.actionLabel;
-      cancelButton.hidden = !cfg.cancelLabel;
-      cancelButton.textContent = cfg.cancelLabel || '';
-      info.hidden = !cfg.info;
-      info.innerHTML = cfg.info
+    open(cfg) {
+      this.close();
+      this.toast.hide(); // a leftover message would sit on top of the sheet's buttons
+      this.config = cfg;
+      this.fill(cfg);
+
+      const wheels = cfg.wheels.map((spec, i) => {
+        const wheel = new Wheel({
+          label: spec.label,
+          align: spec.align,
+          onChange: () => { if (this.config === cfg && cfg.onChange) cfg.onChange(i); },
+          onSettle: () => { if (this.config === cfg && cfg.onSettle) cfg.onSettle(i); },
+        });
+        this.wheelsEl.appendChild(wheel.el);
+        return wheel;
+      });
+
+      this.backdrop.hidden = false;
+      this.el.classList.add('is-open');
+      this.behind.forEach((el) => { el.inert = true; });
+      wheels.forEach((wheel, i) => wheel.setItems(cfg.wheels[i].items, cfg.wheels[i].index));
+      this.updateTyping();
+      if (wheels.length && !this.el.classList.contains('is-typing')) wheels[0].el.focus({ preventScroll: true });
+      else if (!this.textField.hidden) this.textField.focus({ preventScroll: true });
+      else this.action.focus({ preventScroll: true });
+      return wheels;
+    }
+
+    /** Puts the title, question, text field and wheel labels of a config in place. */
+    fill(cfg) {
+      this.title.textContent = cfg.title;
+      this.action.textContent = cfg.actionLabel;
+      this.cancelButton.hidden = !cfg.cancelLabel;
+      this.cancelButton.textContent = cfg.cancelLabel || '';
+      this.info.hidden = !cfg.info;
+      this.info.innerHTML = cfg.info
         ? `<h3>${escapeHtml(cfg.info.heading)}</h3>` +
           cfg.info.details.map((detail) => `<p class="is-muted">${escapeHtml(detail)}</p>`).join('') +
           `<p>${escapeHtml(cfg.info.note)}</p>`
         : '';
-      textField.hidden = !cfg.text;
-      textField.value = cfg.text ? cfg.text.value || '' : '';
-      textField.placeholder = cfg.text ? cfg.text.placeholder : '';
-      for (const el of [labels, wheelsEl]) {
+      this.textField.hidden = !cfg.text;
+      this.textField.value = cfg.text ? cfg.text.value || '' : '';
+      this.textField.placeholder = cfg.text ? cfg.text.placeholder : '';
+      for (const el of [this.labels, this.wheelsEl]) {
         el.style.gridTemplateColumns = cfg.columns;
         el.style.justifyContent = cfg.center ? 'center' : '';
       }
-      labels.innerHTML = cfg.labels.map((l) => `<span${l.left ? ' class="is-left"' : ''}>${escapeHtml(l.text)}</span>`).join('');
-
-      wheelsEl.replaceChildren();
-      const wheels = cfg.wheels.map((spec, i) => {
-        const wheel = createWheel({
-          label: spec.label,
-          align: spec.align,
-          onChange: () => { if (config === cfg && cfg.onChange) cfg.onChange(i); },
-          onSettle: () => { if (config === cfg && cfg.onSettle) cfg.onSettle(i); },
-        });
-        wheelsEl.appendChild(wheel.el);
-        return wheel;
-      });
-
-      backdrop.hidden = false;
-      sheet.classList.add('is-open');
-      behind.forEach((el) => { el.inert = true; });
-      wheels.forEach((wheel, i) => wheel.setItems(cfg.wheels[i].items, cfg.wheels[i].index));
-      updateTyping();
-      if (wheels.length && !sheet.classList.contains('is-typing')) wheels[0].el.focus({ preventScroll: true });
-      else if (!textField.hidden) textField.focus({ preventScroll: true });
-      else action.focus({ preventScroll: true });
-      return wheels;
+      this.labels.innerHTML = cfg.labels.map((l) => `<span${l.left ? ' class="is-left"' : ''}>${escapeHtml(l.text)}</span>`).join('');
+      this.wheelsEl.replaceChildren();
     }
 
-    function close() {
-      if (!config) return null;
-      const cfg = config;
-      config = null;
-      sheet.classList.remove('is-open');
-      backdrop.hidden = true;
-      behind.forEach((el) => { el.inert = false; });
-      if (sheet.contains(document.activeElement)) document.activeElement.blur();
+    /** Closes the sheet. Returns the config it had, or null when it was closed already. */
+    close() {
+      if (!this.config) return null;
+      const cfg = this.config;
+      this.config = null;
+      this.el.classList.remove('is-open');
+      this.backdrop.hidden = true;
+      this.behind.forEach((el) => { el.inert = false; });
+      if (this.el.contains(document.activeElement)) document.activeElement.blur();
       return cfg;
     }
 
-    function cancel() {
-      const cfg = close();
+    cancel() {
+      const cfg = this.close();
       if (cfg && cfg.onCancel) cfg.onCancel();
     }
 
-    action.addEventListener('click', () => {
-      const cfg = close();
-      if (cfg) cfg.onAction();
-    });
-    backdrop.addEventListener('click', cancel);
-    cancelButton.addEventListener('click', cancel);
-
-    textField.addEventListener('input', () => {
-      updateTyping();
-      if (config && config.onChange) config.onChange(-1);
-    });
-    textField.addEventListener('focus', updateTyping);
-    // Wait a moment before unfolding the wheels, so a tap on the button still lands on it.
-    textField.addEventListener('blur', () => setTimeout(updateTyping, 250));
-    textField.addEventListener('keydown', (e) => {
-      if (e.key !== 'Enter' || e.isComposing || e.keyCode === 229) return;
-      e.preventDefault();
-      action.click();
-    });
-
-    document.addEventListener('keydown', (e) => {
-      if (!config) return;
-      if (e.key === 'Escape') {
-        e.preventDefault();
-        cancel();
-      } else if (e.key === 'Enter' && e.target.classList.contains('wheel')) {
-        e.preventDefault();
-        action.click();
-      }
-    });
-
-    // Keep the paper underneath still while the sheet is up.
-    sheet.addEventListener('touchmove', (e) => { if (!e.target.closest('.wheel')) e.preventDefault(); }, { passive: false });
-    backdrop.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
-    backdrop.addEventListener('wheel', (e) => e.preventDefault(), { passive: false });
-
-    // Ride on top of the on-screen keyboard.
-    if (window.visualViewport) {
-      const viewport = window.visualViewport;
-      const lift = () => {
-        sheet.style.bottom = `${Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop)}px`;
-      };
-      viewport.addEventListener('resize', lift);
-      viewport.addEventListener('scroll', lift);
+    /** While typing, the wheels fold away so the field and the button fit above the keyboard. */
+    updateTyping() {
+      const field = this.textField;
+      const typing =
+        !!this.config &&
+        (this.config.wheels.length === 0 || (!field.hidden && (field.value !== '' || document.activeElement === field)));
+      this.el.classList.toggle('is-typing', typing);
     }
 
-    return {
-      open,
-      cancel,
-      text,
-      isOpen: () => config !== null,
-      height: () => sheet.offsetHeight,
-    };
-  })();
+    listen() {
+      this.action.addEventListener('click', () => {
+        const cfg = this.close();
+        if (cfg) cfg.onAction();
+      });
+      this.backdrop.addEventListener('click', () => this.cancel());
+      this.cancelButton.addEventListener('click', () => this.cancel());
+
+      const field = this.textField;
+      field.addEventListener('input', () => {
+        this.updateTyping();
+        if (this.config && this.config.onChange) this.config.onChange(-1);
+      });
+      field.addEventListener('focus', () => this.updateTyping());
+      // Wait a moment before unfolding the wheels, so a tap on the button still lands on it.
+      field.addEventListener('blur', () => setTimeout(() => this.updateTyping(), 250));
+      field.addEventListener('keydown', (e) => {
+        if (e.key !== 'Enter' || e.isComposing || e.keyCode === 229) return;
+        e.preventDefault();
+        this.action.click();
+      });
+
+      document.addEventListener('keydown', (e) => {
+        if (!this.config) return;
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          this.cancel();
+        } else if (e.key === 'Enter' && e.target.classList.contains('wheel')) {
+          e.preventDefault();
+          this.action.click();
+        }
+      });
+
+      // Keep the paper underneath still while the sheet is up.
+      this.el.addEventListener('touchmove', (e) => { if (!e.target.closest('.wheel')) e.preventDefault(); }, { passive: false });
+      this.backdrop.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
+      this.backdrop.addEventListener('wheel', (e) => e.preventDefault(), { passive: false });
+
+      // Ride on top of the on-screen keyboard.
+      if (window.visualViewport) {
+        const viewport = window.visualViewport;
+        const lift = () => {
+          this.el.style.bottom = `${Math.max(0, window.innerHeight - viewport.height - viewport.offsetTop)}px`;
+        };
+        viewport.addEventListener('resize', lift);
+        viewport.addEventListener('scroll', lift);
+      }
+    }
+  }
 
   FN.sheet = { Sheet };
 })(globalThis.FN = globalThis.FN || {});
 </script>
 
-<script data-module="rowGestures">
-/** Tap a row to change it, drag it left to delete it. */
+<script data-module="swipeRows">
+/**
+ * Tap a row to change it, drag it left to delete it. A row looks like:
+ *   <div class="row" data-key="…"><div class="row-content">…</div><button class="row-delete">…</button></div>
+ * A tap (or Enter) calls onTap(row, target), where target is what was tapped inside the row.
+ * Dragging left reveals Delete; dragging far deletes at once. The Delete key deletes a focused row.
+ * onDelete(row) runs after the row has animated away.
+ */
 (function (FN) {
   'use strict';
   const { RULE_INSET_PX, OPEN_OFFSET_PX, FULL_SWIPE } = FN.config;
   const { clamp } = FN.util;
 
-  /**
-   * Adds row gestures to a list. A row looks like:
-   *   <div class="row" data-key="…"><div class="row-content">…</div><button class="row-delete">…</button></div>
-   * A tap (or Enter) calls onTap(row, target), where target is what was tapped inside the row.
-   * Dragging left reveals Delete; dragging far deletes at once. The Delete key deletes a focused row.
-   * onDelete(row) runs after the row has animated away.
-   */
-  function createRowGestures(container, { onTap, onDelete }) {
-    let gesture = null;
-    let openRow = null;
-    let swallowClick = false;
+  class SwipeRows {
+    constructor(container, { onTap, onDelete }) {
+      this.container = container;
+      this.onTap = onTap;
+      this.onDelete = onDelete;
+      this.gesture = null;
+      this.openRow = null;
+      this.swallowClick = false;
+      this.listen();
+    }
 
-    function slide(row, x, animate) {
+    /** Moves a row's writing to `x` (0 or less) and shows that much of the Delete button. */
+    slide(row, x, animate) {
       const content = row.querySelector('.row-content');
       const button = row.querySelector('.row-delete');
       content.classList.toggle('is-animating', animate);
@@ -1772,53 +2017,65 @@ button {
       if (!x) row.classList.remove('is-armed');
     }
 
-    function closeOpenRow() {
-      if (!openRow) return;
-      slide(openRow, 0, true);
-      openRow = null;
+    closeOpenRow() {
+      if (!this.openRow) return;
+      this.slide(this.openRow, 0, true);
+      this.openRow = null;
     }
 
-    function removeRow(row) {
+    /** Slides a row away, folds it shut, then hands it to onDelete. */
+    removeRow(row) {
       if (row.classList.contains('is-removing')) return;
       row.classList.add('is-removing');
-      if (row === openRow) openRow = null;
-      slide(row, -row.offsetWidth, true);
+      if (row === this.openRow) this.openRow = null;
+      this.slide(row, -row.offsetWidth, true);
       setTimeout(() => {
         row.style.height = `${row.offsetHeight}px`;
         void row.offsetHeight;
         row.classList.add('is-collapsing');
         row.style.height = '0px';
-        setTimeout(() => onDelete(row), 180);
+        setTimeout(() => this.onDelete(row), 180);
       }, 200);
     }
 
-    // Touching anywhere else closes an open row; that touch does nothing else.
-    document.addEventListener('pointerdown', (e) => {
-      swallowClick = false;
-      if (openRow && !openRow.contains(e.target)) {
-        closeOpenRow();
-        swallowClick = container.contains(e.target);
-      }
-    }, true);
+    listen() {
+      const container = this.container;
 
-    container.addEventListener('pointerdown', (e) => {
-      gesture = null;
-      if (swallowClick || (e.pointerType === 'mouse' && e.button !== 0)) return;
+      // Touching anywhere else closes an open row; that touch does nothing else.
+      document.addEventListener('pointerdown', (e) => {
+        this.swallowClick = false;
+        if (this.openRow && !this.openRow.contains(e.target)) {
+          this.closeOpenRow();
+          this.swallowClick = container.contains(e.target);
+        }
+      }, true);
+
+      container.addEventListener('pointerdown', (e) => this.startGesture(e));
+      container.addEventListener('pointermove', (e) => this.moveGesture(e));
+      container.addEventListener('pointerup', (e) => this.endGesture(e));
+      container.addEventListener('pointercancel', (e) => this.endGesture(e));
+      container.addEventListener('click', (e) => this.onClick(e));
+      container.addEventListener('keydown', (e) => this.onKey(e));
+    }
+
+    startGesture(e) {
+      this.gesture = null;
+      if (this.swallowClick || (e.pointerType === 'mouse' && e.button !== 0)) return;
       const row = e.target.closest('.row');
       if (!row || row.classList.contains('is-removing') || e.target.closest('input, .row-delete')) return;
-      gesture = {
+      this.gesture = {
         row,
         pointerId: e.pointerId,
         startX: e.clientX,
         startY: e.clientY,
-        from: row === openRow ? -OPEN_OFFSET_PX : 0,
+        from: row === this.openRow ? -OPEN_OFFSET_PX : 0,
         x: 0,
         axis: null,
       };
-    });
+    }
 
-    container.addEventListener('pointermove', (e) => {
-      const g = gesture;
+    moveGesture(e) {
+      const g = this.gesture;
       if (!g || e.pointerId !== g.pointerId) return;
       const dx = e.clientX - g.startX;
       const dy = e.clientY - g.startY;
@@ -1826,287 +2083,115 @@ button {
         if (Math.hypot(dx, dy) < 8) return;
         g.axis = Math.abs(dx) > Math.abs(dy) * 1.2 ? 'x' : 'y';
         if (g.axis === 'y') {
-          gesture = null; // a scroll: leave it to the browser
+          this.gesture = null; // a scroll: leave it to the browser
           return;
         }
         try { g.row.setPointerCapture(g.pointerId); } catch (_) { /* pointer already released */ }
       }
       const width = g.row.offsetWidth;
       g.x = clamp(g.from + dx, -width, 0);
-      slide(g.row, g.x, false);
+      this.slide(g.row, g.x, false);
       g.row.classList.toggle('is-armed', -g.x > width * FULL_SWIPE);
-    });
+    }
 
-    function endGesture(e) {
-      const g = gesture;
+    endGesture(e) {
+      const g = this.gesture;
       if (!g || e.pointerId !== g.pointerId) return;
-      gesture = null;
+      this.gesture = null;
       if (g.axis !== 'x') return;
-      swallowClick = true;
+      this.swallowClick = true;
       if (e.type === 'pointercancel') {
-        slide(g.row, g.from, true);
+        this.slide(g.row, g.from, true);
         return;
       }
       const width = g.row.offsetWidth;
       if (-g.x > width * FULL_SWIPE) {
-        removeRow(g.row);
+        this.removeRow(g.row);
       } else if (-g.x > OPEN_OFFSET_PX / 2) {
-        if (openRow !== g.row) closeOpenRow();
-        slide(g.row, -OPEN_OFFSET_PX, true);
-        openRow = g.row;
+        if (this.openRow !== g.row) this.closeOpenRow();
+        this.slide(g.row, -OPEN_OFFSET_PX, true);
+        this.openRow = g.row;
       } else {
-        slide(g.row, 0, true);
-        if (openRow === g.row) openRow = null;
+        this.slide(g.row, 0, true);
+        if (this.openRow === g.row) this.openRow = null;
       }
     }
-    container.addEventListener('pointerup', endGesture);
-    container.addEventListener('pointercancel', endGesture);
 
-    container.addEventListener('click', (e) => {
-      if (swallowClick) {
-        swallowClick = false;
+    onClick(e) {
+      if (this.swallowClick) {
+        this.swallowClick = false;
         return;
       }
       const deleteButton = e.target.closest('.row-delete');
       if (deleteButton) {
-        removeRow(deleteButton.closest('.row'));
+        this.removeRow(deleteButton.closest('.row'));
         return;
       }
       if (e.target.closest('input')) return;
       const row = e.target.closest('.row');
       if (!row || row.classList.contains('is-removing')) return;
-      if (row === openRow) closeOpenRow();
-      else onTap(row, e.target);
-    });
+      if (row === this.openRow) this.closeOpenRow();
+      else this.onTap(row, e.target);
+    }
 
-    container.addEventListener('keydown', (e) => {
+    onKey(e) {
       const row = e.target;
       if (!row.classList || !row.classList.contains('row')) return;
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault();
-        onTap(row, row);
+        this.onTap(row, row);
       } else if (e.key === 'Delete' || e.key === 'Backspace') {
         e.preventDefault();
-        removeRow(row);
+        this.removeRow(row);
       }
-    });
-
-    return { closeOpenRow };
+    }
   }
 
-  FN.rowGestures = { createRowGestures };
+  FN.swipeRows = { SwipeRows };
 })(globalThis.FN = globalThis.FN || {});
 </script>
 
-<script data-module="notebookView">
-/** The notebook screen: the lines, adding a line, starting a date, removing. */
+<!-- ==== 3. Panels: adding and changing lines ================================================== -->
+
+<script data-module="lineEditor">
+/**
+ * The add-or-change-a-line panel: machine wheels, or your own text.
+ * While you pick, the line shows on the paper in pencil; Log or Save writes it in pen.
+ */
 (function (FN) {
   'use strict';
-  const { SETS, REPS, FIRST_TIME_VALUES, YEARS_BACK, PREVIEW_ID, BLANK_ROW, Icons } = FN.config;
-  const { range, round2, formatKg, newId, indexOr, escapeHtml } = FN.util;
-  const { byId, scrollToBottom } = FN.dom;
-  const { Dates } = FN.dates;
-  const { state, save, machinesAZ } = FN.state;
-  const { analyzeLines, machinesInCurrentDay, kgOptions } = FN.notebook;
-  const { createRowGestures } = FN.rowGestures;
-  const { Sheet } = FN.sheet;
-  const { Toast } = FN.toast;
+  const { SETS, REPS, FIRST_TIME_VALUES, PREVIEW_ID } = FN.config;
+  const { round2, formatKg, indexOr } = FN.util;
+  const { Progress } = FN.progress;
+  const { LineMarkup } = FN.lineMarkup;
 
-  const NotebookView = (() => {
-    const root = byId('notebook');
-    const linesEl = byId('lines');
-    const addArea = byId('addArea');
-    const rowNext = byId('rowNext');
-    const rowDate = byId('rowDate');
-    const filler = byId('notebookFiller');
-    const todayBtn = byId('todayBtn');
+  const SETS_FALLBACK = SETS.indexOf(FIRST_TIME_VALUES.sets);
+  const REPS_FALLBACK = REPS.indexOf(FIRST_TIME_VALUES.reps);
 
-    let busy = false; // a sheet is open
-
-    /* ---- Markup ---- */
-
-    function markHtml(mark) {
-      if (mark === 'up') return `<span class="mark" role="img" aria-label="heavier than last time">${Icons.up}</span>`;
-      if (mark === 'down') return `<span class="mark" role="img" aria-label="lighter than last time">${Icons.down}</span>`;
-      if (typeof mark === 'number') {
-        return `<span class="mark" role="img" aria-label="same weight, ${mark} ${mark === 1 ? 'time' : 'times'} in a row">–${mark}</span>`;
-      }
-      return '';
+  class LineEditor {
+    /** page: the notebook screen. It draws the pencil preview and hears when the panel closes. */
+    constructor({ notebook, sheet, page }) {
+      this.notebook = notebook;
+      this.sheet = sheet;
+      this.page = page;
+      this.wheels = null;
     }
 
-    function contentHtml(line, mark) {
-      if (line.type === 'date') {
-        const { date, day } = Dates.written(line.date);
-        return `<span>${date}</span><span>${day}</span>`;
-      }
-      if (line.type === 'text') return escapeHtml(line.text);
-      return (
-        `<span class="name">${escapeHtml(line.name)}</span>` +
-        `<span class="nums">${formatKg(line.weight)} × ${Number(line.sets)} × ${Number(line.reps)}</span>` +
-        markHtml(mark)
-      );
-    }
+    /** Opens the panel for a new line (editing = null), or to change a text or machine line. */
+    open(editing) {
+      this.editing = editing;
+      this.editingMachine = editing && editing.type === 'machine' ? editing : null;
+      this.machines = this.pickableMachines();
+      this.latest = Progress.analyzeLines(this.notebook.lines).latest;
+      this.wheels = null;
 
-    function rowHtml(line, mark) {
-      return (
-        `<div class="row row--${line.type}" role="listitem" tabindex="0" data-key="${escapeHtml(line.id)}">` +
-        `<div class="row-content">${contentHtml(line, mark)}</div>` +
-        '<button class="row-delete" type="button" tabindex="-1" aria-label="Delete line"><span>Delete</span></button>' +
-        '</div>'
-      );
-    }
+      const hasWheels = this.machines.length > 0;
+      const machineIndex = this.startMachineIndex();
+      const start = this.editingMachine || (hasWheels ? this.lastTime(this.machines[machineIndex]) : FIRST_TIME_VALUES);
+      this.settledIndex = machineIndex;
+      this.kgList = Progress.kgOptions(start.weight);
 
-    function render() {
-      const { marks } = analyzeLines(state.data.lines);
-      linesEl.innerHTML = state.data.lines
-        .map((line, i) => (line.type === 'date' && i > 0 ? BLANK_ROW : '') + rowHtml(line, marks.get(line.id)))
-        .join('');
-      showAddLines();
-      filler.style.height = '';
-      updateTodayButton();
-    }
-
-    /* ---- The lines under the last entry ----
-       First empty line: tap to add a line. Anywhere below it: tap to start a new date. */
-
-    function showAddLines() {
-      const empty = state.data.lines.length === 0; // a fresh notebook starts with a date
-      rowNext.hidden = empty;
-      setButton(rowNext, 'line', 'tap to add a line');
-      setButton(rowDate, 'date', empty ? 'tap to start with a date' : '', 'Start a new date');
-    }
-
-    function setButton(row, action, text, label) {
-      row.className = 'add-row';
-      row.innerHTML =
-        `<button class="add-btn is-pencil" type="button" data-action="${action}"` +
-        `${label ? ` aria-label="${label}"` : ''}>${text}</button>`;
-    }
-
-    function setRowContent(row, html, className = '') {
-      row.className = 'add-row';
-      row.innerHTML = `<div class="row-content ${className}">${html}</div>`;
-    }
-
-    function clearRow(row) {
-      row.className = 'add-row';
-      row.innerHTML = '';
-    }
-
-    function rowFor(line) {
-      return linesEl.querySelector(`.row[data-key="${CSS.escape(line.id)}"]`);
-    }
-
-    /** Shows a pencil preview in the row of the line that is being changed. */
-    function showInRow(line, type, html) {
-      const row = rowFor(line);
-      if (!row) return;
-      row.className = `row row--${type}`;
-      const content = row.querySelector('.row-content');
-      content.classList.add('is-pencil');
-      content.innerHTML = html;
-    }
-
-    /** Leaves room under the page and scrolls so `target` stays visible above the sheet. */
-    function makeRoomFor(target) {
-      const sheetHeight = Sheet.height();
-      filler.style.height = `calc(var(--line) * 4 + ${sheetHeight}px)`;
-      if (!target) return;
-      const limit = window.innerHeight - sheetHeight - 16;
-      const bottom = target.getBoundingClientRect().bottom;
-      if (bottom > limit) window.scrollBy({ top: bottom - limit, behavior: 'smooth' });
-    }
-
-    function finish({ scroll } = {}) {
-      busy = false;
-      render();
-      if (scroll) scrollToBottom(true);
-    }
-
-    /* ---- Add or change a line: machine wheels, or your own text ---- */
-
-    function openLineSheet(editing) {
-      const editingMachine = editing && editing.type === 'machine' ? editing : null;
-      const machines = machinesAZ();
-      if (editingMachine && !machines.some((m) => m.id === editingMachine.machineId)) {
-        // The machine was removed in settings; keep it pickable for this line.
-        machines.unshift({ id: editingMachine.machineId, name: editingMachine.name });
-      }
-      const hasWheels = machines.length > 0;
-      const { latest } = analyzeLines(state.data.lines);
-      const lastTime = (machine) => latest.get(machine.id) || FIRST_TIME_VALUES;
-
-      let machineIndex = 0;
-      if (editingMachine) {
-        machineIndex = machines.findIndex((m) => m.id === editingMachine.machineId);
-      } else if (hasWheels) {
-        const done = machinesInCurrentDay(state.data.lines);
-        machineIndex = Math.max(0, machines.findIndex((m) => !done.has(m.id)));
-      }
-      let settledIndex = machineIndex;
-      const start = editingMachine || (hasWheels ? lastTime(machines[machineIndex]) : FIRST_TIME_VALUES);
-      let kgList = kgOptions(start.weight);
-      let wheels = null;
-
-      const wheelValues = () => ({ weight: kgList[wheels[1].index], sets: SETS[wheels[2].index], reps: REPS[wheels[3].index] });
-
-      /** What the button would write: a text line when something is typed, else a machine line. */
-      function fields() {
-        const text = Sheet.text();
-        if (text) return { type: 'text', text };
-        if (!hasWheels) return null;
-        const machine = machines[wheels[0].index];
-        // While the machine wheel is still moving, show the numbers it will fill in.
-        const moving = !editingMachine && wheels[0].index !== settledIndex;
-        const { weight, sets, reps } = moving ? lastTime(machine) : wheelValues();
-        const keepName = editingMachine && machine.id === editingMachine.machineId; // old lines keep their written name
-        return { type: 'machine', machineId: machine.id, name: keepName ? editingMachine.name : machine.name, weight, sets, reps };
-      }
-
-      function preview() {
-        if (!wheels) return;
-        const next = fields();
-        let type = 'text';
-        let html = '';
-        if (next) {
-          const line = { id: editing ? editing.id : PREVIEW_ID, ...next };
-          const lines = editing ? state.data.lines.map((l) => (l === editing ? line : l)) : state.data.lines.concat(line);
-          type = line.type;
-          html = contentHtml(line, analyzeLines(lines).marks.get(line.id));
-        }
-        if (editing) {
-          showInRow(editing, type, html);
-        } else {
-          setRowContent(rowNext, html, type === 'text' ? 'is-pencil is-text' : 'is-pencil');
-          clearRow(rowDate);
-        }
-      }
-
-      /** When the machine wheel stops on a new machine, load that machine's numbers. */
-      function followMachine() {
-        const index = wheels[0].index;
-        if (index === settledIndex) return;
-        settledIndex = index;
-        const values = editingMachine ? wheelValues() : lastTime(machines[index]);
-        kgList = kgOptions(values.weight);
-        wheels[1].setItems(kgList.map(formatKg), indexOr(kgList, round2(values.weight)));
-        wheels[2].setIndex(indexOr(SETS, values.sets, 2), false);
-        wheels[3].setIndex(indexOr(REPS, values.reps, 11), false);
-        preview();
-      }
-
-      function commitLine() {
-        const next = fields();
-        if (next) {
-          if (editing) state.data.lines[state.data.lines.indexOf(editing)] = { id: editing.id, ...next };
-          else state.data.lines.push({ id: newId('l'), ...next });
-          save();
-        }
-        finish({ scroll: !editing && !!next });
-      }
-
-      busy = true;
-      wheels = Sheet.open({
+      this.wheels = this.sheet.open({
         title: editing ? 'Change this line' : 'Add a line',
         text: {
           value: editing && editing.type === 'text' ? editing.text : '',
@@ -2116,317 +2201,506 @@ button {
         labels: [{ text: 'Machine', left: true }, { text: 'kg' }, { text: 'sets' }, { text: 'reps' }],
         wheels: hasWheels
           ? [
-              { label: 'Machine', align: 'left', items: machines.map((m) => m.name), index: machineIndex },
-              { label: 'Weight in kg', items: kgList.map(formatKg), index: indexOr(kgList, round2(start.weight)) },
-              { label: 'Sets', items: SETS.map(String), index: indexOr(SETS, start.sets, 2) },
-              { label: 'Reps', items: REPS.map(String), index: indexOr(REPS, start.reps, 11) },
+              { label: 'Machine', align: 'left', items: this.machines.map((m) => m.name), index: machineIndex },
+              { label: 'Weight in kg', items: this.kgList.map(formatKg), index: indexOr(this.kgList, round2(start.weight)) },
+              { label: 'Sets', items: SETS.map(String), index: indexOr(SETS, start.sets, SETS_FALLBACK) },
+              { label: 'Reps', items: REPS.map(String), index: indexOr(REPS, start.reps, REPS_FALLBACK) },
             ]
           : [],
         actionLabel: editing ? 'Save' : 'Log',
-        onChange: preview,
-        onSettle: (i) => { if (i === 0) followMachine(); },
-        onAction: commitLine,
-        onCancel: () => finish(),
+        onChange: () => this.preview(),
+        onSettle: (i) => { if (i === 0) this.followMachine(); },
+        onAction: () => this.commit(),
+        onCancel: () => this.page.done(),
       });
-      preview();
-      makeRoomFor(editing ? rowFor(editing) : rowNext);
+      this.preview();
+      this.page.makeRoom(editing, 'line');
     }
 
-    /* ---- Date lines ---- */
+    /** The machines on the wheel, A to Z. A machine removed in settings stays pickable for its own old line. */
+    pickableMachines() {
+      const machines = this.notebook.machinesAZ();
+      const old = this.editingMachine;
+      if (old && !machines.some((m) => m.id === old.machineId)) machines.unshift({ id: old.machineId, name: old.name });
+      return machines;
+    }
 
-    function openDateSheet(editing) {
-      const today = Dates.today();
-      const now = Dates.parts(today);
-      const start = Dates.parts(editing ? editing.date : today);
-      const writtenYears = state.data.lines.filter((l) => l.type === 'date').map((l) => Dates.parts(l.date).y);
-      const years = range(Math.min(now.y - YEARS_BACK, start.y, ...writtenYears), Math.max(now.y, start.y));
-      const days = range(1, 31);
-      const months = range(1, 12);
-      let wheels = null;
+    /** Where the machine wheel starts: the line's own machine, or the first one not done today. */
+    startMachineIndex() {
+      if (this.editingMachine) return this.machines.findIndex((m) => m.id === this.editingMachine.machineId);
+      if (!this.machines.length) return 0;
+      const done = Progress.machinesInCurrentDay(this.notebook.lines);
+      return Math.max(0, this.machines.findIndex((m) => !done.has(m.id)));
+    }
 
-      /** The picked date, made valid: no 31 November, nothing after today. */
-      function picked() {
-        const y = years[wheels[2].index];
-        const m = months[wheels[1].index];
-        const d = Math.min(days[wheels[0].index], Dates.daysInMonth(y, m));
-        const iso = Dates.toIso(y, m, d);
-        return iso > today ? today : iso;
+    /** What you did last time on a machine, or the first-time values. */
+    lastTime(machine) {
+      return this.latest.get(machine.id) || FIRST_TIME_VALUES;
+    }
+
+    wheelValues() {
+      const [, kg, sets, reps] = this.wheels;
+      return { weight: this.kgList[kg.index], sets: SETS[sets.index], reps: REPS[reps.index] };
+    }
+
+    /** What Log would write: a text line when something is typed, else a machine line. Null when there is nothing. */
+    fields() {
+      const text = this.sheet.text();
+      if (text) return { type: 'text', text };
+      if (!this.machines.length) return null;
+      const index = this.wheels[0].index;
+      const machine = this.machines[index];
+      // While the machine wheel is still moving, show the numbers it will fill in.
+      const moving = !this.editingMachine && index !== this.settledIndex;
+      const { weight, sets, reps } = moving ? this.lastTime(machine) : this.wheelValues();
+      const keepName = this.editingMachine && machine.id === this.editingMachine.machineId; // old lines keep their written name
+      return { type: 'machine', machineId: machine.id, name: keepName ? this.editingMachine.name : machine.name, weight, sets, reps };
+    }
+
+    /** Shows the line in pencil, with the mark it would get. */
+    preview() {
+      if (!this.wheels) return;
+      const next = this.fields();
+      if (!next) {
+        this.page.preview(this.editing, 'text', '');
+        return;
       }
+      const editing = this.editing;
+      const line = { id: editing ? editing.id : PREVIEW_ID, ...next };
+      const lines = editing ? this.notebook.lines.map((l) => (l.id === editing.id ? line : l)) : this.notebook.lines.concat(line);
+      const mark = Progress.analyzeLines(lines).marks.get(line.id);
+      this.page.preview(editing, line.type, LineMarkup.content(line, mark));
+    }
 
-      function snapToValid() {
-        const { y, m, d } = Dates.parts(picked());
-        if (wheels[0].index !== d - 1) wheels[0].setIndex(d - 1, true);
-        if (wheels[1].index !== m - 1) wheels[1].setIndex(m - 1, true);
-        const yearIndex = years.indexOf(y);
-        if (wheels[2].index !== yearIndex) wheels[2].setIndex(yearIndex, true);
+    /** When the machine wheel stops on another machine, load that machine's numbers. */
+    followMachine() {
+      const index = this.wheels[0].index;
+      if (index === this.settledIndex) return;
+      this.settledIndex = index;
+      const values = this.editingMachine ? this.wheelValues() : this.lastTime(this.machines[index]);
+      const [, kg, sets, reps] = this.wheels;
+      this.kgList = Progress.kgOptions(values.weight);
+      kg.setItems(this.kgList.map(formatKg), indexOr(this.kgList, round2(values.weight)));
+      sets.setIndex(indexOr(SETS, values.sets, SETS_FALLBACK), false);
+      reps.setIndex(indexOr(REPS, values.reps, REPS_FALLBACK), false);
+      this.preview();
+    }
+
+    commit() {
+      const next = this.fields();
+      if (next) {
+        if (this.editing) this.notebook.replaceLine(this.editing.id, next);
+        else this.notebook.addLine(next);
       }
+      this.page.done({ scroll: !this.editing && !!next });
+    }
+  }
 
-      function preview() {
-        if (!wheels) return;
-        const html = contentHtml({ type: 'date', date: picked() });
-        if (editing) {
-          showInRow(editing, 'date', html);
-        } else {
-          clearRow(rowNext); // this becomes the skipped line
-          setRowContent(rowDate, html, 'is-pencil is-bold');
-        }
-      }
+  FN.lineEditor = { LineEditor };
+})(globalThis.FN = globalThis.FN || {});
+</script>
 
-      function commitDate() {
-        const date = picked();
-        if (editing) state.data.lines[state.data.lines.indexOf(editing)] = { id: editing.id, type: 'date', date };
-        else state.data.lines.push({ id: newId('l'), type: 'date', date });
-        save();
-        finish({ scroll: !editing });
-      }
+<script data-module="dateEditor">
+/** The date panel: day, month and year wheels for a new date or to change one. No dates after today. */
+(function (FN) {
+  'use strict';
+  const { YEARS_BACK } = FN.config;
+  const { range, indexOr } = FN.util;
+  const { Calendar } = FN.calendar;
+  const { LineMarkup } = FN.lineMarkup;
 
-      busy = true;
-      wheels = Sheet.open({
+  const DAYS = range(1, 31);
+  const MONTHS = range(1, 12);
+
+  class DateEditor {
+    /** page: the notebook screen. It draws the pencil preview and hears when the panel closes. */
+    constructor({ notebook, sheet, page }) {
+      this.notebook = notebook;
+      this.sheet = sheet;
+      this.page = page;
+      this.wheels = null;
+    }
+
+    /** Opens the panel for a new date (editing = null), or to change a date line. */
+    open(editing) {
+      this.editing = editing;
+      this.today = Calendar.today();
+      this.wheels = null;
+      const now = Calendar.parts(this.today);
+      const start = Calendar.parts(editing ? editing.date : this.today);
+      const writtenYears = this.notebook.lines.filter((l) => l.type === 'date').map((l) => Calendar.parts(l.date).y);
+      this.years = range(Math.min(now.y - YEARS_BACK, start.y, ...writtenYears), Math.max(now.y, start.y));
+
+      this.wheels = this.sheet.open({
         title: editing ? 'Change the date' : 'Start a new date',
         columns: '64px 64px 84px',
         center: true,
         labels: [{ text: 'day' }, { text: 'month' }, { text: 'year' }],
         wheels: [
-          { label: 'Day', items: days.map(String), index: start.d - 1 },
-          { label: 'Month', items: months.map(String), index: start.m - 1 },
-          { label: 'Year', items: years.map(String), index: indexOr(years, start.y, years.length - 1) },
+          { label: 'Day', items: DAYS.map(String), index: start.d - 1 },
+          { label: 'Month', items: MONTHS.map(String), index: start.m - 1 },
+          { label: 'Year', items: this.years.map(String), index: indexOr(this.years, start.y, this.years.length - 1) },
         ],
         actionLabel: editing ? 'Save' : 'Log',
-        onChange: preview,
-        onSettle: snapToValid,
-        onAction: commitDate,
-        onCancel: () => finish(),
+        onChange: () => this.preview(),
+        onSettle: () => this.snapToValid(),
+        onAction: () => this.commit(),
+        onCancel: () => this.page.done(),
       });
-      preview();
-      makeRoomFor(editing ? rowFor(editing) : rowDate);
+      this.preview();
+      this.page.makeRoom(editing, 'date');
     }
 
-    /* ---- Removing ---- */
+    /** The picked date, made valid: no 31 November, nothing after today. */
+    picked() {
+      const [day, month, year] = this.wheels;
+      const y = this.years[year.index];
+      const m = MONTHS[month.index];
+      const d = Math.min(DAYS[day.index], Calendar.daysInMonth(y, m));
+      const iso = Calendar.toIso(y, m, d);
+      return iso > this.today ? this.today : iso;
+    }
 
-    function removeLine(id) {
-      const index = state.data.lines.findIndex((l) => l.id === id);
-      if (index === -1) return;
-      const [line] = state.data.lines.splice(index, 1);
-      save();
-      render();
-      Toast.show(line.type === 'date' ? 'Date removed' : 'Line removed', () => {
-        state.data.lines.splice(Math.min(index, state.data.lines.length), 0, line);
-        save();
-        render();
+    /** Turns the wheels back to the valid date once they stop. */
+    snapToValid() {
+      const [day, month, year] = this.wheels;
+      const { y, m, d } = Calendar.parts(this.picked());
+      if (day.index !== d - 1) day.setIndex(d - 1, true);
+      if (month.index !== m - 1) month.setIndex(m - 1, true);
+      const yearIndex = this.years.indexOf(y);
+      if (year.index !== yearIndex) year.setIndex(yearIndex, true);
+    }
+
+    preview() {
+      if (!this.wheels) return;
+      this.page.preview(this.editing, 'date', LineMarkup.content({ type: 'date', date: this.picked() }));
+    }
+
+    commit() {
+      const date = this.picked();
+      if (this.editing) this.notebook.replaceLine(this.editing.id, { type: 'date', date });
+      else this.notebook.addLine({ type: 'date', date });
+      this.page.done({ scroll: !this.editing });
+    }
+  }
+
+  FN.dateEditor = { DateEditor };
+})(globalThis.FN = globalThis.FN || {});
+</script>
+
+<!-- ==== 4. Screens, and the app that switches between them ==================================== -->
+
+<script data-module="notebookScreen">
+/**
+ * The notebook screen: the written lines, and the empty paper below them.
+ * The first empty line adds a line; anywhere below it starts a new date.
+ */
+(function (FN) {
+  'use strict';
+  const { byId, scrollToBottom } = FN.dom;
+  const { Progress } = FN.progress;
+  const { LineMarkup } = FN.lineMarkup;
+  const { SwipeRows } = FN.swipeRows;
+  const { LineEditor } = FN.lineEditor;
+  const { DateEditor } = FN.dateEditor;
+
+  class NotebookScreen {
+    constructor({ notebook, sheet, toast }) {
+      this.notebook = notebook;
+      this.sheet = sheet;
+      this.toast = toast;
+      this.root = byId('notebook');
+      this.linesEl = byId('lines');
+      this.addArea = byId('addArea');
+      this.rowNext = byId('rowNext');
+      this.rowDate = byId('rowDate');
+      this.filler = byId('notebookFiller');
+      this.todayBtn = byId('todayBtn');
+      this.busy = false; // a panel is open
+      this.lineEditor = new LineEditor({ notebook, sheet, page: this });
+      this.dateEditor = new DateEditor({ notebook, sheet, page: this });
+      this.listen();
+    }
+
+    render() {
+      const { marks } = Progress.analyzeLines(this.notebook.lines);
+      this.linesEl.innerHTML = LineMarkup.page(this.notebook.lines, marks);
+      this.showAddLines();
+      this.filler.style.height = '';
+      this.updateTodayButton();
+    }
+
+    /** The empty lines under the last entry. A fresh notebook starts with a date. */
+    showAddLines() {
+      const empty = this.notebook.lines.length === 0;
+      this.rowNext.hidden = empty;
+      setButton(this.rowNext, 'line', 'tap to add a line');
+      setButton(this.rowDate, 'date', empty ? 'tap to start with a date' : '', 'Start a new date');
+    }
+
+    /* ---- The panels ---- */
+
+    openLineEditor(line) {
+      this.busy = true;
+      this.lineEditor.open(line);
+    }
+
+    openDateEditor(line) {
+      this.busy = true;
+      this.dateEditor.open(line);
+    }
+
+    /** An editor calls this when its panel closes. */
+    done({ scroll } = {}) {
+      this.busy = false;
+      this.render();
+      if (scroll) scrollToBottom(true);
+    }
+
+    /**
+     * Shows the line being picked, in pencil: in its own row when changing a line,
+     * else on the empty lines (a date skips a line first).
+     */
+    preview(editing, type, html) {
+      if (editing) {
+        this.previewInRow(editing, type, html);
+      } else if (type === 'date') {
+        clearRow(this.rowNext); // this becomes the skipped line
+        setRowContent(this.rowDate, html, 'is-pencil is-bold');
+      } else {
+        setRowContent(this.rowNext, html, type === 'text' ? 'is-pencil is-text' : 'is-pencil');
+        clearRow(this.rowDate);
+      }
+    }
+
+    previewInRow(line, type, html) {
+      const row = this.rowFor(line);
+      if (!row) return;
+      row.className = `row row--${type}`;
+      const content = row.querySelector('.row-content');
+      content.classList.add('is-pencil');
+      content.innerHTML = html;
+    }
+
+    /** Leaves room under the page and scrolls so the line being picked stays visible above the panel. */
+    makeRoom(editing, kind) {
+      const target = editing ? this.rowFor(editing) : kind === 'date' ? this.rowDate : this.rowNext;
+      const sheetHeight = this.sheet.height();
+      this.filler.style.height = `calc(var(--line) * 4 + ${sheetHeight}px)`;
+      if (!target) return;
+      const limit = window.innerHeight - sheetHeight - 16;
+      const bottom = target.getBoundingClientRect().bottom;
+      if (bottom > limit) window.scrollBy({ top: bottom - limit, behavior: 'smooth' });
+    }
+
+    rowFor(line) {
+      return this.linesEl.querySelector(`.row[data-key="${CSS.escape(line.id)}"]`);
+    }
+
+    /* ---- Written lines ---- */
+
+    tapLine(row) {
+      const line = this.notebook.line(row.dataset.key);
+      if (!line || this.busy) return;
+      if (line.type === 'date') this.openDateEditor(line);
+      else this.openLineEditor(line);
+    }
+
+    removeLine(id) {
+      const line = this.notebook.line(id);
+      const undo = this.notebook.removeLine(id);
+      if (!undo) return;
+      this.render();
+      this.toast.show(line.type === 'date' ? 'Date removed' : 'Line removed', () => {
+        undo();
+        this.render();
       });
     }
 
     /* ---- Back to today ---- */
 
-    function updateTodayButton() {
-      const away = !root.hidden && !Sheet.isOpen() && addArea.getBoundingClientRect().top > window.innerHeight;
-      todayBtn.classList.toggle('is-visible', away);
+    updateTodayButton() {
+      const away = !this.root.hidden && !this.sheet.isOpen() && this.addArea.getBoundingClientRect().top > window.innerHeight;
+      this.todayBtn.classList.toggle('is-visible', away);
     }
 
-    /* ---- Events ---- */
+    listen() {
+      this.addArea.addEventListener('click', (e) => {
+        const button = e.target.closest('[data-action]');
+        if (!button || this.busy) return;
+        if (button.dataset.action === 'line') this.openLineEditor(null);
+        else this.openDateEditor(null);
+      });
 
-    addArea.addEventListener('click', (e) => {
-      const button = e.target.closest('[data-action]');
-      if (!button || busy) return;
-      if (button.dataset.action === 'line') openLineSheet(null);
-      else openDateSheet(null);
-    });
+      // The empty paper below the add line also starts a new date.
+      this.filler.addEventListener('click', () => {
+        if (!this.busy) this.openDateEditor(null);
+      });
 
-    // The empty paper below the add line also starts a new date.
-    filler.addEventListener('click', () => {
-      if (!busy) openDateSheet(null);
-    });
+      new SwipeRows(this.linesEl, {
+        onTap: (row) => this.tapLine(row),
+        onDelete: (row) => this.removeLine(row.dataset.key),
+      });
 
-    createRowGestures(linesEl, {
-      onTap(row) {
-        const line = state.data.lines.find((l) => l.id === row.dataset.key);
-        if (!line || busy) return;
-        if (line.type === 'date') openDateSheet(line);
-        else openLineSheet(line);
-      },
-      onDelete: (row) => removeLine(row.dataset.key),
-    });
+      this.todayBtn.addEventListener('click', () => scrollToBottom(true));
+    }
+  }
 
-    todayBtn.addEventListener('click', () => scrollToBottom(true));
+  /* ---- The empty lines ---- */
 
-    return { render, updateTodayButton };
-  })();
+  function setButton(row, action, text, label) {
+    row.className = 'add-row';
+    row.innerHTML =
+      `<button class="add-btn is-pencil" type="button" data-action="${action}"` +
+      `${label ? ` aria-label="${label}"` : ''}>${text}</button>`;
+  }
 
-  FN.notebookView = { NotebookView };
+  function setRowContent(row, html, className = '') {
+    row.className = 'add-row';
+    row.innerHTML = `<div class="row-content ${className}">${html}</div>`;
+  }
+
+  function clearRow(row) {
+    row.className = 'add-row';
+    row.innerHTML = '';
+  }
+
+  FN.notebookScreen = { NotebookScreen };
 })(globalThis.FN = globalThis.FN || {});
 </script>
 
-<script data-module="settingsView">
-/** The settings screen: the machines list and the backup. */
+<script data-module="settingsScreen">
+/** The settings screen: the machines list, and the backup (export and import). */
 (function (FN) {
   'use strict';
-  const { cleanName, sameName, newId, escapeHtml } = FN.util;
+  const { escapeHtml } = FN.util;
   const { byId, shake, downloadFile } = FN.dom;
-  const { Dates } = FN.dates;
-  const { state, save, machinesAZ } = FN.state;
-  const { withoutExamples } = FN.notebook;
-  const { backupFileName, toBackupJson, parseBackup, describeNotebook } = FN.backup;
-  const { navigation } = FN.navigation;
-  const { createLineInput } = FN.lineInput;
-  const { createRowGestures } = FN.rowGestures;
-  const { Sheet } = FN.sheet;
-  const { Toast } = FN.toast;
+  const { Calendar } = FN.calendar;
+  const { Backup } = FN.backup;
+  const { LineInput } = FN.lineInput;
+  const { SwipeRows } = FN.swipeRows;
 
-  const SettingsView = (() => {
-    const list = byId('machineList');
-    const addRow = byId('addMachineRow');
-    const examplesBtn = byId('removeExamples');
-    const importFile = byId('importFile');
-
-    function render() {
-      renderList();
-      renderAddRow();
-      examplesBtn.hidden = !state.data.lines.some((l) => l.example);
+  class SettingsScreen {
+    /** app: to draw whatever screen is showing again, after an import or an undo. */
+    constructor({ notebook, sheet, toast, app }) {
+      this.notebook = notebook;
+      this.sheet = sheet;
+      this.toast = toast;
+      this.app = app;
+      this.root = byId('settings');
+      this.list = byId('machineList');
+      this.addRow = byId('addMachineRow');
+      this.examplesBtn = byId('removeExamples');
+      this.importFile = byId('importFile');
+      this.listen();
     }
 
-    function renderList() {
-      list.innerHTML = machinesAZ()
-        .map((m) => {
-          const name = escapeHtml(m.name);
-          return (
-            `<div class="row row--machine" role="listitem" tabindex="0" data-key="${escapeHtml(m.id)}">` +
-            `<div class="row-content"><span class="name">${name}</span></div>` +
-            `<button class="row-delete" type="button" tabindex="-1" aria-label="Remove ${name}"><span>Delete</span></button>` +
-            '</div>'
-          );
-        })
-        .join('');
+    render() {
+      this.renderList();
+      this.renderAddRow();
+      this.examplesBtn.hidden = !this.notebook.hasExamples();
     }
 
-    function renderAddRow() {
-      addRow.className = 'bleed add-row add-row--pencil';
-      addRow.innerHTML = '<button class="pencil-btn" type="button">tap here to add a machine</button>';
+    renderList() {
+      this.list.innerHTML = this.notebook.machinesAZ().map(machineRowHtml).join('');
     }
 
-    const nameTaken = (name, exceptId) => state.data.machines.some((m) => m.id !== exceptId && sameName(m.name, name));
-
-    function addMachine(name) {
-      const clean = cleanName(name);
-      // Re-adding a machine that was removed earlier picks its history back up.
-      let oldId = null;
-      for (let i = state.data.lines.length - 1; i >= 0 && !oldId; i--) {
-        const l = state.data.lines[i];
-        if (l.type === 'machine' && sameName(l.name, clean) && !state.data.machines.some((m) => m.id === l.machineId)) oldId = l.machineId;
-      }
-      state.data.machines.push({ id: oldId || newId('m'), name: clean });
-      save();
-      renderList();
+    renderAddRow() {
+      this.addRow.className = 'bleed add-row add-row--pencil';
+      this.addRow.innerHTML = '<button class="pencil-btn" type="button">tap here to add a machine</button>';
     }
 
-    function startAdding() {
-      addRow.className = 'bleed add-row';
-      addRow.innerHTML = '<div class="row-content"></div>';
-      const input = createLineInput({
+    /* ---- Machines ---- */
+
+    /** Turns the pencil line into a text field. It stays open after each machine, ready for the next. */
+    startAdding() {
+      this.addRow.className = 'bleed add-row';
+      this.addRow.innerHTML = '<div class="row-content"></div>';
+      const field = new LineInput({
         placeholder: 'machine name',
         label: 'New machine',
-        onSubmit(name, field) {
+        onSubmit: (name, el) => {
           if (!name) return 'close';
-          if (nameTaken(name)) {
-            shake(field);
+          if (this.notebook.nameTaken(name)) {
+            shake(el);
             return 'keep';
           }
-          addMachine(name);
-          return 'clear'; // ready for the next one
+          this.notebook.addMachine(name);
+          this.renderList();
+          return 'clear';
         },
-        onClose: renderAddRow,
+        onClose: () => this.renderAddRow(),
       });
-      addRow.firstElementChild.appendChild(input);
-      input.focus();
+      this.addRow.firstElementChild.appendChild(field.el);
+      field.focus();
     }
 
-    function rename(row) {
-      const machine = state.data.machines.find((m) => m.id === row.dataset.key);
+    rename(row) {
+      const machine = this.notebook.machine(row.dataset.key);
       if (!machine) return;
-      const input = createLineInput({
+      const field = new LineInput({
         value: machine.name,
         label: 'Machine name',
-        onSubmit(name, field) {
+        onSubmit: (name, el) => {
           if (!name || name === machine.name) return 'close';
-          if (nameTaken(name, machine.id)) {
-            shake(field);
+          if (this.notebook.nameTaken(name, machine.id)) {
+            shake(el);
             return 'keep';
           }
-          machine.name = cleanName(name);
-          save();
+          this.notebook.renameMachine(machine.id, name);
           return 'close';
         },
-        onClose: renderList,
+        onClose: () => this.renderList(),
       });
-      row.querySelector('.name').replaceWith(input);
-      input.focus();
-      input.setSelectionRange(input.value.length, input.value.length);
+      row.querySelector('.name').replaceWith(field.el);
+      field.focus();
     }
 
-    function removeMachine(id) {
-      const index = state.data.machines.findIndex((m) => m.id === id);
-      if (index === -1) return;
-      const [machine] = state.data.machines.splice(index, 1);
-      save();
-      renderList();
-      Toast.show('Machine removed', () => {
-        state.data.machines.splice(Math.min(index, state.data.machines.length), 0, machine);
-        save();
-        renderList();
+    removeMachine(id) {
+      const undo = this.notebook.removeMachine(id);
+      if (!undo) return;
+      this.renderList();
+      this.toast.show('Machine removed', () => {
+        undo();
+        this.renderList();
       });
     }
 
-    addRow.addEventListener('click', (e) => {
-      if (e.target.closest('.pencil-btn')) startAdding();
-    });
-
-    examplesBtn.addEventListener('click', () => {
-      const before = state.data.lines;
-      state.data.lines = withoutExamples(before);
-      save();
-      examplesBtn.hidden = true;
-      Toast.show('Example lines removed', () => {
-        state.data.lines = before;
-        save();
-        navigation.refresh();
+    removeExamples() {
+      const undo = this.notebook.removeExamples();
+      this.examplesBtn.hidden = true;
+      this.toast.show('Example lines removed', () => {
+        undo();
+        this.app.refresh();
       });
-    });
-
-    createRowGestures(list, {
-      onTap: rename,
-      onDelete: (row) => removeMachine(row.dataset.key),
-    });
+    }
 
     /* ---- Backup ---- */
 
-    byId('exportBtn').addEventListener('click', () => {
-      const fileName = backupFileName(Dates.today());
-      downloadFile(fileName, toBackupJson(state.data, new Date()));
-      Toast.show(`Saved ${fileName}`);
-    });
+    exportFile() {
+      const fileName = Backup.fileName(Calendar.today());
+      downloadFile(fileName, Backup.toJson(this.notebook.data, new Date()));
+      this.toast.show(`Saved ${fileName}`);
+    }
 
-    byId('importBtn').addEventListener('click', () => importFile.click());
-
-    importFile.addEventListener('change', () => {
-      const file = importFile.files[0];
-      importFile.value = ''; // so the same file can be picked again
-      if (!file) return;
+    readImportFile(file) {
       const reader = new FileReader();
-      reader.onerror = () => Toast.show('That file could not be read');
+      reader.onerror = () => this.toast.show('That file could not be read');
       reader.onload = () => {
-        const { notebook, error } = parseBackup(String(reader.result));
-        if (error) Toast.show(error);
-        else askToReplace(file.name, notebook);
+        const { data, error } = Backup.parse(String(reader.result));
+        if (error) this.toast.show(error);
+        else this.askToReplace(file.name, data);
       };
       reader.readAsText(file);
-    });
+    }
 
     /** Shows what is in the file and replaces the notebook only after a yes. */
-    function askToReplace(fileName, notebook) {
-      Sheet.open({
+    askToReplace(fileName, data) {
+      this.sheet.open({
         title: 'Import a notebook',
         info: {
           heading: fileName,
-          details: describeNotebook(notebook),
+          details: Backup.describe(data),
           note: 'This replaces the notebook and the machines on this phone.',
         },
         columns: 'none',
@@ -2434,54 +2708,64 @@ button {
         wheels: [],
         actionLabel: 'Replace my notebook',
         cancelLabel: 'Cancel',
-        onAction() {
-          const before = state.data;
-          state.data = notebook;
-          save();
-          navigation.refresh();
-          Toast.show('Notebook replaced', () => {
-            state.data = before;
-            save();
-            navigation.refresh(); // you may have left Settings by now
+        onAction: () => {
+          const undo = this.notebook.replaceAll(data);
+          this.app.refresh();
+          this.toast.show('Notebook replaced', () => {
+            undo();
+            this.app.refresh(); // you may have left Settings by now
           });
         },
       });
     }
 
-    return { render };
-  })();
+    listen() {
+      this.addRow.addEventListener('click', (e) => {
+        if (e.target.closest('.pencil-btn')) this.startAdding();
+      });
+      this.examplesBtn.addEventListener('click', () => this.removeExamples());
 
-  FN.settingsView = { SettingsView };
+      new SwipeRows(this.list, {
+        onTap: (row) => this.rename(row),
+        onDelete: (row) => this.removeMachine(row.dataset.key),
+      });
+
+      byId('exportBtn').addEventListener('click', () => this.exportFile());
+      byId('importBtn').addEventListener('click', () => this.importFile.click());
+      this.importFile.addEventListener('change', () => {
+        const file = this.importFile.files[0];
+        this.importFile.value = ''; // so the same file can be picked again
+        if (file) this.readImportFile(file);
+      });
+    }
+  }
+
+  function machineRowHtml(machine) {
+    const name = escapeHtml(machine.name);
+    return (
+      `<div class="row row--machine" role="listitem" tabindex="0" data-key="${escapeHtml(machine.id)}">` +
+      `<div class="row-content"><span class="name">${name}</span></div>` +
+      `<button class="row-delete" type="button" tabindex="-1" aria-label="Remove ${name}"><span>Delete</span></button>` +
+      '</div>'
+    );
+  }
+
+  FN.settingsScreen = { SettingsScreen };
 })(globalThis.FN = globalThis.FN || {});
 </script>
 
-<script data-module="statsView">
-/** The statistics screens: one month at a time, and one machine over time. Drawing only; the numbers come from stats. */
+<script data-module="monthScreen">
+/** The statistics screen: one month at a time, with arrows to the months before and after. */
 (function (FN) {
   'use strict';
-  const { DAY_NAMES, MONTH_NAMES, MONTH_SHORT, BLANK_ROW } = FN.config;
-  const { formatKg, escapeHtml } = FN.util;
+  const { DAY_NAMES, MONTH_NAMES, BLANK_ROW } = FN.config;
+  const { escapeHtml, inRows } = FN.util;
   const { byId } = FN.dom;
-  const { Dates } = FN.dates;
-  const { state, machinesAZ } = FN.state;
-  const { navigation } = FN.navigation;
-  const {
-    sessionDates, monthParts, shiftMonth, monthRange, clampMonth, weeksInARow, monthCells, countTrained, inRows, tallyMarks,
-    machineHistory, changeIndexes, weightChanges, chartScale, chartRows, axisValues, chartPoints, spacedOut, monthLabels,
-  } = FN.stats;
+  const { Calendar } = FN.calendar;
+  const { Progress } = FN.progress;
+  const { ChartMath } = FN.chartMath;
 
-  const monthBody = byId('statsBody');
-  const machineTitle = byId('machineStatsTitle');
-  const machineBody = byId('machineStatsBody');
-
-  const MAX_CHART_ROWS = 5;   // ruled lines a chart may use as its grid
-  const LINE_PX = 44;         // keep in sync with --line
-  const RULE_Y = 36.5;        // where the ruled line sits inside a row
-  const CHART_LEFT = 66;      // room for the kg written on the left
-  const CHART_RIGHT_GAP = 28;
-  const MAX_DOTS = 24;        // with more points, only the changes get a dot
-  const MAX_DATE_LABELS = 5;  // with more changes, the chart shows months instead of dates
-  const MAX_TALLY = 30;       // above this only the number is shown
+  const MAX_TALLY = 30; // above this only the number is shown
 
   const icon = (width, path) =>
     `<svg width="${width}" height="22" viewBox="0 0 ${width} 22" fill="none" stroke="currentColor" stroke-width="2.4" ` +
@@ -2490,39 +2774,58 @@ button {
   const ARROW_LEFT = icon(24, 'M20 11H4M10 5l-6 6 6 6');
   const ARROW_RIGHT = icon(24, 'M4 11h16M14 5l6 6-6 6');
 
-  /** The month on screen as "YYYY-MM"; null means this month. */
-  let shownMonth = null;
+  class MonthScreen {
+    /** app: to open a machine's chart. */
+    constructor({ notebook, app }) {
+      this.notebook = notebook;
+      this.app = app;
+      this.root = byId('stats');
+      this.body = byId('statsBody');
+      this.month = null; // "YYYY-MM" on screen; null means this month
+      this.body.addEventListener('click', (e) => this.onClick(e));
+    }
 
-  /* ---- One month ---- */
+    /** Start on this month the next time the screen is drawn. */
+    goToThisMonth() {
+      this.month = null;
+    }
 
-  function tallyHtml(count) {
-    if (count < 1 || count > MAX_TALLY) return '';
-    const { path, width } = tallyMarks(count);
-    return (
-      `<svg width="${width}" height="26" viewBox="0 0 ${width} 26" fill="none" stroke="currentColor" stroke-width="2.2" ` +
-      `stroke-linecap="round" aria-hidden="true" focusable="false"><path d="${path}"/></svg>`
-    );
+    render() {
+      const today = Calendar.today();
+      const dates = Progress.sessionDates(this.notebook.lines);
+      const range = Calendar.monthRange(dates, today);
+      this.month = Calendar.clampMonth(this.month || range.last, range);
+      const { y, m } = Calendar.monthParts(this.month);
+      const cells = Calendar.monthCells(dates, y, m, today);
+      const isThisMonth = this.month === range.last;
+
+      this.body.innerHTML =
+        monthNavHtml(this.month, range) +
+        weekDaysHtml() +
+        inRows(cells, 7).map((week) => `<div class="week">${week.map(cellHtml).join('')}</div>`).join('') +
+        BLANK_ROW +
+        statLineHtml('sessions', Calendar.countTrained(cells)) +
+        (isThisMonth ? statLineHtml('weeks in a row', Calendar.weeksInARow(dates, today)) : '') + // a streak is about now
+        BLANK_ROW +
+        machineLinksHtml(this.notebook.machinesAZ());
+    }
+
+    onClick(e) {
+      const arrow = e.target.closest('[data-month]');
+      if (arrow) {
+        this.month = Calendar.shiftMonth(this.month, arrow.dataset.month === 'prev' ? -1 : 1);
+        this.render();
+        return;
+      }
+      const machine = e.target.closest('[data-machine]');
+      if (machine) this.app.open({ view: 'machineStats', machineId: machine.dataset.machine });
+    }
   }
 
-  function cellHtml(cell) {
-    if (cell.state === 'trained') return `<span class="is-bold" role="img" aria-label="${cell.day}: trained">×</span>`;
-    if (cell.state === 'rest') return '<span class="is-pencil" aria-hidden="true">·</span>';
-    return '<span></span>';
-  }
-
-  function statLineHtml(label, count) {
-    return `<div class="stat-line"><span>${label}</span>${tallyHtml(count)}<span class="mark">${count}</span></div>`;
-  }
-
-  /** An arrow to another month, or an empty spot of the same size when there is no month to go to. */
-  function monthArrowHtml(direction, show) {
-    if (!show) return '<span class="month-arrow" aria-hidden="true"></span>';
-    const label = direction === 'prev' ? 'Month before' : 'Month after';
-    return `<button class="month-arrow" type="button" data-month="${direction}" aria-label="${label}">${direction === 'prev' ? ARROW_LEFT : ARROW_RIGHT}</button>`;
-  }
+  /* ---- Markup ---- */
 
   function monthNavHtml(month, range) {
-    const { y, m } = monthParts(month);
+    const { y, m } = Calendar.monthParts(month);
     const name = MONTH_NAMES[m - 1] + (y === new Date().getFullYear() ? '' : ` ${y}`);
     return (
       '<div class="month-nav">' +
@@ -2533,70 +2836,104 @@ button {
     );
   }
 
+  /** An arrow to another month, or an empty spot of the same size when there is no month to go to. */
+  function monthArrowHtml(direction, show) {
+    if (!show) return '<span class="month-arrow" aria-hidden="true"></span>';
+    const label = direction === 'prev' ? 'Month before' : 'Month after';
+    return `<button class="month-arrow" type="button" data-month="${direction}" aria-label="${label}">${direction === 'prev' ? ARROW_LEFT : ARROW_RIGHT}</button>`;
+  }
+
+  function weekDaysHtml() {
+    const mondayFirst = DAY_NAMES.slice(1).concat(DAY_NAMES[0]);
+    return `<div class="week is-pencil is-small" aria-hidden="true">${mondayFirst.map((day) => `<span>${day}</span>`).join('')}</div>`;
+  }
+
+  function cellHtml(cell) {
+    if (cell.state === 'trained') return `<span class="is-bold" role="img" aria-label="${cell.day}: trained">×</span>`;
+    if (cell.state === 'rest') return '<span class="is-pencil" aria-hidden="true">·</span>';
+    return '<span></span>';
+  }
+
+  function tallyHtml(count) {
+    if (count < 1 || count > MAX_TALLY) return '';
+    const { path, width } = ChartMath.tallyMarks(count);
+    return (
+      `<svg width="${width}" height="26" viewBox="0 0 ${width} 26" fill="none" stroke="currentColor" stroke-width="2.2" ` +
+      `stroke-linecap="round" aria-hidden="true" focusable="false"><path d="${path}"/></svg>`
+    );
+  }
+
+  function statLineHtml(label, count) {
+    return `<div class="stat-line"><span>${label}</span>${tallyHtml(count)}<span class="mark">${count}</span></div>`;
+  }
+
   function machineLinksHtml(machines) {
     if (!machines.length) return '<div class="stat-line is-pencil">no machines yet</div>';
     return machines
-      .map((machine) => `<button class="stat-link" type="button" data-machine="${escapeHtml(machine.id)}"><span>${escapeHtml(machine.name)}</span>${CHEVRON}</button>`)
+      .map((m) => `<button class="stat-link" type="button" data-machine="${escapeHtml(m.id)}"><span>${escapeHtml(m.name)}</span>${CHEVRON}</button>`)
       .join('');
   }
 
-  function renderMonth() {
-    const today = Dates.today();
-    const dates = sessionDates(state.data.lines);
-    const range = monthRange(dates, today);
-    shownMonth = clampMonth(shownMonth || range.last, range);
-    const { y, m } = monthParts(shownMonth);
-    const cells = monthCells(dates, y, m, today);
-    const mondayFirst = DAY_NAMES.slice(1).concat(DAY_NAMES[0]);
-    const isThisMonth = shownMonth === range.last;
+  FN.monthScreen = { MonthScreen };
+})(globalThis.FN = globalThis.FN || {});
+</script>
 
-    monthBody.innerHTML =
-      monthNavHtml(shownMonth, range) +
-      `<div class="week is-pencil is-small" aria-hidden="true">${mondayFirst.map((day) => `<span>${day}</span>`).join('')}</div>` +
-      inRows(cells, 7).map((week) => `<div class="week">${week.map(cellHtml).join('')}</div>`).join('') +
-      BLANK_ROW +
-      statLineHtml('sessions', countTrained(cells)) +
-      (isThisMonth ? statLineHtml('weeks in a row', weeksInARow(dates, today)) : '') + // a streak is about now
-      BLANK_ROW +
-      machineLinksHtml(machinesAZ());
-  }
+<script data-module="machineScreen">
+/** The chart of one machine: its weight over time on the ruled lines, and when the weight changed. */
+(function (FN) {
+  'use strict';
+  const { MONTH_SHORT, BLANK_ROW } = FN.config;
+  const { formatKg, escapeHtml } = FN.util;
+  const { byId } = FN.dom;
+  const { Calendar } = FN.calendar;
+  const { Progress } = FN.progress;
+  const { ChartMath } = FN.chartMath;
 
-  /** Go back to this month the next time the screen is drawn. */
-  function showThisMonth() {
-    shownMonth = null;
-  }
+  const MAX_CHART_ROWS = 5;   // ruled lines a chart may use as its grid
+  const LINE_PX = 44;         // keep in sync with --line
+  const RULE_Y = 36.5;        // where the ruled line sits inside a row
+  const CHART_LEFT = 66;      // room for the kg written on the left
+  const CHART_RIGHT_GAP = 28;
+  const MAX_DOTS = 24;        // with more points, only the changes get a dot
+  const MAX_DATE_LABELS = 5;  // with more changes, the chart shows months instead of dates
 
-  /* ---- One machine over time ---- */
-
-  /** What is written under the chart: a date under each change when they fit, else month names. */
-  function xLabels(points, xy) {
-    const changes = changeIndexes(points);
-    if (changes.length <= MAX_DATE_LABELS && spacedOut(changes.map((i) => xy[i].x), 50)) {
-      return changes.map((i) => ({ x: xy[i].x, text: Dates.written(points[i].date).date }));
+  class MachineScreen {
+    constructor({ notebook }) {
+      this.notebook = notebook;
+      this.root = byId('machineStats');
+      this.title = byId('machineStatsTitle');
+      this.body = byId('machineStatsBody');
     }
-    const thisYear = new Date().getFullYear();
-    return monthLabels(points, xy, 48).map((label, i) => ({
-      x: label.x,
-      text: MONTH_SHORT[label.month - 1] + (i === 0 && label.year !== thisYear ? ` '${String(label.year).slice(-2)}` : ''),
-    }));
+
+    render({ machineId }) {
+      const machine = this.notebook.machine(machineId);
+      const name = machine ? machine.name : 'Machine';
+      this.title.textContent = name;
+      const points = Progress.machineHistory(this.notebook.lines, machineId);
+      this.body.innerHTML = points.length
+        ? chartHtml(name, points, this.body.clientWidth || 326) + changesHtml(points)
+        : '<div class="stat-line is-pencil">nothing logged yet</div>';
+    }
   }
+
+  /* ---- Markup ---- */
 
   function chartHtml(name, points, width) {
     const weights = points.map((p) => p.weight);
-    const scale = chartScale(weights, MAX_CHART_ROWS);
-    const rows = chartRows(weights, scale, MAX_CHART_ROWS);
+    const scale = ChartMath.scale(weights, MAX_CHART_ROWS);
+    const rows = ChartMath.rowsNeeded(weights, scale, MAX_CHART_ROWS);
     const height = rows * LINE_PX;
-    const xy = chartPoints(points, scale, { left: CHART_LEFT, right: width - CHART_RIGHT_GAP, firstLineY: RULE_Y, lineHeight: LINE_PX });
-    const dots = points.length <= MAX_DOTS ? xy : changeIndexes(points).map((i) => xy[i]);
+    const xy = ChartMath.pointPositions(points, scale, { left: CHART_LEFT, right: width - CHART_RIGHT_GAP, firstLineY: RULE_Y, lineHeight: LINE_PX });
+    const dots = points.length <= MAX_DOTS ? xy : Progress.changeIndexes(points).map((i) => xy[i]);
     const first = points[0];
     const last = points[points.length - 1];
     const label =
-      `${escapeHtml(name)}: ${points.length} times, from ${formatKg(first.weight)} kg on ${Dates.written(first.date).date} ` +
-      `to ${formatKg(last.weight)} kg on ${Dates.written(last.date).date}`;
+      `${escapeHtml(name)}: ${points.length} times, from ${formatKg(first.weight)} kg on ${Calendar.written(first.date).date} ` +
+      `to ${formatKg(last.weight)} kg on ${Calendar.written(last.date).date}`;
 
     return (
       `<div class="chart" style="height: ${height}px">` +
-      axisValues(scale, rows).map(({ row, value }, i) => `<span class="axis" style="top: ${row * LINE_PX}px">${formatKg(value)}${i === 0 ? ' kg' : ''}</span>`).join('') +
+      ChartMath.axisValues(scale, rows).map(({ row, value }, i) => `<span class="axis" style="top: ${row * LINE_PX}px">${formatKg(value)}${i === 0 ? ' kg' : ''}</span>`).join('') +
       `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" fill="none" role="img" aria-label="${label}">` +
       `<path d="M${xy.map((p) => `${p.x} ${p.y}`).join('L')}" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>` +
       `<g fill="currentColor">${dots.map((p) => `<circle cx="${p.x}" cy="${p.y}" r="4"/>`).join('')}</g>` +
@@ -2605,39 +2942,29 @@ button {
     );
   }
 
+  /** What is written under the chart: a date under each change when they fit, else month names. */
+  function xLabels(points, xy) {
+    const changes = Progress.changeIndexes(points);
+    if (changes.length <= MAX_DATE_LABELS && ChartMath.spacedOut(changes.map((i) => xy[i].x), 50)) {
+      return changes.map((i) => ({ x: xy[i].x, text: Calendar.written(points[i].date).date }));
+    }
+    const thisYear = new Date().getFullYear();
+    return ChartMath.monthLabels(points, xy, 48).map((label, i) => ({
+      x: label.x,
+      text: MONTH_SHORT[label.month - 1] + (i === 0 && label.year !== thisYear ? ` '${String(label.year).slice(-2)}` : ''),
+    }));
+  }
+
   /** The list under the chart: every time the weight was new, newest first. */
   function changesHtml(points) {
-    const rows = weightChanges(points).reverse().map((change) => {
-      const { date, day } = Dates.written(change.date);
+    const rows = Progress.weightChanges(points).reverse().map((change) => {
+      const { date, day } = Calendar.written(change.date);
       return `<div class="stat-line"><span>${date}</span><span>${day}</span><span class="mark">${formatKg(change.weight)} kg</span></div>`;
     });
     return BLANK_ROW + '<div class="stat-line is-pencil">when the weight changed</div>' + rows.join('');
   }
 
-  function renderMachine(machineId) {
-    const machine = state.data.machines.find((m) => m.id === machineId);
-    const name = machine ? machine.name : 'Machine';
-    machineTitle.textContent = name;
-    const points = machineHistory(state.data.lines, machineId);
-    machineBody.innerHTML = points.length
-      ? chartHtml(name, points, machineBody.clientWidth || 326) + changesHtml(points)
-      : '<div class="stat-line is-pencil">nothing logged yet</div>';
-  }
-
-  monthBody.addEventListener('click', (e) => {
-    const arrow = e.target.closest('[data-month]');
-    if (arrow) {
-      shownMonth = shiftMonth(shownMonth, arrow.dataset.month === 'prev' ? -1 : 1);
-      renderMonth();
-      return;
-    }
-    const machine = e.target.closest('[data-machine]');
-    if (machine) navigation.open({ view: 'machineStats', machineId: machine.dataset.machine });
-  });
-
-  const StatsView = { renderMonth, renderMachine, showThisMonth };
-
-  FN.statsView = { StatsView };
+  FN.machineScreen = { MachineScreen };
 })(globalThis.FN = globalThis.FN || {});
 </script>
 
@@ -2647,109 +2974,118 @@ button {
   'use strict';
   const { STORAGE_KEY } = FN.config;
   const { byId, onNextFrame, scrollToBottom } = FN.dom;
-  const { save, reload } = FN.state;
-  const { navigation } = FN.navigation;
+  const { Store } = FN.store;
+  const { Notebook } = FN.notebook;
+  const { Toast } = FN.toast;
   const { Sheet } = FN.sheet;
-  const { NotebookView } = FN.notebookView;
-  const { SettingsView } = FN.settingsView;
-  const { StatsView } = FN.statsView;
+  const { NotebookScreen } = FN.notebookScreen;
+  const { SettingsScreen } = FN.settingsScreen;
+  const { MonthScreen } = FN.monthScreen;
+  const { MachineScreen } = FN.machineScreen;
 
-  const App = (() => {
-    const views = {
-      notebook: byId('notebook'),
-      settings: byId('settings'),
-      stats: byId('stats'),
-      machineStats: byId('machineStats'),
-    };
-    const topButtons = [byId('cogBtn'), byId('statsBtn')];
-    let current = { view: 'notebook' };
-    let notebookScrollY = 0;
+  class App {
+    constructor() {
+      this.toast = new Toast();
+      this.sheet = new Sheet({ toast: this.toast });
+      this.notebook = new Notebook(Store.load() || Notebook.exampleData(), { onSave: (data) => Store.save(data) });
 
-    /** Shows the view a current describes: { view, machineId }. */
-    function show(next) {
-      const target = next && views[next.view] ? next : { view: 'notebook' };
-      Sheet.cancel();
-      if (current.view === 'notebook' && target.view !== 'notebook') {
-        notebookScrollY = window.scrollY;
-        StatsView.showThisMonth();
+      const parts = { notebook: this.notebook, sheet: this.sheet, toast: this.toast, app: this };
+      this.screens = {
+        notebook: new NotebookScreen(parts),
+        settings: new SettingsScreen(parts),
+        stats: new MonthScreen(parts),
+        machineStats: new MachineScreen(parts),
+      };
+      this.topButtons = [byId('cogBtn'), byId('statsBtn')];
+      this.current = { view: 'notebook' };
+      this.notebookScrollY = 0;
+    }
+
+    /** Shows a screen. `next` is { view } or, for a machine chart, { view: 'machineStats', machineId }. */
+    show(next) {
+      const target = next && this.screens[next.view] ? next : { view: 'notebook' };
+      this.sheet.cancel();
+      if (this.current.view === 'notebook' && target.view !== 'notebook') {
+        this.notebookScrollY = window.scrollY;
+        this.screens.stats.goToThisMonth();
       }
-      current = target;
-      for (const name of Object.keys(views)) views[name].hidden = name !== current.view;
-      topButtons.forEach((button) => { button.hidden = current.view !== 'notebook'; });
-      render();
-      window.scrollTo(0, current.view === 'notebook' ? notebookScrollY : 0);
-      NotebookView.updateTodayButton();
+      this.current = target;
+      for (const [name, screen] of Object.entries(this.screens)) screen.root.hidden = name !== target.view;
+      this.topButtons.forEach((button) => { button.hidden = target.view !== 'notebook'; });
+      this.refresh();
+      window.scrollTo(0, target.view === 'notebook' ? this.notebookScrollY : 0);
+      this.screens.notebook.updateTodayButton();
     }
 
-    function render() {
-      if (current.view === 'settings') SettingsView.render();
-      else if (current.view === 'stats') StatsView.renderMonth();
-      else if (current.view === 'machineStats') StatsView.renderMachine(current.machineId);
-      else NotebookView.render();
+    /** Draws the screen that is showing again. */
+    refresh() {
+      this.screens[this.current.view].render(this.current);
     }
 
-    function open(next) {
+    /** Shows a screen and remembers it, so the phone's back gesture returns here. */
+    open(next) {
       try {
         history.pushState(next, '');
       } catch (_) {
         /* history not available (sandboxed frame): the back arrows still work */
       }
-      show(next);
+      this.show(next);
     }
 
-    function back(fallbackView) {
-      const pushed = history.state && history.state.view === current.view && current.view !== 'notebook';
-      if (pushed) history.back(); // popstate shows the view underneath
-      else show({ view: fallbackView });
+    back(fallbackView) {
+      const pushed = history.state && history.state.view === this.current.view && this.current.view !== 'notebook';
+      if (pushed) history.back(); // popstate shows the screen underneath
+      else this.show({ view: fallbackView });
     }
 
-    byId('cogBtn').addEventListener('click', () => open({ view: 'settings' }));
-    byId('statsBtn').addEventListener('click', () => open({ view: 'stats' }));
-    document.querySelectorAll('[data-back]').forEach((button) => {
-      button.addEventListener('click', () => back(button.dataset.back));
-    });
-    window.addEventListener('popstate', (e) => show(e.state));
-
-    function start() {
+    start() {
       try {
         history.scrollRestoration = 'manual';
         history.replaceState({ view: 'notebook' }, '');
       } catch (_) {
         /* not available: fine */
       }
-      save();
-      NotebookView.render();
+      this.notebook.save();
+      this.screens.notebook.render();
       scrollToBottom(false);
       if (document.fonts && document.fonts.ready) {
         const y = window.scrollY;
-        document.fonts.ready.then(() => { if (current.view === 'notebook' && window.scrollY === y) scrollToBottom(false); });
+        document.fonts.ready.then(() => {
+          if (this.current.view === 'notebook' && window.scrollY === y) scrollToBottom(false);
+        });
       }
+      this.listen();
+    }
 
-      const refreshTodayButton = onNextFrame(NotebookView.updateTodayButton);
+    listen() {
+      byId('cogBtn').addEventListener('click', () => this.open({ view: 'settings' }));
+      byId('statsBtn').addEventListener('click', () => this.open({ view: 'stats' }));
+      document.querySelectorAll('[data-back]').forEach((button) => {
+        button.addEventListener('click', () => this.back(button.dataset.back));
+      });
+      window.addEventListener('popstate', (e) => this.show(e.state));
+
+      const refreshTodayButton = onNextFrame(() => this.screens.notebook.updateTodayButton());
       window.addEventListener('scroll', refreshTodayButton, { passive: true });
       window.addEventListener('resize', () => {
         refreshTodayButton();
-        if (current.view === 'machineStats') render(); // the chart follows the page width
+        if (this.current.view === 'machineStats') this.refresh(); // the chart follows the page width
       });
 
       // Another tab changed the notebook: show the new version.
       window.addEventListener('storage', (e) => {
         const typing = document.activeElement && document.activeElement.classList.contains('line-input');
-        if (e.key !== STORAGE_KEY || Sheet.isOpen() || typing) return;
-        reload();
-        render();
+        if (e.key !== STORAGE_KEY || this.sheet.isOpen() || typing) return;
+        this.notebook.reload(Store.load() || Notebook.exampleData());
+        this.refresh();
       });
     }
+  }
 
-    navigation.open = open;
-    navigation.refresh = render;
+  const app = new App();
+  app.start();
 
-    return { start };
-  })();
-
-  App.start();
-
-  FN.app = { App };
+  FN.app = { App, app };
 })(globalThis.FN = globalThis.FN || {});
 </script>
 </body>

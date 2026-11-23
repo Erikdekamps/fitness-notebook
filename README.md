@@ -24,19 +24,23 @@ CI runs the tests on every pull request. On `main` the deploy runs them first an
 
 | Block | Job | Unit tested |
 | --- | --- | --- |
+| **Logic** | | |
 | `util` | small pure helpers | yes |
 | `config` | every fixed value | yes |
-| `dates` | dates as "YYYY-MM-DD" | yes |
-| `storage` | reading and writing localStorage | yes |
-| `notebook` | the notebook's rules: marks, wheel values, sorting | yes |
+| `calendar` | dates, weeks and months as "YYYY-MM-DD" | yes |
+| `progress` | marks (↑ or –N), machine history, wheel values | yes |
+| `chartMath` | how a chart is scaled and laid out | yes |
 | `backup` | notebook to JSON file and back | yes |
-| `stats` | the numbers behind the statistics | yes |
-| `dom` | small helpers that touch the page | |
-| `state` | the one notebook the app is showing | |
-| `navigation` | how a view asks the app to change screen | |
-| `toast`, `lineInput`, `wheel`, `sheet`, `rowGestures` | building blocks of the screens | |
-| `notebookView`, `settingsView`, `statsView` | one per screen | |
-| `app` | start-up and moving between screens | |
+| `store` | reading and writing localStorage | yes |
+| `notebook` | the `Notebook` class: every change to lines and machines, with undo | yes |
+| `lineMarkup` | the HTML for one notebook line | yes |
+| **Parts** | | |
+| `dom`, `toast`, `lineInput`, `wheel`, `sheet`, `swipeRows` | building blocks the screens use | |
+| **Panels** | | |
+| `lineEditor`, `dateEditor` | the bottom panel for writing a line or a date | |
+| **Screens** | | |
+| `notebookScreen`, `settingsScreen`, `monthScreen`, `machineScreen` | one class per screen | |
+| `app` | the `App` class: start-up and moving between screens | |
 
 The rule of thumb: anything that decides something (what mark a line gets, what a backup file may contain, how a chart is scaled) lives in a block marked `data-testable`. Those blocks never touch the page, so `tests/load.js` can read them out of `index.html` and run them in Node. The other blocks only draw and listen.
 
