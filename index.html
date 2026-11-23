@@ -1494,7 +1494,7 @@ button {
       if (line.type === 'text') return escapeHtml(line.text);
       return (
         `<span class="name">${escapeHtml(line.name)}</span>` +
-        `<span class="nums">${formatKg(line.weight)} × ${Number(line.sets)} × ${Number(line.reps)}</span>` +
+        `<span class="nums">${formatKg(line.weight)} × ${Number(line.reps)} × ${Number(line.sets)}</span>` +
         LineMarkup.mark(mark)
       );
     },
@@ -2261,13 +2261,13 @@ button {
           placeholder: hasWheels ? 'or write your own line' : 'write a line',
         },
         columns: 'minmax(0, 1fr) 56px 40px 40px',
-        labels: [{ text: 'Machine', left: true }, { text: 'kg' }, { text: 'sets' }, { text: 'reps' }],
+        labels: [{ text: 'Machine', left: true }, { text: 'kg' }, { text: 'reps' }, { text: 'sets' }],
         wheels: hasWheels
           ? [
               { label: 'Machine', align: 'left', items: this.machines.map((m) => m.name), index: machineIndex },
               { label: 'Weight in kg', items: this.kgList.map(formatKg), index: indexOr(this.kgList, round2(start.weight)) },
-              { label: 'Sets', items: SETS.map(String), index: indexOr(SETS, start.sets, SETS_FALLBACK) },
               { label: 'Reps', items: REPS.map(String), index: indexOr(REPS, start.reps, REPS_FALLBACK) },
+              { label: 'Sets', items: SETS.map(String), index: indexOr(SETS, start.sets, SETS_FALLBACK) },
             ]
           : [],
         actionLabel: editing ? 'Save' : 'Log',
@@ -2302,7 +2302,7 @@ button {
     }
 
     wheelValues() {
-      const [, kg, sets, reps] = this.wheels;
+      const [, kg, reps, sets] = this.wheels;
       return { weight: this.kgList[kg.index], sets: SETS[sets.index], reps: REPS[reps.index] };
     }
 
@@ -2341,7 +2341,7 @@ button {
       if (index === this.settledIndex) return;
       this.settledIndex = index;
       const values = this.editingMachine ? this.wheelValues() : this.lastTime(this.machines[index]);
-      const [, kg, sets, reps] = this.wheels;
+      const [, kg, reps, sets] = this.wheels;
       this.kgList = Progress.kgOptions(values.weight);
       kg.setItems(this.kgList.map(formatKg), indexOr(this.kgList, round2(values.weight)));
       sets.setIndex(indexOr(SETS, values.sets, SETS_FALLBACK), false);
