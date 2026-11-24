@@ -1,6 +1,6 @@
 /** Writing the notebook: a new date, sets on a machine, a line of your own, changing and removing lines. */
 import { test, expect } from './fixtures.js';
-import { actionButton, addLine, lastDay, numbers, openApp, pick, row, sheet, startDate } from './app.js';
+import { actionButton, addLine, lastDay, numbers, openApp, pick, row, sheet, startDate, swipe } from './app.js';
 
 test.beforeEach(async ({ page }) => {
   await openApp(page);
@@ -91,15 +91,8 @@ test('remove a line, and Undo brings it back in its place', async ({ page }) => 
 });
 
 test('swipe a line far to the left to remove it', async ({ page, isMobile }) => {
-  test.skip(!isMobile, 'a finger swipe');
-  const target = row(page, 'Leg press');
-  const box = await target.boundingBox();
-  const y = box.y + box.height / 2;
-  const cdp = await page.context().newCDPSession(page);
-  const touch = (type, x) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y }] });
-  await touch('touchStart', box.x + box.width - 20);
-  for (let i = 1; i <= 10; i++) await touch('touchMove', box.x + box.width - 20 - (box.width * 0.8 * i) / 10);
-  await touch('touchEnd');
+  const { width } = await row(page, 'Leg press').boundingBox();
+  await swipe(page, row(page, 'Leg press'), -width * 0.8, { touch: isMobile }); // more than half the line: gone at once
   await expect.poll(() => lastDay(page)).not.toContain('Leg press');
 });
 

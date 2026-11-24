@@ -1,6 +1,6 @@
 /** Making a plan in settings, then a day from it: the machines in pencil, logged one after the other. */
 import { test, expect } from './fixtures.js';
-import { actionButton, addLine, backTo, holdAndDrag, lastDay, numbers, openApp, openSettings, otherButton, pick, row, sheet, startDate } from './app.js';
+import { actionButton, addLine, backTo, finger, holdAndDrag, lastDay, numbers, openApp, openSettings, otherButton, pick, row, sheet, startDate } from './app.js';
 
 /** Makes "Leg day" with Leg press and Leg curl, and goes back to the notebook. */
 async function makeLegDay(page) {
@@ -45,11 +45,10 @@ test('drag a machine in a plan by its handle', async ({ page, isMobile }) => {
   const to = await handle('Leg press').boundingBox();
   const x = from.x + from.width / 2;
   if (isMobile) {
-    const cdp = await page.context().newCDPSession(page);
-    const touch = (type, y) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x, y }] });
-    await touch('touchStart', from.y + from.height / 2);
-    for (let i = 1; i <= 8; i++) await touch('touchMove', from.y + from.height / 2 + ((to.y - from.y) * i) / 8);
-    await touch('touchEnd');
+    const touch = await finger(page);
+    await touch.down(x, from.y + from.height / 2);
+    for (let i = 1; i <= 8; i++) await touch.move(x, from.y + from.height / 2 + ((to.y - from.y) * i) / 8);
+    await touch.up();
   } else {
     await page.mouse.move(x, from.y + from.height / 2);
     await page.mouse.down();

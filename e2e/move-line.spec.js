@@ -70,6 +70,7 @@ test.describe('desktop', () => {
 
 test.describe('phone', () => {
   test.skip(({ isMobile }) => !isMobile, 'touch');
+  test.skip(({ browserName }) => browserName !== 'chromium', 'only Chromium gets real touch events, which scroll the page');
 
   test('a quick swipe up scrolls the page and moves nothing', async ({ page }) => {
     await touchHoldAndDrag(page, row(page, seatedRow), row(page, ride), { hold: 30 });

@@ -4,7 +4,8 @@
 # Three jobs in a chain: test -> build -> deploy.
 # Each one only starts when the one before it succeeded,
 # so a failing test means nothing is built and nothing goes live.
-# The test job runs the unit and browser tests; mutation and CRAP run on pull requests.
+# The test job runs only the quick unit tests: every pull request already had to pass all
+# test levels (the required "test" check in test.yml) before it could be merged.
 name: Deploy to GitHub Pages
 
 on:
@@ -25,7 +26,7 @@ concurrency:
 jobs:
   test:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 5
     steps:
       - name: Check out the repo
         uses: actions/checkout@v7
@@ -37,15 +38,6 @@ jobs:
 
       - name: Unit tests
         run: npm test
-
-      - name: Install
-        run: npm ci
-
-      - name: Install Chromium
-        run: npx playwright install --with-deps chromium
-
-      - name: Browser tests
-        run: npm run test:e2e
 
   build:
     needs: test
