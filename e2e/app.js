@@ -120,3 +120,23 @@ export async function addLine(page, line) {
   if (line.expectButton) await expect(actionButton(page)).toHaveText(line.expectButton);
   await actionButton(page).click();
 }
+
+/** Drags a line sideways by `dx` pixels (negative is left), with a finger or the mouse, without holding first. */
+export async function swipe(page, rowLocator, dx, { touch }) {
+  const box = await rowLocator.boundingBox();
+  const y = box.y + box.height / 2;
+  const x = box.x + box.width / 2; // the middle: on an open line, the right side is the Delete button
+  if (touch) {
+    const cdp = await page.context().newCDPSession(page);
+    const send = (type, at) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x: at, y }] });
+    await send('touchStart', x);
+    for (let i = 1; i <= 10; i++) await send('touchMove', x + (dx * i) / 10);
+    await send('touchEnd');
+    await cdp.detach();
+  } else {
+    await page.mouse.move(x, y);
+    await page.mouse.down();
+    await page.mouse.move(x + dx, y, { steps: 10 });
+    await page.mouse.up();
+  }
+}

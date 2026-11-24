@@ -28,7 +28,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse } from 'acorn';
 
-export const MAX_CRAP = 30;
+export const MAX_CRAP = 15;
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 const E2E_COVERAGE = join(ROOT, 'reports/coverage/e2e');

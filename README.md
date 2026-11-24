@@ -53,7 +53,7 @@ Four checks, from fast to thorough. The first needs nothing installed; for the o
 | --- | --- | --- | --- |
 | `npm test` | **Unit tests.** The logic: every `data-testable` block, run in Node. | `tests/*.test.js` | 1 s |
 | `npm run test:e2e` | **Browser tests.** The app in Chromium, used like a person does: tap, hold, drag, turn a wheel, export and import. Twice: a desktop with mouse and keyboard, and a phone with touch. | `e2e/*.spec.js` | 1 min |
-| `npm run test:crap` | **CRAP score** of every function. Fails when one is over 30. | `tests/crap/` | 5 s |
+| `npm run test:crap` | **CRAP score** of every function. Fails when one is over 15. | `tests/crap/` | 5 s |
 | `npm run test:mutation` | **Mutation testing.** Breaks the logic on purpose, one small change at a time; the unit tests must notice. Fails under 95%, or on a surviving change that is not known. | `tests/mutation/` | 1 min |
 
 `npm run test:all` runs all four. Reports land in `reports/` (not committed).
