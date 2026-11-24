@@ -33,6 +33,8 @@ They are pictures of the real `index.html`, so they show what is built. Screens 
 | A day from a plan | [25-plan-day-ready.png](25-plan-day-ready.png) | "Start Leg day": the panel opens on the first machine, with last time's kg and reps |
 | A day from a plan | [26-plan-log-next-set.png](26-plan-log-next-set.png) | After each set the panel comes back: "Log set 4", or on to the next machine |
 | A day from a plan | [27-plan-other-reps.png](27-plan-other-reps.png) | Other kg or reps start a new line right under it |
+| Settings | [28-settings-import-text.png](28-settings-import-text.png) | "import from text": paste the text of a backup. "Check the text" checks it like a file, then asks before it replaces anything |
+| Settings | [29-settings-import-text-wrong.png](29-settings-import-text-wrong.png) | Text that is not a backup: the panel says so and keeps the text |
 
 ## Look
 

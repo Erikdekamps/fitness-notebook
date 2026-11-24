@@ -360,6 +360,25 @@ button {
 }
 
 .sheet-text::placeholder { color: var(--muted); opacity: 1; }
+
+.sheet-area { /* a big field to paste text in */
+  display: block;
+  width: 100%;
+  height: 168px;
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid #cbbba8;
+  border-radius: 12px;
+  background: #fffaf3;
+  color: var(--ink);
+  font: 16px/1.35 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; /* 16px: smaller makes iOS zoom in */
+  resize: none;
+  -webkit-appearance: none;
+  appearance: none;
+}
+
+.sheet-area::placeholder { color: var(--muted); font-family: var(--font-ui); opacity: 1; }
+.sheet-error { margin: 0; padding: 0 8px; color: var(--danger); font-size: 15px; line-height: 20px; }
 .sheet-cols { display: grid; gap: 6px; padding: 0 8px; }
 .sheet-labels { font-size: 13px; color: var(--muted); text-align: center; }
 .sheet-labels .is-left { padding-left: 4px; text-align: left; }
@@ -575,6 +594,7 @@ button {
     <h2 class="section-title">backup</h2>
     <button id="exportBtn" class="stat-link" type="button"><span>export to a file</span><svg width="12" height="22" viewBox="0 0 12 22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2 3l8 8-8 8"/></svg></button>
     <button id="importBtn" class="stat-link" type="button"><span>import from a file</span><svg width="12" height="22" viewBox="0 0 12 22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2 3l8 8-8 8"/></svg></button>
+    <button id="importTextBtn" class="stat-link" type="button"><span>import from text</span><svg width="12" height="22" viewBox="0 0 12 22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2 3l8 8-8 8"/></svg></button>
     <input id="importFile" type="file" accept="application/json,.json" aria-label="Backup file to import" hidden>
     <div class="blank" aria-hidden="true"></div>
     <button id="removeExamples" class="text-btn" type="button" hidden>remove the example lines</button>
@@ -659,6 +679,8 @@ button {
       </div>
     </div>
     <input id="sheetText" class="sheet-text" type="text" autocomplete="off" autocapitalize="sentences" enterkeyhint="done" aria-label="Write your own line" hidden>
+    <textarea id="sheetArea" class="sheet-area" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" hidden></textarea>
+    <p id="sheetError" class="sheet-error" role="alert" hidden></p>
     <button id="sheetAction" class="sheet-action" type="button">Log</button>
     <button id="sheetCancel" class="sheet-cancel" type="button" hidden>Cancel</button>
   </div>
@@ -1233,19 +1255,20 @@ button {
       return JSON.stringify(Backup.toObject(data, now), null, 2);
     },
 
-    /** Reads the text of a backup file. Returns { data } (notebook data) or { error }. */
+    /** Reads the text of a backup file, or of a backup pasted as text. Returns { data } (notebook data) or { error }. */
     parse(text) {
+      if (!String(text).trim()) return { error: 'There is nothing to import' };
       let file;
       try {
         file = JSON.parse(text);
       } catch (_) {
-        return { error: 'That is not a JSON file' };
+        return { error: 'That is not a backup' };
       }
       if (!file || file.app !== Backup.APP || !Array.isArray(file.machines) || !Array.isArray(file.lines)) {
-        return { error: 'That is not a Fitness Notebook file' };
+        return { error: 'That is not a Fitness Notebook backup' };
       }
       if (typeof file.version !== 'number' || file.version > Backup.VERSION) {
-        return { error: 'That file is from a newer version of the app' };
+        return { error: 'That backup is from a newer version of the app' };
       }
       return {
         data: {
@@ -2226,6 +2249,8 @@ button {
       this.backdrop = byId('backdrop');
       this.title = byId('sheetTitle');
       this.textField = byId('sheetText');
+      this.areaField = byId('sheetArea');
+      this.error = byId('sheetError');
       this.labels = byId('sheetLabels');
       this.wheelsEl = byId('sheetWheels');
       this.action = byId('sheetAction');
@@ -2246,6 +2271,11 @@ button {
       return this.textField.hidden ? '' : this.textField.value.trim();
     }
 
+    /** What is pasted or typed in the big field ('' when the sheet has none). */
+    areaText() {
+      return this.areaField.hidden ? '' : this.areaField.value;
+    }
+
     isOpen() {
       return this.config !== null;
     }
@@ -2259,6 +2289,8 @@ button {
      * config: { title, info: { heading, details: [..], note } (optional), text: { value, placeholder, label } (optional),
      *           columns, center, labels: [{ text, left }], wheels: [{ label, align, items, index }],
      *           actionLabel, cancelLabel (optional), otherLabel + onOther() (optional: a second button with a job of its own),
+     *           area: { placeholder, label } (optional: a big field to paste text in),
+     *           check() (optional: runs before the big button does its job; a message it returns is shown and the sheet stays open),
      *           onChange(i), onSettle(i), onAction(), onCancel() }   onChange(-1) = the text changed
      */
     open(cfg) {
@@ -2285,6 +2317,7 @@ button {
       this.updateTyping();
       if (wheels.length && !this.el.classList.contains('is-typing')) wheels[0].el.focus({ preventScroll: true });
       else if (!this.textField.hidden) this.textField.focus({ preventScroll: true });
+      else if (!this.areaField.hidden) this.areaField.focus({ preventScroll: true });
       else this.action.focus({ preventScroll: true });
       return wheels;
     }
@@ -2305,6 +2338,11 @@ button {
       this.textField.value = cfg.text ? cfg.text.value || '' : '';
       this.textField.placeholder = cfg.text ? cfg.text.placeholder : '';
       this.textField.setAttribute('aria-label', (cfg.text && cfg.text.label) || 'Write your own line');
+      this.areaField.hidden = !cfg.area;
+      this.areaField.value = '';
+      this.areaField.placeholder = cfg.area ? cfg.area.placeholder : '';
+      this.areaField.setAttribute('aria-label', cfg.area ? cfg.area.label : '');
+      this.showError('');
       for (const el of [this.labels, this.wheelsEl]) {
         el.style.gridTemplateColumns = cfg.columns;
         el.style.justifyContent = cfg.center ? 'center' : '';
@@ -2330,6 +2368,23 @@ button {
       if (cfg && cfg.onCancel) cfg.onCancel();
     }
 
+    /** Shows what is wrong, above the big button; '' takes the message away. */
+    showError(message) {
+      this.error.hidden = !message;
+      this.error.textContent = message;
+    }
+
+    /** The big button: first the config's check, when it has one. What is wrong keeps the sheet open, with nothing lost. */
+    act() {
+      if (!this.config) return;
+      const problem = this.config.check ? this.config.check() : '';
+      if (problem) {
+        this.showError(problem);
+        return;
+      }
+      this.close().onAction();
+    }
+
     /** The small button under the big one: its own job when the config gave it one, else Cancel. */
     other() {
       if (!this.config || !this.config.onOther) {
@@ -2349,10 +2404,8 @@ button {
     }
 
     listen() {
-      this.action.addEventListener('click', () => {
-        const cfg = this.close();
-        if (cfg) cfg.onAction();
-      });
+      this.action.addEventListener('click', () => this.act());
+      this.areaField.addEventListener('input', () => this.showError(''));
       this.backdrop.addEventListener('click', () => this.cancel());
       this.cancelButton.addEventListener('click', () => this.other());
 
@@ -2382,7 +2435,7 @@ button {
       });
 
       // Keep the paper underneath still while the sheet is up.
-      this.el.addEventListener('touchmove', (e) => { if (!e.target.closest('.wheel')) e.preventDefault(); }, { passive: false });
+      this.el.addEventListener('touchmove', (e) => { if (!e.target.closest('.wheel, .sheet-area')) e.preventDefault(); }, { passive: false });
       this.backdrop.addEventListener('touchmove', (e) => e.preventDefault(), { passive: false });
       this.backdrop.addEventListener('wheel', (e) => e.preventDefault(), { passive: false });
 
@@ -3444,6 +3497,28 @@ button {
       reader.readAsText(file);
     }
 
+    /**
+     * A panel to paste the text of a backup in, for when there is no file to pick.
+     * The text is checked the same way a file is; what is wrong shows in the panel and the text stays.
+     */
+    importText() {
+      let checked = null;
+      this.sheet.open({
+        title: 'Import from text',
+        area: { placeholder: 'paste the text of a backup here', label: 'Text of a backup' },
+        columns: 'none',
+        labels: [],
+        wheels: [],
+        actionLabel: 'Check the text',
+        cancelLabel: 'Cancel',
+        check: () => {
+          checked = Backup.parse(this.sheet.areaText());
+          return checked.error || '';
+        },
+        onAction: () => this.askToReplace('Pasted text', checked.data),
+      });
+    }
+
     /** Shows what is in the file and replaces the notebook only after a yes. */
     askToReplace(fileName, data) {
       this.sheet.open({
@@ -3493,6 +3568,7 @@ button {
 
       byId('exportBtn').addEventListener('click', () => this.exportFile());
       byId('importBtn').addEventListener('click', () => this.importFile.click());
+      byId('importTextBtn').addEventListener('click', () => this.importText());
       this.importFile.addEventListener('change', () => {
         const file = this.importFile.files[0];
         this.importFile.value = ''; // so the same file can be picked again
