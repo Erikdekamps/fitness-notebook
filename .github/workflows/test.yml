@@ -5,7 +5,7 @@
 #   browser    the app in Chrome and Safari (desktop and phone), with WCAG checks, then the CRAP check
 #   mutation   Stryker changes the logic on purpose; the unit tests must notice
 #
-# Not run on main: there the deploy workflow runs the unit and browser tests first
+# Not run on main: there the deploy workflow runs the unit tests first
 # and does not publish when they fail.
 name: Test
 
