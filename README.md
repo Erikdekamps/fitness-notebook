@@ -73,6 +73,8 @@ Four checks, from fast to thorough. The first needs nothing installed; for the o
 
 **On GitHub.** Every pull request runs all four (`.github/workflows/test.yml`); the reports are kept as downloads on the run. On `main` the deploy runs the unit and browser tests first and publishes nothing when they fail.
 
+**Updates.** Dependabot (`.github/dependabot.yml`) checks the test tools and the GitHub Actions every Monday. It only proposes versions that are at least 14 days old, and sends one pull request per group (Stryker, Playwright, the rest, Actions). Each one runs all the tests above.
+
 ## Plans
 
 A plan is a named list of machines in the order you do them, such as "Leg day". You make plans in Settings.
