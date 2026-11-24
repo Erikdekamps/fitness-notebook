@@ -37,15 +37,18 @@ test('round trip: export then import gives the same lines and machines', () => {
 });
 
 test('parse: refuses what is not ours', () => {
-  assert.equal(Backup.parse('hello').error, 'That is not a JSON file');
-  assert.equal(Backup.parse('null').error, 'That is not a Fitness Notebook file');
-  assert.equal(Backup.parse(JSON.stringify({ lines: [], machines: [] })).error, 'That is not a Fitness Notebook file');
-  assert.equal(Backup.parse(JSON.stringify({ app: 'fitness-notebook', version: 1, lines: [] })).error, 'That is not a Fitness Notebook file');
+  assert.equal(Backup.parse('hello').error, 'That is not a backup');
+  assert.equal(Backup.parse('{"app": "fitness-notebook", "machines": [').error, 'That is not a backup'); // cut off while copying
+  assert.equal(Backup.parse('').error, 'There is nothing to import');
+  assert.equal(Backup.parse('  \n ').error, 'There is nothing to import');
+  assert.equal(Backup.parse('null').error, 'That is not a Fitness Notebook backup');
+  assert.equal(Backup.parse(JSON.stringify({ lines: [], machines: [] })).error, 'That is not a Fitness Notebook backup');
+  assert.equal(Backup.parse(JSON.stringify({ app: 'fitness-notebook', version: 1, lines: [] })).error, 'That is not a Fitness Notebook backup');
 });
 
 test('parse: refuses a newer version, accepts the current one', () => {
   const file = { app: 'fitness-notebook', version: 2, machines: [], lines: [] };
-  assert.equal(Backup.parse(JSON.stringify(file)).error, 'That file is from a newer version of the app');
+  assert.equal(Backup.parse(JSON.stringify(file)).error, 'That backup is from a newer version of the app');
   assert.deepEqual(Backup.parse(JSON.stringify({ ...file, version: 1 })).data, { version: 1, machines: [], plans: [], lines: [] });
 });
 
@@ -137,4 +140,9 @@ test('describe: names the plans only when there are any', () => {
   const some = { machines: [], lines: [], plans: [{ id: 'p', name: 'Leg day', machineIds: [] }] };
   assert.deepEqual(Backup.describe(some), ['0 lines', '0 machines', '1 plan']);
   assert.deepEqual(Backup.describe({ machines: [], lines: [], plans: [] }), ['0 lines', '0 machines']);
+});
+
+test('parse: pasted text reads the same as a file, also with space around it', () => {
+  const pasted = `\n\n  ${Backup.toJson(data, NOW)}  \n`;
+  assert.deepEqual(Backup.parse(pasted).data, Backup.parse(Backup.toJson(data, NOW)).data);
 });

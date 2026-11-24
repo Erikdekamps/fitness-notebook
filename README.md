@@ -30,7 +30,7 @@ CI runs the tests on every pull request. On `main` the deploy runs them first an
 | `calendar` | dates, weeks and months as "YYYY-MM-DD" | yes |
 | `progress` | marks (↑ or –N), machine history, wheel values, the pencil lines of a plan's day | yes |
 | `chartMath` | how a chart is scaled and laid out | yes |
-| `backup` | notebook to JSON file and back | yes |
+| `backup` | notebook to JSON file and back; also reads a backup pasted as text | yes |
 | `store` | reading and writing localStorage | yes |
 | `prefs` | the settings (rest timer on or off, rest time), saved apart from the notebook | yes |
 | `notebook` | the `Notebook` class: every change to lines, machines and plans, with undo | yes |
