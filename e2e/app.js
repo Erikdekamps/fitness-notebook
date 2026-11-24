@@ -69,20 +69,55 @@ export async function mouseHoldAndDrag(page, from, to, { hold = HOLD_MS } = {}) 
   await page.mouse.up();
 }
 
-/** Touch: the same with a finger, sent as real touch events. */
+/**
+ * One finger on the screen: down, move, up.
+ * Chromium gets real touch events, so the browser also scrolls and cancels the way a phone does.
+ * WebKit cannot be sent touch moves by Playwright, so there the finger's pointer events go straight
+ * to the page: the app gets the same events, but the browser itself does not scroll.
+ */
+export async function finger(page) {
+  if (realTouch(page)) {
+    const cdp = await page.context().newCDPSession(page);
+    const send = (type, point) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: point ? [point] : [] });
+    return {
+      down: (x, y) => send('touchStart', { x, y }),
+      move: (x, y) => send('touchMove', { x, y }),
+      up: async () => {
+        await send('touchEnd');
+        await cdp.detach();
+      },
+    };
+  }
+  let last = { x: 0, y: 0 };
+  const fire = (type, x, y) =>
+    page.evaluate(([type, x, y]) => {
+      // A touch pointer stays with the element it went down on, like a real finger.
+      if (type === 'pointerdown') window.__fingerTarget = document.elementFromPoint(x, y);
+      const init = { bubbles: true, cancelable: true, composed: true, pointerId: 7, pointerType: 'touch', isPrimary: true };
+      window.__fingerTarget.dispatchEvent(new PointerEvent(type, { ...init, clientX: x, clientY: y, buttons: type === 'pointerup' ? 0 : 1 }));
+    }, [type, x, y]);
+  return {
+    down: (x, y) => fire('pointerdown', (last = { x, y }).x, y),
+    move: (x, y) => fire('pointermove', (last = { x, y }).x, y),
+    up: () => fire('pointerup', last.x, last.y),
+  };
+}
+
+/** Whether this browser gets real touch events (Chromium), so the page scrolls under a finger. */
+export const realTouch = (page) => page.context().browser().browserType().name() === 'chromium';
+
+/** Touch: hold a finger still on a line, then drag it onto the place of another line. */
 export async function touchHoldAndDrag(page, from, to, { hold = HOLD_MS } = {}) {
   const a = await middle(from);
   const b = await middle(to);
-  const cdp = await page.context().newCDPSession(page);
-  const touch = (type, y) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x: a.x, y }] });
-  await touch('touchStart', a.y);
+  const touch = await finger(page);
+  await touch.down(a.x, a.y);
   await page.waitForTimeout(hold);
   for (let i = 1; i <= 12; i++) {
-    await touch('touchMove', a.y + ((b.y - a.y) * i) / 12);
+    await touch.move(a.x, a.y + ((b.y - a.y) * i) / 12);
     await page.waitForTimeout(16);
   }
-  await touch('touchEnd');
-  await cdp.detach();
+  await touch.up();
 }
 
 /** Hold and drag with what the project has: a finger on the phone (`touch`), else a mouse. */
@@ -125,14 +160,13 @@ export async function addLine(page, line) {
 export async function swipe(page, rowLocator, dx, { touch }) {
   const box = await rowLocator.boundingBox();
   const y = box.y + box.height / 2;
-  const x = box.x + box.width / 2; // the middle: on an open line, the right side is the Delete button
+  // Start in the middle (on an open line the right side is the Delete button), or near the right edge for a long swipe.
+  const x = Math.abs(dx) > box.width / 2 ? box.x + box.width - 10 : box.x + box.width / 2;
   if (touch) {
-    const cdp = await page.context().newCDPSession(page);
-    const send = (type, at) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: type === 'touchEnd' ? [] : [{ x: at, y }] });
-    await send('touchStart', x);
-    for (let i = 1; i <= 10; i++) await send('touchMove', x + (dx * i) / 10);
-    await send('touchEnd');
-    await cdp.detach();
+    const f = await finger(page);
+    await f.down(x, y);
+    for (let i = 1; i <= 10; i++) await f.move(x + (dx * i) / 10, y);
+    await f.up();
   } else {
     await page.mouse.move(x, y);
     await page.mouse.down();

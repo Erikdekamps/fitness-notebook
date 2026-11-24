@@ -3,7 +3,8 @@
  *
  *   npm run test:e2e
  *
- * Two projects: a desktop browser (mouse and keyboard) and a phone (touch, Pixel 7 screen).
+ * Four projects: Chrome and Safari (WebKit) on a desktop with mouse and keyboard,
+ * and on a phone with touch (Pixel 7, iPhone 13).
  * In Chromium each test also records which code ran, for the CRAP check (tests/crap/crap.js).
  */
 import { defineConfig, devices } from '@playwright/test';
@@ -38,5 +39,7 @@ export default defineConfig({
   projects: [
     { name: 'desktop', use: { ...devices['Desktop Chrome'] } },
     { name: 'phone', use: { ...devices['Pixel 7'] } },
+    { name: 'safari', use: { ...devices['Desktop Safari'] } },
+    { name: 'iphone', use: { ...devices['iPhone 13'] } },
   ],
 });
