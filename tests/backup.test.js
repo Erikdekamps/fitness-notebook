@@ -146,3 +146,87 @@ test('parse: pasted text reads the same as a file, also with space around it', (
   const pasted = `\n\n  ${Backup.toJson(data, NOW)}  \n`;
   assert.deepEqual(Backup.parse(pasted).data, Backup.parse(Backup.toJson(data, NOW)).data);
 });
+
+/* ---- What a file may hold, field by field ---- */
+
+const machineLine = (fields) => ({ id: 'x', type: 'machine', machineId: 'm1', name: 'Leg press', weight: 80, sets: 3, reps: 12, ...fields });
+
+test('cleanLine: zero kg, zero sets and zero reps are fine; anything below zero is not', () => {
+  assert.deepEqual(Backup.cleanLine(machineLine({ weight: 0, sets: 0, reps: 0 })), machineLine({ weight: 0, sets: 0, reps: 0 }));
+  assert.equal(Backup.cleanLine(machineLine({ sets: -1 })), null);
+  assert.equal(Backup.cleanLine(machineLine({ reps: -1 })), null);
+  assert.equal(Backup.cleanLine(machineLine({ weight: Infinity })), null);
+});
+
+test('cleanLine: a machine line needs a machine id and a name', () => {
+  assert.equal(Backup.cleanLine(machineLine({ machineId: undefined })), null);
+  assert.equal(Backup.cleanLine(machineLine({ machineId: 7 })), null);
+  assert.equal(Backup.cleanLine(machineLine({ name: undefined })), null);
+});
+
+test('cleanLine: the type decides what a line is, not the fields it happens to carry', () => {
+  // A line type this app does not know is dropped, whatever fields it has.
+  assert.equal(Backup.cleanLine({ id: 'x', type: 'photo', date: '2026-11-23' }), null);
+  assert.equal(Backup.cleanLine({ id: 'x', type: 'photo', text: 'caption' }), null);
+  assert.equal(Backup.cleanLine(machineLine({ type: 'photo' })), null);
+  assert.equal(Backup.cleanLine({ id: 'x', type: 'photo', name: 'Leg press', weight: 80, sets: 3, reps: 12 }), null);
+  // A known type keeps its own shape, even with another type's fields on it.
+  assert.deepEqual(Backup.cleanLine({ id: 'x', type: 'text', text: 'Biking', date: '2026-11-23' }), { id: 'x', type: 'text', text: 'Biking' });
+  assert.deepEqual(Backup.cleanLine({ id: 'x', type: 'plan', machineId: 'm1', name: 'Leg press', weight: 80, sets: 3, reps: 12 }),
+    { id: 'x', type: 'plan', machineId: 'm1', name: 'Leg press' });
+  assert.deepEqual(Backup.cleanLine(machineLine({ text: 'note' })), machineLine({}));
+});
+
+test('cleanLine: a date must be exactly YYYY-MM-DD', () => {
+  assert.equal(Backup.cleanLine({ id: 'x', type: 'date', date: '2026-11-233' }), null);
+  assert.equal(Backup.cleanLine({ id: 'x', type: 'date', date: 'on 2026-11-23' }), null);
+  assert.equal(Backup.cleanLine({ id: 'x', type: 'date', date: '2026-11-23T10:00' }), null);
+  assert.equal(Backup.cleanLine({ id: 'x', type: 'date' }), null);
+});
+
+test('cleanLine: a text line needs text', () => {
+  assert.equal(Backup.cleanLine({ id: 'x', type: 'text', text: 42 }), null);
+  assert.equal(Backup.cleanLine({ id: 'x', type: 'text' }), null);
+});
+
+test('cleanLine: a plan line with a blank name is dropped', () => {
+  assert.equal(Backup.cleanLine({ id: 'x', type: 'plan', machineId: 'm1', name: '   ' }), null);
+});
+
+test('cleanLine: an id that is not text, or is empty, is replaced by a new text id', () => {
+  for (const id of [7, '', null]) {
+    const line = Backup.cleanLine({ id, type: 'text', text: 'hi' });
+    assert.equal(typeof line.id, 'string');
+    assert.ok(line.id.length > 0);
+  }
+});
+
+test('cleanMachine and cleanPlan: a name that is not text is refused', () => {
+  assert.equal(Backup.cleanMachine({ id: 'm', name: 42 }), null);
+  assert.equal(Backup.cleanMachine({ id: 'm', name: ['Row'] }), null);
+  assert.equal(Backup.cleanPlan({ id: 'p', name: 42 }), null);
+});
+
+test('parse and toObject: broken machines, plans and lines are left out, the good ones kept', () => {
+  const messy = {
+    app: 'fitness-notebook', version: 1,
+    machines: [{ id: 'm1', name: 'Row' }, { id: 'm2' }, null],
+    plans: [{ id: 'p1', name: 'Back day', machineIds: ['m1'] }, { id: 'p2' }, null],
+    lines: [{ id: 'a', type: 'text', text: 'hi' }, { id: 'b', type: 'photo' }, null],
+  };
+  const { data: back } = Backup.parse(JSON.stringify(messy));
+  assert.deepEqual(back.machines, [{ id: 'm1', name: 'Row' }]);
+  assert.deepEqual(back.plans, [{ id: 'p1', name: 'Back day', machineIds: ['m1'] }]);
+  assert.deepEqual(back.lines, [{ id: 'a', type: 'text', text: 'hi' }]);
+  const exported = Backup.toObject(messy, NOW);
+  assert.deepEqual(exported.machines, back.machines);
+  assert.deepEqual(exported.plans, back.plans);
+  assert.deepEqual(exported.lines, back.lines);
+});
+
+test('parse: a file without a version number is refused, never half-read', () => {
+  const file = { app: 'fitness-notebook', machines: [], lines: [] };
+  assert.ok(Backup.parse(JSON.stringify(file)).error);
+  assert.ok(Backup.parse(JSON.stringify({ ...file, version: '1' })).error);
+  assert.equal(Backup.parse(JSON.stringify(file)).data, undefined);
+});
