@@ -121,3 +121,56 @@ test('plan lines never count: no mark, no history, not done today', () => {
   assert.deepEqual([...Progress.machinesInCurrentDay(lines)], []);
   assert.deepEqual([...Progress.sessionDates(lines)].sort(), ['2026-11-16', '2026-11-18']);
 });
+
+/* ---- Edges ---- */
+
+// A notebook with one day per date in `dates`, in that written order; day i holds lift `l${i}` of i kg.
+const daysOn = (dates) => dates.flatMap((iso, i) => [date(`d${i}`, iso), lift(`l${i}`, 'leg', i)]);
+const dayOfYear = (n) => new Date(Date.UTC(2026, 0, 1 + n)).toISOString().slice(0, 10);
+const longNotebooks = {
+  // 60 days over 12 dates, written out of date order, each date used five times.
+  shuffled: daysOn(Array.from({ length: 60 }, (_, i) => dayOfYear((i * 7) % 12))),
+  // 100 days in order, then the same 100 dates written again.
+  writtenTwice: daysOn([...Array.from({ length: 100 }, (_, i) => dayOfYear(i)), ...Array.from({ length: 100 }, (_, i) => dayOfYear(i))]),
+};
+const inDateThenWrittenOrder = (lines) => lines
+  .filter((l) => l.type === 'date')
+  .map((l, order) => ({ date: l.date, order }))
+  .sort((a, b) => a.date.localeCompare(b.date) || a.order - b.order)
+  .map(({ order }) => `l${order}`);
+
+for (const [name, lines] of Object.entries(longNotebooks)) {
+  test(`linesInDateOrder: a long notebook (${name}) comes out in date order, same dates in written order`, () => {
+    assert.deepEqual(Progress.linesInDateOrder(lines).map((l) => l.id), inDateThenWrittenOrder(lines));
+  });
+
+  test(`machineHistory: a long notebook (${name}) comes out in date order, same dates in written order`, () => {
+    const expected = inDateThenWrittenOrder(lines).map((id) => Number(id.slice(1)));
+    assert.deepEqual(Progress.machineHistory(lines, 'leg').map((p) => p.weight), expected);
+  });
+}
+
+test('machinesInCurrentDay: with no date line yet, everything written so far is the current day', () => {
+  assert.deepEqual([...Progress.machinesInCurrentDay([lift('a', 'leg', 80), lift('b', 'chest', 35)])].sort(), ['chest', 'leg']);
+  assert.deepEqual([...Progress.machinesInCurrentDay([lift('a', 'leg', 80)])], ['leg']);
+});
+
+test('plannedInDay: pencil lines written before any date belong to that first, undated stretch', () => {
+  const lines = [planned('p1', 'curl'), lift('a', 'leg', 80), planned('p2', 'calf'), date('d1', '2026-11-16'), planned('p3', 'row')];
+  assert.deepEqual(Progress.plannedInDay(lines, 'a').map((l) => l.id), ['p1', 'p2']);
+  assert.deepEqual(Progress.plannedInDay(lines, 'p2').map((l) => l.id), ['p1', 'p2']);
+  assert.deepEqual(Progress.plannedInDay(lines, 'p3').map((l) => l.id), ['p3']);
+});
+
+test('plannedInDay: an unknown line has no pencil lines, even when the notebook has some', () => {
+  assert.deepEqual(Progress.plannedInDay([planned('p1', 'curl')], 'nope'), []);
+  assert.deepEqual(Progress.plannedInDay([planned('p1', 'curl'), planned('p2', 'calf')], 'nope'), []);
+});
+
+test('kgOptions: a value already on the wheel is there once', () => {
+  for (const kg of [0, 35, 300]) {
+    const options = Progress.kgOptions(kg);
+    assert.equal(options.filter((o) => o === kg).length, 1);
+    assert.equal(options.length, 121);
+  }
+});

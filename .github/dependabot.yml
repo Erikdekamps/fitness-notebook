@@ -1,0 +1,53 @@
+# Dependabot opens pull requests when the test tools or the GitHub Actions have a new version.
+# Every such pull request runs all the test levels (.github/workflows/test.yml) like any other.
+#
+# The app itself has no dependencies: everything in package.json is only for testing.
+#
+# - Once a week, on Monday morning.
+# - A new version must be 14 days old before a pull request is opened, so a bad release
+#   is usually pulled before it reaches this repo.
+# - Packages that must move together come in one pull request.
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "07:00"
+      timezone: Europe/Amsterdam
+    cooldown:
+      default-days: 14
+    versioning-strategy: increase # versions are pinned exactly; keep them that way
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "Test tools"
+    groups:
+      stryker: # core and its test runner must have the same version
+        patterns:
+          - "@stryker-mutator/*"
+      playwright:
+        patterns:
+          - "@playwright/test"
+      other:
+        patterns:
+          - "*"
+        exclude-patterns:
+          - "@stryker-mutator/*"
+          - "@playwright/test"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "07:00"
+      timezone: Europe/Amsterdam
+    cooldown:
+      default-days: 14
+    commit-message:
+      prefix: "GitHub Actions"
+    groups:
+      actions:
+        patterns:
+          - "*"

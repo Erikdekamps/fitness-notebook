@@ -65,3 +65,97 @@ test('tallyMarks: a slash for every five', () => {
   assert.deepEqual([slashes(12), strokes(12)], [2, 12]);
   assert.ok(ChartMath.tallyMarks(12).width > ChartMath.tallyMarks(5).width);
 });
+
+/* ---- Edges ---- */
+
+test('scale: weights that exactly fill the rows keep the finer scale', () => {
+  // 70 to 80 at 2.5 kg a line is 4 steps: exactly the 5 rows.
+  assert.deepEqual(ChartMath.scale([70, 80], 5), { top: 80, perLine: 2.5 });
+  // One step more and it needs the next scale.
+  assert.deepEqual(ChartMath.scale([67.5, 80], 5), { top: 80, perLine: 5 });
+});
+
+test('spacedOut: exactly the minimum gap is spaced out enough', () => {
+  assert.equal(ChartMath.spacedOut([0, 50, 100], 50), true);
+  assert.equal(ChartMath.spacedOut([0, 49.9], 50), false);
+});
+
+test('monthLabels: a label exactly the minimum gap away is kept', () => {
+  const points = [{ date: '2026-09-05' }, { date: '2026-10-10' }, { date: '2026-11-16' }];
+  assert.deepEqual(ChartMath.monthLabels(points, [{ x: 0 }, { x: 44 }, { x: 87 }], 44), [
+    { x: 0, year: 2026, month: 9 }, { x: 44, year: 2026, month: 10 },
+  ]);
+});
+
+/* ---- Tally marks: how they are laid out ---- */
+
+// The strokes of a tally path: upright marks ("M x y l dx dy") and slashes ("M x y L x2 y2").
+const strokesOf = (count) => {
+  const marks = [];
+  const slashes = [];
+  for (const [, x, y, rel, a, b] of ChartMath.tallyMarks(count).path.matchAll(/M(-?[\d.]+) (-?[\d.]+)\s*([lL])(-?[\d.]+) (-?[\d.]+)/g)) {
+    const [x1, y1] = [Number(x), Number(y)];
+    if (rel === 'l') marks.push({ x1, y1, x2: x1 + Number(a), y2: y1 + Number(b) });
+    else slashes.push({ x1, y1, x2: Number(a), y2: Number(b) });
+  }
+  return { marks, slashes };
+};
+const STROKE = 2.2; // the stroke width the page draws tally marks with
+
+test('tallyMarks: every stroke sits inside the width, with room for the pen', () => {
+  for (let count = 1; count <= 17; count++) {
+    const { width } = ChartMath.tallyMarks(count);
+    const { marks, slashes } = strokesOf(count);
+    for (const s of [...marks, ...slashes]) {
+      assert.ok(Math.min(s.x1, s.x2) >= 0, `count ${count}: stroke starts left of 0`);
+      assert.ok(Math.max(s.x1, s.x2) + STROKE / 2 <= width, `count ${count}: stroke runs past the width`);
+    }
+  }
+});
+
+test('tallyMarks: upright marks never overlap', () => {
+  for (let count = 1; count <= 17; count++) {
+    const xs = strokesOf(count).marks.map((m) => m.x1);
+    for (let i = 1; i < xs.length; i++) assert.ok(xs[i] - xs[i - 1] >= 2 * STROKE, `count ${count}: marks ${i - 1} and ${i} touch`);
+  }
+});
+
+test('tallyMarks: marks never move as the count grows; the next mark goes where the next five has it', () => {
+  const full = strokesOf(15).marks.map(({ x1, y1 }) => [x1, y1]);
+  for (let count = 1; count < 15; count++) {
+    const upright = 4 * Math.floor(count / 5) + (count % 5); // the fifth of a group is the slash
+    assert.deepEqual(strokesOf(count).marks.map(({ x1, y1 }) => [x1, y1]), full.slice(0, upright), `count ${count}`);
+  }
+});
+
+test('tallyMarks: groups of five are spaced evenly, with a gap between them', () => {
+  const { slashes } = strokesOf(15);
+  const starts = slashes.map((s) => s.x1);
+  assert.equal(starts.length, 3);
+  assert.equal(starts[1] - starts[0], starts[2] - starts[1]);
+  assert.ok(starts[1] - starts[0] > Math.max(...slashes.map((s) => s.x2 - s.x1)), 'groups touch');
+  assert.equal(ChartMath.tallyMarks(10).width, 2 * ChartMath.tallyMarks(5).width);
+  assert.equal(ChartMath.tallyMarks(15).width, 3 * ChartMath.tallyMarks(5).width);
+});
+
+test('tallyMarks: the fifth mark is a slash across the four before it', () => {
+  for (const count of [5, 9, 10]) {
+    const { marks, slashes } = strokesOf(count);
+    slashes.forEach((slash, g) => {
+      const four = marks.slice(g * 4, g * 4 + 4);
+      assert.equal(four.length, 4);
+      assert.ok(slash.x1 < Math.min(...four.map((m) => Math.min(m.x1, m.x2))), 'slash starts left of the first mark');
+      assert.ok(slash.x2 > Math.max(...four.map((m) => Math.max(m.x1, m.x2))), 'slash ends right of the fourth mark');
+      // It runs between the tops and bottoms of the marks, so it crosses each one.
+      for (const y of [slash.y1, slash.y2]) {
+        assert.ok(four.every((m) => y > Math.min(m.y1, m.y2) && y < Math.max(m.y1, m.y2)));
+      }
+    });
+  }
+});
+
+test('tallyMarks: width grows with the count; each loose mark adds one mark of room', () => {
+  const widths = [0, 1, 2, 3, 4, 5, 6, 7].map((count) => ChartMath.tallyMarks(count).width);
+  for (let i = 1; i < widths.length; i++) assert.ok(widths[i] > widths[i - 1], `width of ${i}`);
+  assert.deepEqual(widths, [0, 11, 20, 29, 38, 46, 57, 66]);
+});

@@ -39,3 +39,19 @@ test('RestTimer: saves, loads and clears the end time', () => {
   assert.ok(!(TIMER_KEY in storage.items));
   assert.equal(RestTimer.load(memoryStorage({ [TIMER_KEY]: 'junk' })), null);
 });
+
+test('RestTimer: only a real end time counts as a running timer', () => {
+  assert.equal(RestTimer.reading(Infinity, 0), null);
+  assert.equal(RestTimer.reading('91000', 1000), null);
+  assert.equal(RestTimer.reading(undefined, 0), null);
+});
+
+test('RestTimer: blocked storage reads as no timer, and saving says it failed', () => {
+  const fail = () => { throw new Error('blocked'); };
+  const blocked = { getItem: fail, setItem: fail, removeItem: fail };
+  assert.equal(RestTimer.load(blocked), null);
+  assert.equal(RestTimer.save(91000, blocked), false);
+  assert.equal(RestTimer.save(null, blocked), false);
+  assert.equal(RestTimer.save(91000, memoryStorage()), true);
+  assert.equal(RestTimer.save(null, memoryStorage()), true);
+});

@@ -1,0 +1,97 @@
+[
+  {
+    "block": "util", "mutator": "MethodExpression",
+    "original": "Math.random().toString(36).slice(2, 7)", "replacement": "Math.random().toString(36)",
+    "reason": "The random part of an id only gets longer; ids stay unique."
+  },
+  {
+    "block": "calendar", "mutator": "UnaryOperator",
+    "original": "-2", "replacement": "+2",
+    "reason": "slice(-2) and slice(2) give the same two digits for every four-digit year."
+  },
+  {
+    "block": "calendar", "mutator": "EqualityOperator",
+    "original": "Calendar.monthOf(date) < first", "replacement": "Calendar.monthOf(date) <= first",
+    "reason": "When the months are equal it assigns the value it already has."
+  },
+  {
+    "block": "calendar", "mutator": "EqualityOperator",
+    "original": "month < range.first", "replacement": "month <= range.first",
+    "reason": "At the boundary it returns range.first, which is the month itself."
+  },
+  {
+    "block": "calendar", "mutator": "EqualityOperator",
+    "original": "month > range.last", "replacement": "month >= range.last",
+    "reason": "At the boundary it returns range.last, which is the month itself."
+  },
+  {
+    "block": "progress", "mutator": "ConditionalExpression",
+    "original": "a.date > b.date", "replacement": "true",
+    "reason": "Days are sorted from the order they were written in: a later date that comes first always has the higher order too, so this branch and the order fallback agree. Checked on shuffled notebooks of 60 and 200 days."
+  },
+  {
+    "block": "progress", "mutator": "ConditionalExpression",
+    "original": "a.date > b.date", "replacement": "false",
+    "reason": "As above: the order fallback gives the same sign for every pair the sort compares."
+  },
+  {
+    "block": "progress", "mutator": "EqualityOperator",
+    "original": "a.date > b.date", "replacement": "a.date <= b.date",
+    "reason": "As above: only reached when a.date >= b.date, where the results agree."
+  },
+  {
+    "block": "progress", "mutator": "EqualityOperator",
+    "original": "a.date > b.date", "replacement": "a.date >= b.date",
+    "reason": "Only reached when the dates are not lower, so > and >= differ only for equal dates, where both give 1 and order then decides the same way for the pairs the sort compares."
+  },
+  {
+    "block": "progress", "mutator": "ArithmeticOperator",
+    "original": "a.order - b.order", "replacement": "a.order + b.order",
+    "reason": "The sort only compares a later-written day with an earlier one here; both give a positive number."
+  },
+  {
+    "block": "chartMath", "mutator": "ConditionalExpression",
+    "original": "points.length > 1", "replacement": "true",
+    "reason": "The step is only used when there is more than one point."
+  },
+  {
+    "block": "chartMath", "mutator": "EqualityOperator",
+    "original": "points.length > 1", "replacement": "points.length >= 1",
+    "reason": "The step is only used when there is more than one point."
+  },
+  {
+    "block": "chartMath", "mutator": "StringLiteral",
+    "original": "''", "replacement": "\"Stryker was here!\"",
+    "reason": "A starting value that can never equal a real month key."
+  },
+  {
+    "block": "backup", "mutator": "EqualityOperator",
+    "original": "dates.length > 1", "replacement": "dates.length >= 1",
+    "reason": "Only reached after dates.length === 1 was handled, so 1 never gets here."
+  },
+  {
+    "block": "prefs", "mutator": "ConditionalExpression",
+    "original": "typeof value === 'object'", "replacement": "true",
+    "reason": "A truthy value that is not an object has no timerOn or restSeconds, so the defaults are used either way."
+  },
+  {
+    "block": "notebook", "mutator": "ConditionalExpression",
+    "original": "last.type === 'machine'", "replacement": "true",
+    "reason": "A line that is not a machine line has no kg, so the kg check after it already fails."
+  },
+  {
+    "block": "notebook", "mutator": "ConditionalExpression",
+    "original": "fields.type === 'machine'", "replacement": "true",
+    "reason": "Fields that are not a machine line have no kg, so the kg check after it already fails."
+  },
+  {
+    "block": "notebook", "mutator": "ArrayDeclaration",
+    "original": "[]", "replacement": "[\"Stryker was here\"]",
+    "reason": "The fallback list of machine ids of a plan that is gone: no machine has that id."
+  },
+  {
+    "block": "notebook", "mutator": "ObjectLiteral",
+    "original": "{ sensitivity: 'base' }", "replacement": "{}",
+    "reason": "Only changes the A-Z order of names that differ just in accents (Ole, Olé). Not worth a test."
+  }
+]
