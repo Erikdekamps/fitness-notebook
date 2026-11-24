@@ -476,7 +476,7 @@ button {
   touch-action: none;
 }
 
-.row.is-moving { z-index: 2; }
+.row.is-moving { z-index: 2; clip-path: none; }
 .row.is-moving > .row-content { background: var(--paper); box-shadow: 0 4px 12px rgba(70, 45, 20, .18); }
 .row.is-shifting { transition: transform .15s var(--ease); }
 
@@ -775,6 +775,7 @@ button {
   const OPEN_OFFSET_PX = DELETE_WIDTH_PX + RULE_INSET_PX; // how far a row slides to show Delete
   const FULL_SWIPE = 0.55;      // drag this share of the row to delete in one go
   const UNDO_MS = 5000;
+  const HOLD_MS = 450;          // hold a line this long to pick it up and move it
   const PREVIEW_ID = '__preview__';
   const BLANK_ROW = '<div class="blank" aria-hidden="true"></div>';
 
@@ -789,7 +790,7 @@ button {
     handle: svg(22, 14, 2.2, '<path d="M2 3h18M2 11h18"/>'),
   };
 
-  FN.config = { STORAGE_KEY, PREFS_KEY, TIMER_KEY, DAY_NAMES, MONTH_NAMES, MONTH_SHORT, KG_STEP, KG_MAX, SETS, REPS, FIRST_TIME_VALUES, YEARS_BACK, REST_TIMES_S, DEFAULT_PREFS, WHEEL_ITEM_PX, DELETE_WIDTH_PX, RULE_INSET_PX, OPEN_OFFSET_PX, FULL_SWIPE, UNDO_MS, PREVIEW_ID, BLANK_ROW, svg, Icons };
+  FN.config = { STORAGE_KEY, PREFS_KEY, TIMER_KEY, DAY_NAMES, MONTH_NAMES, MONTH_SHORT, KG_STEP, KG_MAX, SETS, REPS, FIRST_TIME_VALUES, YEARS_BACK, REST_TIMES_S, DEFAULT_PREFS, WHEEL_ITEM_PX, DELETE_WIDTH_PX, RULE_INSET_PX, OPEN_OFFSET_PX, FULL_SWIPE, UNDO_MS, HOLD_MS, PREVIEW_ID, BLANK_ROW, svg, Icons };
 })(globalThis.FN = globalThis.FN || {});
 </script>
 
@@ -1544,6 +1545,25 @@ button {
       this.lines.splice(index + 1, 0, line);
       this.save();
       return line;
+    }
+
+    /**
+     * Moves a line to place `to` among the lines of its own day (0 is right under the date), never past the ends.
+     * A line never leaves its day, and a date line never moves. False when there is no such line or it is a date.
+     */
+    moveLine(id, to) {
+      const index = this.lines.findIndex((l) => l.id === id);
+      if (index === -1 || this.lines[index].type === 'date') return false;
+      let start = index;
+      while (start > 0 && this.lines[start - 1].type !== 'date') start--;
+      let end = index + 1;
+      while (end < this.lines.length && this.lines[end].type !== 'date') end++;
+      const place = clamp(to, 0, end - start - 1);
+      if (place === index - start) return true;
+      const [line] = this.lines.splice(index, 1);
+      this.lines.splice(start + place, 0, line);
+      this.save();
+      return true;
     }
 
     /**
@@ -2490,6 +2510,12 @@ button {
       if (!x) row.classList.remove('is-armed');
     }
 
+    /** Stops the gesture that is going on and the click it would end in: someone else (moving a line) took over. */
+    cancelGesture() {
+      this.gesture = null;
+      this.swallowClick = true;
+    }
+
     closeOpenRow() {
       if (!this.openRow) return;
       this.slide(this.openRow, 0, true);
@@ -3078,9 +3104,12 @@ button {
 /**
  * The notebook screen: the written lines, and the empty paper below them.
  * The first empty line adds a line; anywhere below it starts a new date.
+ * Hold a line still for a moment to pick it up, then drag it up or down: it moves within its own day.
  */
 (function (FN) {
   'use strict';
+  const { HOLD_MS } = FN.config;
+  const { clamp } = FN.util;
   const { byId, scrollToBottom } = FN.dom;
   const { Progress } = FN.progress;
   const { LineMarkup } = FN.lineMarkup;
@@ -3102,6 +3131,8 @@ button {
       this.filler = byId('notebookFiller');
       this.todayBtn = byId('todayBtn');
       this.busy = false; // a panel is open
+      this.hold = null; // a finger held still on a line, waiting to pick it up
+      this.drag = null; // a line picked up, following the finger
       this.lineEditor = new LineEditor({ notebook, sheet, page: this, timer });
       this.dateEditor = new DateEditor({ notebook, sheet, page: this });
       this.listen();
@@ -3242,6 +3273,92 @@ button {
       });
     }
 
+    /* ---- Moving a line up or down in its day ---- */
+
+    /** The rows of a line's day without its date: the rows it can move among. */
+    dayRows(row) {
+      const rows = [row];
+      const movable = (r) => r && r.matches('.row:not(.row--date)');
+      for (let r = row.previousElementSibling; movable(r); r = r.previousElementSibling) rows.unshift(r);
+      for (let r = row.nextElementSibling; movable(r); r = r.nextElementSibling) rows.push(r);
+      return rows;
+    }
+
+    /** A finger held still on a line for a moment picks it up. Moving first is a scroll or a swipe instead. */
+    startHold(e) {
+      this.cancelHold();
+      if (this.busy || this.drag || (e.pointerType === 'mouse' && e.button !== 0)) return;
+      const row = e.target.closest('.row');
+      if (!row || row.matches('.row--date, .is-removing') || e.target.closest('.row-delete')) return;
+      if (row.querySelector('.row-content').style.transform) return; // slid open to show Delete
+      const timer = setTimeout(() => this.pickUp(), HOLD_MS);
+      this.hold = { row, pointerId: e.pointerId, x: e.clientX, y: e.clientY, timer };
+    }
+
+    cancelHold() {
+      if (this.hold) clearTimeout(this.hold.timer);
+      this.hold = null;
+    }
+
+    pickUp() {
+      const { row, pointerId, y } = this.hold;
+      this.hold = null;
+      const rows = this.dayRows(row);
+      if (rows.length < 2) return; // alone in its day: nowhere to go
+      this.swipeRows.cancelGesture();
+      try { row.setPointerCapture(pointerId); } catch (_) { /* pointer already released */ }
+      const from = rows.indexOf(row);
+      this.drag = { row, rows, from, to: from, startY: y, pointerId, tops: rows.map((r) => r.offsetTop), heights: rows.map((r) => r.offsetHeight) };
+      row.classList.add('is-moving');
+      if (navigator.vibrate) navigator.vibrate(10);
+    }
+
+    moveDrag(e) {
+      const h = this.hold;
+      if (h && e.pointerId === h.pointerId && Math.hypot(e.clientX - h.x, e.clientY - h.y) > 8) this.cancelHold();
+      const d = this.drag;
+      if (!d || e.pointerId !== d.pointerId) return;
+      const { rows, from, tops, heights } = d;
+      const last = rows.length - 1;
+      const size = heights[from];
+      const dy = clamp(e.clientY - d.startY, tops[0] - tops[from], tops[last] + heights[last] - tops[from] - size);
+      const middle = tops[from] + dy + size / 2;
+      let to = from;
+      // A line pushed all the way to the end sits right on the middle of the last place: that counts as there.
+      for (let i = from + 1; i <= last; i++) if (middle >= tops[i] + heights[i] / 2) to = i;
+      for (let i = from - 1; i >= 0; i--) if (middle <= tops[i] + heights[i] / 2) to = i;
+      d.to = to;
+      d.row.style.transform = `translateY(${dy}px)`;
+      rows.forEach((other, i) => { // the rows in between step aside
+        if (other === d.row) return;
+        const shift = i > from && i <= to ? -size : i < from && i >= to ? size : 0;
+        other.classList.add('is-shifting');
+        other.style.transform = shift ? `translateY(${shift}px)` : '';
+      });
+    }
+
+    endDrag(e) {
+      if (this.hold && e.pointerId === this.hold.pointerId) this.cancelHold();
+      const d = this.drag;
+      if (!d || e.pointerId !== d.pointerId) return;
+      this.drag = null;
+      if (e.type === 'pointerup' && d.to !== d.from) this.notebook.moveLine(d.row.dataset.key, d.to);
+      this.render();
+    }
+
+    /** Alt with arrow up or down moves the focused line one place in its day. */
+    moveWithKey(e) {
+      const step = { ArrowUp: -1, ArrowDown: 1 }[e.key];
+      const row = e.target;
+      if (!e.altKey || !step || this.busy || !row.matches('.row:not(.row--date)')) return;
+      e.preventDefault();
+      const key = row.dataset.key;
+      this.notebook.moveLine(key, this.dayRows(row).indexOf(row) + step);
+      this.render();
+      const moved = this.linesEl.querySelector(`.row[data-key="${CSS.escape(key)}"]`);
+      if (moved) moved.focus();
+    }
+
     /* ---- Back to today ---- */
 
     updateTodayButton() {
@@ -3262,10 +3379,19 @@ button {
         if (!this.busy) this.openDateEditor(null);
       });
 
-      new SwipeRows(this.linesEl, {
+      this.swipeRows = new SwipeRows(this.linesEl, {
         onTap: (row) => this.tapLine(row),
         onDelete: (row) => this.removeLine(row.dataset.key),
       });
+
+      this.linesEl.addEventListener('pointerdown', (e) => this.startHold(e));
+      this.linesEl.addEventListener('pointermove', (e) => this.moveDrag(e));
+      this.linesEl.addEventListener('pointerup', (e) => this.endDrag(e));
+      this.linesEl.addEventListener('pointercancel', (e) => this.endDrag(e));
+      this.linesEl.addEventListener('keydown', (e) => this.moveWithKey(e));
+      // While a line is picked up the page must not scroll, and a long press must not open a menu.
+      this.linesEl.addEventListener('touchmove', (e) => { if (this.drag) e.preventDefault(); }, { passive: false });
+      this.linesEl.addEventListener('contextmenu', (e) => { if (this.hold || this.drag) e.preventDefault(); });
 
       this.todayBtn.addEventListener('click', () => scrollToBottom(true));
     }
