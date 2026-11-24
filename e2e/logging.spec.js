@@ -47,6 +47,23 @@ test('write a line of your own', async ({ page }) => {
   expect(await lastDay(page)).toEqual(['Bike 15 min']);
 });
 
+test('Enter in the text field logs the line, like the button', async ({ page }) => {
+  await startDate(page);
+  await page.getByRole('button', { name: 'tap to add a line' }).click();
+  await page.getByRole('textbox', { name: 'Write your own line' }).fill('Stretch 5 min');
+  await page.getByRole('textbox', { name: 'Write your own line' }).press('Enter');
+  await expect(sheet(page)).not.toHaveClass(/is-open/);
+  expect(await lastDay(page)).toEqual(['Stretch 5 min']);
+});
+
+test('Enter on a wheel logs the set', async ({ page }) => {
+  await startDate(page);
+  await page.getByRole('button', { name: 'tap to add a line' }).click();
+  await pick(page, 'Machine', 'Fly');
+  await page.getByRole('spinbutton', { name: 'Machine', exact: true }).press('Enter');
+  expect(await lastDay(page)).toEqual(['Fly']);
+});
+
 test('change a line: other reps, then Save', async ({ page }) => {
   await row(page, 'Seated row').click();
   await expect(sheet(page)).toHaveClass(/is-open/);

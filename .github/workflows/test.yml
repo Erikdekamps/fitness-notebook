@@ -1,4 +1,5 @@
-# Runs every test level on every pull request. All four must pass.
+# Runs every test level on every pull request. All of them must pass;
+# the "test" job at the end sums them up in one check.
 #
 #   unit       the logic in index.html, in Node. Nothing to install.
 #   browser    the app in Chromium (desktop and phone), then the CRAP check over both levels' coverage
@@ -23,10 +24,10 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out the repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22
 
@@ -38,10 +39,10 @@ jobs:
     timeout-minutes: 15
     steps:
       - name: Check out the repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -60,7 +61,7 @@ jobs:
 
       - name: Keep the reports
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: browser-reports
           path: |
@@ -73,10 +74,10 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Check out the repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Set up Node
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: npm
@@ -89,8 +90,22 @@ jobs:
 
       - name: Keep the report
         if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: mutation-report
           path: reports/mutation/
           retention-days: 14
+
+  # One check that sums up the three above. Branch protection requires "test",
+  # so the jobs above can change without changing that rule.
+  test:
+    needs: [unit, browser, mutation]
+    if: ${{ always() }}
+    runs-on: ubuntu-latest
+    steps:
+      - name: All test levels passed
+        run: |
+          echo "unit: ${{ needs.unit.result }}, browser: ${{ needs.browser.result }}, mutation: ${{ needs.mutation.result }}"
+          test "${{ needs.unit.result }}" = success
+          test "${{ needs.browser.result }}" = success
+          test "${{ needs.mutation.result }}" = success
