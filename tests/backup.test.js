@@ -230,3 +230,8 @@ test('parse: a file without a version number is refused, never half-read', () =>
   assert.ok(Backup.parse(JSON.stringify({ ...file, version: '1' })).error);
   assert.equal(Backup.parse(JSON.stringify(file)).data, undefined);
 });
+
+test('cleanLine: a line without an id gets one that starts with l, whatever the clock says', (t) => {
+  t.mock.method(Date, 'now', () => 0); // Date.now() in base 36 would otherwise start with "m"
+  assert.match(Backup.cleanLine({ type: 'text', text: 'Bike' }).id, /^l0/);
+});

@@ -79,6 +79,14 @@ test('replaceLine: same id and place, new contents', () => {
   assert.equal(saved.count, 1);
 });
 
+test('hasExamples: true while any demo line is left, even among lines of your own', () => {
+  const notebook = new Notebook(Notebook.exampleData());
+  notebook.addLine(text('mine', 'my line'));
+  assert.equal(notebook.hasExamples(), true);
+  notebook.removeExamples();
+  assert.equal(notebook.hasExamples(), false);
+});
+
 test('replaceLine: drops the example mark, so a changed demo line becomes yours', () => {
   const notebook = new Notebook({ version: 1, machines: [], lines: [{ ...text('t', 'demo'), example: true }] });
   notebook.replaceLine('t', { type: 'text', text: 'mine now' });
@@ -124,6 +132,25 @@ test('addMachine: cleans the name; re-adding a removed machine picks its history
   assert.equal(notebook.addMachine('  Hip   thrust ').name, 'Hip thrust');
   notebook.removeMachine('m-leg');
   assert.equal(notebook.addMachine('leg press').id, 'm-leg');
+});
+
+test('addMachine: a new name gets an id of its own, never that of a removed machine with another name', () => {
+  const { notebook } = makeNotebook();
+  notebook.removeMachine('m-leg'); // its line stays, pointing at a machine that is gone
+  const rowing = notebook.addMachine('Rowing');
+  assert.ok(rowing.id.startsWith('m'));
+  assert.ok(![undefined, 'm-leg', 'm-chest'].includes(rowing.id));
+  assert.equal(notebook.machine(rowing.id), rowing);
+});
+
+test('addMachine: picks up the most recent history of that name, and pencil lines are no history', () => {
+  const line = (id, type, machineId) => ({ id, type, machineId, name: 'Leg press', weight: 80, sets: 3, reps: 12 });
+  const notebook = new Notebook({
+    version: 1,
+    machines: [],
+    lines: [line('l1', 'machine', 'm-old'), line('l2', 'machine', 'm-new'), { id: 'p1', type: 'plan', machineId: 'm-pencil', name: 'Leg press' }],
+  });
+  assert.equal(notebook.addMachine('Leg press').id, 'm-new');
 });
 
 test('renameMachine: old lines keep the name they were written with', () => {
@@ -201,6 +228,42 @@ test('exampleData: twelve machines, each with its own id and name, and no plans'
   assert.deepEqual(data.plans, []);
 });
 
+test('exampleData: machine ids are "m-" and the name, the ids older notebooks use, listed A to Z', () => {
+  const { machines } = Notebook.exampleData();
+  for (const m of machines) {
+    assert.ok(m.name.length > 0);
+    assert.equal(m.id, 'm-' + m.name.toLowerCase().replaceAll(' ', '-'));
+  }
+  assert.deepEqual(Notebook.sortMachines(machines), machines);
+  assert.equal(machines[0].name, 'Abdominal');
+  assert.equal(machines.at(-1).name, 'Triceps press');
+});
+
+test('exampleData: five example days in date order, each a date, a ride, then machines', () => {
+  const { lines } = Notebook.exampleData();
+  assert.ok(lines.every((l) => l.example === true && l.id.startsWith('l')));
+  assert.ok(lines.every((l) => ['date', 'text', 'machine'].includes(l.type)));
+  const dates = lines.filter((l) => l.type === 'date').map((l) => l.date);
+  assert.ok(dates.every((d) => /^\d{4}-\d{2}-\d{2}$/.test(d)));
+  assert.deepEqual(dates, [...new Set(dates)].sort());
+  assert.ok(dates.at(-1) < '2026-11-23'); // all before "today" in the design pictures
+  lines.forEach((l, i) => {
+    if (l.type === 'date') {
+      assert.equal(lines[i + 1].type, 'text');
+      assert.match(lines[i + 1].text, /^Biking Basics New Zealand #\d+$/);
+      assert.equal(lines[i + 2].type, 'machine');
+    }
+  });
+  const rides = lines.filter((l) => l.type === 'text').map((l) => l.text);
+  assert.equal(new Set(rides).size, 5);
+});
+
+test('exampleData: each machine line has the name of the machine it points at', () => {
+  const data = Notebook.exampleData();
+  const notebook = new Notebook(data);
+  for (const l of data.lines.filter((l) => l.type === 'machine')) assert.equal(notebook.machine(l.machineId).name, l.name);
+});
+
 test('ready: data saved before plans existed gets an empty list of plans', () => {
   const { notebook } = makeNotebook();
   assert.deepEqual(notebook.plans, []);
@@ -208,6 +271,17 @@ test('ready: data saved before plans existed gets an empty list of plans', () =>
   assert.deepEqual(notebook.plans, []);
   notebook.reload({ version: 1, machines: [], lines: [] });
   assert.deepEqual(notebook.plans, []);
+});
+
+test('ready: plans that are there are kept, on a new notebook, an import and a reload', () => {
+  const plans = () => [{ id: 'p1', name: 'Leg day', machineIds: [] }];
+  const data = () => ({ version: 1, machines: [], plans: plans(), lines: [] });
+  const notebook = new Notebook(data());
+  assert.deepEqual(notebook.plans, plans());
+  notebook.replaceAll(data());
+  assert.deepEqual(notebook.plans, plans());
+  notebook.reload(data());
+  assert.deepEqual(notebook.plans, plans());
 });
 
 /* ---- Plans ---- */
@@ -256,6 +330,20 @@ test('renamePlan and removePlan: the undo puts the plan back in its place', () =
   undo();
   assert.equal(notebook.plans[0], plan);
   assert.equal(notebook.removePlan('nope'), null);
+});
+
+test('removePlan: the undo of the first of several plans puts it back first', () => {
+  const { notebook, plan } = makePlanned();
+  notebook.addPlan('Arms');
+  notebook.addPlan('Back');
+  const undo = notebook.removePlan(plan.id);
+  undo();
+  assert.deepEqual(notebook.plans.map((p) => p.name), ['Leg day', 'Arms', 'Back']);
+});
+
+test('planMachines: a plan that is gone has no machines', () => {
+  const { notebook } = makePlanned();
+  assert.deepEqual(notebook.planMachines('nope'), []);
 });
 
 test('addPlanMachine: at the end, each machine once, and only machines that exist', () => {
@@ -314,6 +402,7 @@ test('startDay: without a plan it writes only the date', () => {
   assert.equal(notebook.lines.at(-1), dateLine);
   assert.deepEqual({ type: dateLine.type, date: dateLine.date }, { type: 'date', date: '2026-11-23' });
   assert.ok(!('plan' in dateLine));
+  assert.ok(dateLine.id.startsWith('l'));
   assert.equal(notebook.lines.length, 3);
   assert.equal(saved.count, 1);
 });
@@ -331,6 +420,7 @@ test('startDay: with a plan it writes the date with the name after it, and a pen
   ]);
   assert.ok(planLines.every((l) => !('weight' in l) && !('sets' in l) && !('reps' in l)));
   assert.equal(new Set(notebook.lines.map((l) => l.id)).size, notebook.lines.length);
+  assert.ok(day.every((l) => l.id.startsWith('l')));
   assert.equal(saved.count, 1);
 });
 
@@ -373,6 +463,8 @@ test('addLineAfter: right under a line; at the bottom when that line is gone', (
   const { notebook, saved } = makeNotebook();
   notebook.addLine(text('t1', 'last'));
   const under = notebook.addLineAfter('l1', leg(80, 10));
+  assert.deepEqual(notebook.line(under.id), { id: under.id, ...leg(80, 10) });
+  assert.ok(under.id.startsWith('l'));
   assert.deepEqual(notebook.lines.map((l) => l.id), ['d1', 'l1', under.id, notebook.lines.at(-1).id]);
   assert.equal(notebook.lines.at(-1).text, 'last');
   const bottom = notebook.addLineAfter('nope', text('x', 'end'));
@@ -422,6 +514,12 @@ test('moveLine: the same place saves nothing; a date or a missing line does not 
   assert.deepEqual(ids(notebook), ['d1', 'a', 'b', 'c', 'd2', 'x']);
 });
 
+test('moveLine: lines above the first date move among themselves', () => {
+  const notebook = new Notebook({ version: 1, machines: [], lines: [text('a', 'A'), text('b', 'B'), date('d1', '2026-11-16'), text('x', 'X')] });
+  assert.equal(notebook.moveLine('b', 0), true);
+  assert.deepEqual(ids(notebook), ['b', 'a', 'd1', 'x']);
+});
+
 test('moveLine: a written line on a plan day goes above the pencil lines', () => {
   const { notebook } = makeNotebook();
   notebook.addPlan('Leg day');
@@ -431,4 +529,12 @@ test('moveLine: a written line on a plan day goes above the pencil lines', () =>
   const bike = notebook.addLine({ type: 'text', text: 'Bike 15 min' });
   notebook.moveLine(bike.id, 0);
   assert.deepEqual(notebook.lines.slice(2).map((l) => l.type), ['date', 'text', 'plan']);
+});
+
+test('new ids start with their kind, whatever the clock says: m for a machine, l for a line', (t) => {
+  // Date.now() in base 36 starts with "m" until about 2029, which would hide a missing prefix.
+  t.mock.method(Date, 'now', () => 0);
+  const { notebook } = makeNotebook();
+  assert.match(notebook.addMachine('Hip thrust').id, /^m0/);
+  assert.match(notebook.addLine({ type: 'text', text: 'Bike' }).id, /^l0/);
 });
