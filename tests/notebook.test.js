@@ -538,3 +538,66 @@ test('new ids start with their kind, whatever the clock says: m for a machine, l
   assert.match(notebook.addMachine('Hip thrust').id, /^m0/);
   assert.match(notebook.addLine({ type: 'text', text: 'Bike' }).id, /^l0/);
 });
+
+/* ---- Every change is saved ---- */
+
+/**
+ * A notebook that remembers what it saved last, as text, so a change made after a save shows up as a difference.
+ * After every change, and after its undo, what was saved must be the notebook as it now is:
+ * a change that is not saved is gone after a reload.
+ */
+function makeWatched() {
+  const watched = { saved: null };
+  const data = {
+    version: 1,
+    machines: [{ id: 'm-leg', name: 'Leg press' }, { id: 'm-chest', name: 'Chest press' }],
+    plans: [{ id: 'p-legs', name: 'Leg day', machineIds: ['m-leg', 'm-chest'] }],
+    lines: [
+      { id: 'd0', type: 'date', date: '2026-11-14', example: true },
+      { id: 'x0', type: 'text', text: 'Example ride', example: true },
+      { id: 'd1', type: 'date', date: '2026-11-16', plan: 'Leg day' },
+      { id: 'l1', type: 'machine', machineId: 'm-leg', name: 'Leg press', weight: 80, sets: 3, reps: 12 },
+      { id: 't1', type: 'text', text: 'Bike 15 min' },
+    ],
+  };
+  watched.notebook = new Notebook(data, { onSave: (saved) => { watched.saved = JSON.stringify(saved); } });
+  return watched;
+}
+
+const CHANGES = {
+  removeDay: (n) => n.removeDay('d1'),
+  addMachine: (n) => n.addMachine('Hip thrust'),
+  renameMachine: (n) => n.renameMachine('m-leg', 'Leg press 45'),
+  removeMachine: (n) => n.removeMachine('m-chest'),
+  addPlan: (n) => n.addPlan('Arms'),
+  renamePlan: (n) => n.renamePlan('p-legs', 'Legs'),
+  removePlan: (n) => n.removePlan('p-legs'),
+  addPlanMachine: (n) => n.addPlanMachine('p-legs', n.addMachine('Hip thrust').id),
+  removePlanMachine: (n) => n.removePlanMachine('p-legs', 'm-leg'),
+  movePlanMachine: (n) => n.movePlanMachine('p-legs', 'm-chest', 0),
+  removeExamples: (n) => n.removeExamples(),
+  replaceAll: (n) => n.replaceAll({ version: 1, machines: [], plans: [], lines: [] }),
+  moveLine: (n) => n.moveLine('t1', 0),
+  addLine: (n) => n.addLine({ type: 'text', text: 'Bike' }),
+  removeLine: (n) => n.removeLine('l1'),
+};
+
+for (const [name, change] of Object.entries(CHANGES)) {
+  test(`${name}: the change is saved, and so is its undo`, () => {
+    const watched = makeWatched();
+    const { notebook } = watched;
+    const before = JSON.stringify(notebook.data);
+    watched.saved = null;
+
+    const undo = change(notebook);
+    assert.notEqual(JSON.stringify(notebook.data), before, 'the change changed something');
+    assert.equal(watched.saved, JSON.stringify(notebook.data), 'saved after the change');
+
+    if (typeof undo === 'function') {
+      watched.saved = null;
+      undo();
+      assert.equal(JSON.stringify(notebook.data), before, 'the undo puts it back');
+      assert.equal(watched.saved, before, 'saved after the undo');
+    }
+  });
+}
