@@ -1185,6 +1185,26 @@ button {
   const { Calendar } = FN.calendar;
 
   const isCount = (n) => Number.isFinite(n) && n >= 0;
+  const isString = (s) => typeof s === 'string';
+
+  /** Per type of line: the fields a line of that type keeps, or null when it cannot be used. */
+  const LINE_FIELDS = {
+    date(line) {
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(line.date)) return null;
+      const plan = isString(line.plan) ? cleanName(line.plan) : '';
+      return plan ? { date: line.date, plan } : { date: line.date };
+    },
+    text(line) {
+      return isString(line.text) && line.text.trim() ? { text: line.text.trim() } : null;
+    },
+    machine({ machineId, name, weight, sets, reps }) {
+      if (!isString(machineId) || !isString(name) || !isCount(weight) || !isCount(sets) || !isCount(reps)) return null;
+      return { machineId, name, weight, sets, reps };
+    },
+    plan({ machineId, name }) {
+      return isString(machineId) && isString(name) && name.trim() ? { machineId, name } : null;
+    },
+  };
   const count = (n, word) => `${n} ${word}${n === 1 ? '' : 's'}`;
 
   const Backup = {
@@ -1216,26 +1236,11 @@ button {
 
     /** A line with only the fields this app knows, or null when it cannot be used. */
     cleanLine(line) {
-      if (!line) return null;
-      const id = typeof line.id === 'string' && line.id ? line.id : newId('l');
-      if (line.type === 'date' && /^\d{4}-\d{2}-\d{2}$/.test(line.date)) {
-        const plan = typeof line.plan === 'string' ? cleanName(line.plan) : '';
-        return plan ? { id, type: 'date', date: line.date, plan } : { id, type: 'date', date: line.date };
-      }
-      if (line.type === 'text' && typeof line.text === 'string' && line.text.trim()) return { id, type: 'text', text: line.text.trim() };
-      if (
-        line.type === 'machine' &&
-        typeof line.machineId === 'string' &&
-        typeof line.name === 'string' &&
-        isCount(line.weight) && isCount(line.sets) && isCount(line.reps)
-      ) {
-        const { machineId, name, weight, sets, reps } = line;
-        return { id, type: 'machine', machineId, name, weight, sets, reps };
-      }
-      if (line.type === 'plan' && typeof line.machineId === 'string' && typeof line.name === 'string' && line.name.trim()) {
-        return { id, type: 'plan', machineId: line.machineId, name: line.name };
-      }
-      return null;
+      const known = !!line && Object.prototype.hasOwnProperty.call(LINE_FIELDS, line.type);
+      const fields = known ? LINE_FIELDS[line.type](line) : null;
+      if (!fields) return null;
+      const id = isString(line.id) && line.id ? line.id : newId('l');
+      return { id, type: line.type, ...fields };
     },
 
     /** Notebook data as a backup object. `now` is the Date of the export. */
@@ -2753,12 +2758,7 @@ button {
      * or to log the first set of a plan line. `logging`: go on with the machine line just logged.
      */
     open(editing, { logging = false } = {}) {
-      this.editing = editing;
-      this.planLine = editing && editing.type === 'plan' ? editing : null;
-      this.editingMachine = editing && editing.type === 'machine' ? editing : null;
-      this.logging = logging && !!this.editingMachine;
-      this.fixing = !!editing && !this.planLine && !this.logging; // a real change: the button says Save
-      this.fixingMachine = this.fixing ? this.editingMachine : null;
+      this.setMode(editing, logging);
       this.shownOn = null; // the bottom line, while it shows one more set in pencil
       this.machines = this.pickableMachines();
       this.latest = Progress.analyzeLines(this.notebook.lines).latest;
@@ -2766,39 +2766,20 @@ button {
 
       const hasWheels = this.machines.length > 0;
       const machineIndex = this.startMachineIndex();
-      const start = this.editingMachine || (hasWheels ? this.lastTime(this.machines[machineIndex]) : FIRST_TIME_VALUES);
+      const start = this.startValues(hasWheels, machineIndex);
       this.settledIndex = machineIndex;
       this.kgList = Progress.kgOptions(start.weight);
 
-      // After a set in a plan's day, the second button goes to the next machine that is still in pencil.
-      const upNext = this.logging ? Progress.plannedInDay(this.notebook.lines, editing.id)[0] || null : null;
-      const nextButton = this.logging
-        ? {
-            otherLabel: upNext ? `Next: ${upNext.name}` : 'Done',
-            onOther: () => {
-              this.shownOn = null;
-              this.page.done({ keepRoom: !!upNext });
-              if (upNext) this.page.openLineEditor(upNext);
-            },
-          }
-        : {};
-
       this.wheels = this.sheet.open({
         title: this.fixing ? 'Change this line' : editing ? 'Log a set' : 'Add a line',
-        ...nextButton,
+        ...this.nextButton(),
         text: {
           value: editing && editing.type === 'text' ? editing.text : '',
           placeholder: hasWheels ? 'or write your own line' : 'write a line',
         },
         columns: 'minmax(0, 1fr) 64px 48px',
         labels: [{ text: 'Machine', left: true }, { text: 'kg' }, { text: 'reps' }],
-        wheels: hasWheels
-          ? [
-              { label: 'Machine', align: 'left', items: this.machines.map((m) => m.name), index: machineIndex },
-              { label: 'Weight in kg', items: this.kgList.map(formatKg), index: indexOr(this.kgList, round2(start.weight)) },
-              { label: 'Reps', items: REPS.map(String), index: indexOr(REPS, start.reps, REPS_FALLBACK) },
-            ]
-          : [],
+        wheels: hasWheels ? this.wheelSpecs(machineIndex, start) : [],
         actionLabel: this.fixing ? 'Save' : 'Log',
         onChange: () => this.preview(),
         onSettle: (i) => { if (i === 0) this.followMachine(); },
@@ -2810,6 +2791,45 @@ button {
       });
       this.preview();
       this.page.makeRoom(editing, this.logging ? 'log' : 'line');
+    }
+
+    /** What the panel is for: a new line, a change, the first set of a plan line, or the next set (`logging`). */
+    setMode(editing, logging) {
+      this.editing = editing;
+      this.planLine = editing && editing.type === 'plan' ? editing : null;
+      this.editingMachine = editing && editing.type === 'machine' ? editing : null;
+      this.logging = logging && !!this.editingMachine;
+      this.fixing = !!editing && !this.planLine && !this.logging; // a real change: the button says Save
+      this.fixingMachine = this.fixing ? this.editingMachine : null;
+    }
+
+    /** The kg and reps the wheels start on: the line's own, else the last time of the machine, else a first-time guess. */
+    startValues(hasWheels, machineIndex) {
+      if (this.editingMachine) return this.editingMachine;
+      return hasWheels ? this.lastTime(this.machines[machineIndex]) : FIRST_TIME_VALUES;
+    }
+
+    /** After a set in a plan's day, a second button goes to the next machine that is still in pencil, or says Done. */
+    nextButton() {
+      if (!this.logging) return {};
+      const upNext = Progress.plannedInDay(this.notebook.lines, this.editing.id)[0] || null;
+      return {
+        otherLabel: upNext ? `Next: ${upNext.name}` : 'Done',
+        onOther: () => {
+          this.shownOn = null;
+          this.page.done({ keepRoom: !!upNext });
+          if (upNext) this.page.openLineEditor(upNext);
+        },
+      };
+    }
+
+    /** The machine, kg and reps wheels. */
+    wheelSpecs(machineIndex, start) {
+      return [
+        { label: 'Machine', align: 'left', items: this.machines.map((m) => m.name), index: machineIndex },
+        { label: 'Weight in kg', items: this.kgList.map(formatKg), index: indexOr(this.kgList, round2(start.weight)) },
+        { label: 'Reps', items: REPS.map(String), index: indexOr(REPS, start.reps, REPS_FALLBACK) },
+      ];
     }
 
     /** The machines on the wheel, A to Z. A machine removed in settings stays pickable for its own old line. */
@@ -2946,24 +2966,30 @@ button {
       this.preview();
     }
 
+    /** Writes what the panel shows. Returns the machine line a set was just logged on, or null. */
+    write(next) {
+      const setLine = this.setLineFor(next);
+      if (setLine) return this.notebook.addSet(setLine.id);
+      if (!next) return null;
+      const editing = this.editing;
+      const isSet = next.type === 'machine';
+      if (this.logging) {
+        const line = this.notebook.addLineAfter(editing.id, next);
+        return isSet ? line : null;
+      }
+      if (editing) {
+        this.notebook.replaceLine(editing.id, next);
+        return this.planLine && isSet ? this.notebook.line(editing.id) : null; // the pencil line is now in pen, with 1 set
+      }
+      if (isSet) return this.notebook.logSet(next);
+      this.notebook.addLine(next);
+      return null;
+    }
+
     commit() {
       const next = this.fields();
-      const setLine = this.setLineFor(next);
       const editing = this.editing;
-      let logged = null; // the machine line a set was just logged on
-      if (setLine) {
-        logged = this.notebook.addSet(setLine.id);
-      } else if (next && this.logging) {
-        const line = this.notebook.addLineAfter(editing.id, next);
-        if (next.type === 'machine') logged = line;
-      } else if (next && editing) {
-        this.notebook.replaceLine(editing.id, next);
-        if (this.planLine && next.type === 'machine') logged = this.notebook.line(editing.id); // the pencil line is now in pen, with 1 set
-      } else if (next && next.type === 'machine') {
-        logged = this.notebook.logSet(next);
-      } else if (next) {
-        this.notebook.addLine(next);
-      }
+      const logged = this.write(next);
       if (logged) this.timer.start();
       this.shownOn = null;
 
