@@ -379,3 +379,56 @@ test('addLineAfter: right under a line; at the bottom when that line is gone', (
   assert.equal(notebook.lines.at(-1), bottom);
   assert.equal(saved.count, 3);
 });
+
+/* ---- Moving a line within its day ---- */
+
+/** Two days: d1 with a, b, c under it, and d2 with x under it. */
+function makeTwoDays() {
+  const saved = { count: 0 };
+  const data = {
+    version: 1,
+    machines: [],
+    lines: [date('d1', '2026-11-16'), text('a', 'A'), text('b', 'B'), text('c', 'C'), date('d2', '2026-11-18'), text('x', 'X')],
+  };
+  return { notebook: new Notebook(data, { onSave: () => { saved.count++; } }), saved };
+}
+const ids = (notebook) => notebook.lines.map((l) => l.id);
+
+test('moveLine: to a place in its day, 0 is right under the date', () => {
+  const { notebook, saved } = makeTwoDays();
+  assert.equal(notebook.moveLine('c', 0), true);
+  assert.deepEqual(ids(notebook), ['d1', 'c', 'a', 'b', 'd2', 'x']);
+  notebook.moveLine('c', 1);
+  assert.deepEqual(ids(notebook), ['d1', 'a', 'c', 'b', 'd2', 'x']);
+  assert.equal(saved.count, 2);
+});
+
+test('moveLine: never leaves its day', () => {
+  const { notebook } = makeTwoDays();
+  notebook.moveLine('a', 99);
+  assert.deepEqual(ids(notebook), ['d1', 'b', 'c', 'a', 'd2', 'x']);
+  notebook.moveLine('a', -5);
+  assert.deepEqual(ids(notebook), ['d1', 'a', 'b', 'c', 'd2', 'x']);
+  notebook.moveLine('x', 0);
+  assert.deepEqual(ids(notebook), ['d1', 'a', 'b', 'c', 'd2', 'x']);
+});
+
+test('moveLine: the same place saves nothing; a date or a missing line does not move', () => {
+  const { notebook, saved } = makeTwoDays();
+  assert.equal(notebook.moveLine('b', 1), true);
+  assert.equal(saved.count, 0);
+  assert.equal(notebook.moveLine('d2', 0), false);
+  assert.equal(notebook.moveLine('nope', 0), false);
+  assert.deepEqual(ids(notebook), ['d1', 'a', 'b', 'c', 'd2', 'x']);
+});
+
+test('moveLine: a written line on a plan day goes above the pencil lines', () => {
+  const { notebook } = makeNotebook();
+  notebook.addPlan('Leg day');
+  const plan = notebook.plans[0];
+  notebook.addPlanMachine(plan.id, 'm-leg');
+  notebook.startDay('2026-11-23', plan.id);
+  const bike = notebook.addLine({ type: 'text', text: 'Bike 15 min' });
+  notebook.moveLine(bike.id, 0);
+  assert.deepEqual(notebook.lines.slice(2).map((l) => l.type), ['date', 'text', 'plan']);
+});

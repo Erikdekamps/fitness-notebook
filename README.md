@@ -53,6 +53,7 @@ A plan is a named list of machines in the order you do them, such as "Leg day". 
 - A new date can start from a plan. The plan's name is written after the date in brackets, its machines under it in pencil, and the panel opens on the first one.
 - Logging the first set turns a pencil line into pen. After each set the panel comes back for the next set, with a button to the next machine.
 - Dragging the date of such a day left removes the whole day: the date and every line under it. Undo brings it back.
+- Hold a line still for a moment to pick it up, then drag it up or down. It moves within its own day, so you can put a line you wrote (such as your cardio) above the plan's machines. With a keyboard: Alt with arrow up or down.
 - A pencil line never counts in the statistics. Pencil lines you did not log are thrown away when you start the next date.
 
 ## Other folders
