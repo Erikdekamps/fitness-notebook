@@ -10,6 +10,11 @@ test('days: iso and parts', () => {
   assert.match(Calendar.today(), /^\d{4}-\d{2}-\d{2}$/);
 });
 
+test('today: the local date of right now', () => {
+  const { y, m, d } = Calendar.parts(Calendar.today());
+  assert.equal(new Date(y, m - 1, d).toDateString(), new Date().toDateString());
+});
+
 test('days: days in a month, leap years', () => {
   assert.equal(Calendar.daysInMonth(2026, 2), 28);
   assert.equal(Calendar.daysInMonth(2028, 2), 29);
