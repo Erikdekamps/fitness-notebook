@@ -21,10 +21,10 @@ async function expectLooksLike(page, name) {
   await expect(page).toHaveScreenshot(`${name}.png`);
 }
 
-// Not on the Pixel: Chrome's phone mode draws text edges a little differently on GitHub's machines than
-// anywhere else (1-2% of the pixels, every run). The iPhone covers the phone layout, desktop Chrome covers
-// Chrome's drawing; the Pixel still runs every other browser test.
-test.skip(({ isMobile, browserName }) => isMobile && browserName === 'chromium', 'Pixel screenshots differ between machines');
+// Not on the iPhone screen in Chrome: Chrome's phone mode draws text edges a little differently on GitHub's
+// machines than anywhere else (1-2% of the pixels, every run). The iPhone in Safari covers the phone layout,
+// desktop Chrome covers Chrome's drawing; this project still runs every other browser test.
+test.skip(({ isMobile, browserName }) => isMobile && browserName === 'chromium', "Chrome's phone mode draws differently between machines");
 
 test.beforeEach(async ({ page }) => {
   await openApp(page);

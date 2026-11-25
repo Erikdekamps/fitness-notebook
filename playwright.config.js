@@ -4,7 +4,8 @@
  *   npm run test:e2e
  *
  * Four projects: Chrome and Safari (WebKit) on a desktop with mouse and keyboard,
- * and on a phone with touch (Pixel 7, iPhone 13).
+ * and on an iPhone 13 screen with touch: once in Chrome, once in Safari.
+ * The Chrome one gets real touch events (the page scrolls under a finger) and records coverage.
  * In Chromium each test also records which code ran, for the CRAP check (tests/crap/crap.js).
  */
 import { defineConfig, devices } from '@playwright/test';
@@ -46,7 +47,7 @@ export default defineConfig({
   },
   projects: [
     { name: 'desktop', use: { ...devices['Desktop Chrome'] } },
-    { name: 'phone', use: { ...devices['Pixel 7'] } },
+    { name: 'iphone-chrome', use: { ...devices['iPhone 13'], defaultBrowserType: 'chromium' } },
     { name: 'safari', use: { ...devices['Desktop Safari'] } },
     { name: 'iphone', use: { ...devices['iPhone 13'] } },
   ],
