@@ -111,3 +111,47 @@ test('two tabs: a change in one shows up in the other', async ({ page, newTab })
   await page.getByRole('switch', { name: /timer after each set/ }).click();
   await expect(other.getByRole('switch', { name: /timer after each set/ })).toHaveAttribute('aria-checked', 'false');
 });
+
+/* ---- Pasting without the keyboard ---- */
+
+/** Opens the "import from text" panel. */
+async function openImportText(page) {
+  await openApp(page);
+  await openSettings(page);
+  await page.getByRole('button', { name: 'import from text' }).click();
+  await expect(sheet(page)).toHaveClass(/is-open/);
+}
+
+test('import from text has a Paste from clipboard button, so no keyboard is needed', async ({ page }) => {
+  await openImportText(page);
+  await expect(page.getByRole('button', { name: 'Paste from clipboard' })).toBeVisible();
+});
+
+test.describe('the clipboard', () => {
+  test.skip(({ browserName }) => browserName !== 'chromium', 'only Chromium lets a test give clipboard permission');
+
+  test('Paste from clipboard fills the field; the backup then imports', async ({ page, browser, watched }, testInfo) => {
+    await openApp(page);
+    await writeMyDay(page);
+    const text = readFileSync(await exportBackup(page, testInfo), 'utf8');
+
+    const fresh = await browser.newContext({ ...testInfo.project.use, permissions: ['clipboard-read', 'clipboard-write'] });
+    const other = await watched(await fresh.newPage());
+    await openImportText(other);
+    await other.evaluate((t) => navigator.clipboard.writeText(t), text);
+    await other.getByRole('button', { name: 'Paste from clipboard' }).click();
+    await expect(other.getByRole('textbox', { name: 'Text of a backup' })).toHaveValue(text);
+
+    await actionButton(other).click(); // Check the text
+    await actionButton(other).click(); // Replace my notebook
+    await backTo(other, 'notebook');
+    await expect.poll(() => lastDay(other)).toEqual(MY_DAY);
+  });
+
+  test('a clipboard the browser will not read: the panel says what to do instead', async ({ page }) => {
+    await openImportText(page); // no permission given
+    await page.getByRole('button', { name: 'Paste from clipboard' }).click();
+    await expect(page.locator('#sheetError')).toHaveText('The clipboard could not be read. Hold the field and choose Paste.');
+    await expect(sheet(page)).toHaveClass(/is-open/);
+  });
+});

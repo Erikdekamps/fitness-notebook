@@ -378,6 +378,7 @@ button {
 }
 
 .sheet-area::placeholder { color: var(--muted); font-family: var(--font-ui); opacity: 1; }
+.sheet-paste { height: 44px; color: var(--pen); font: 600 17px/1 var(--font-ui); } /* fills the big field without the keyboard */
 .sheet-error { margin: 0; padding: 0 8px; color: var(--danger); font-size: 15px; line-height: 20px; }
 .sheet-cols { display: grid; gap: 6px; padding: 0 8px; }
 .sheet-labels { font-size: 13px; color: var(--muted); text-align: center; }
@@ -698,6 +699,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
     </div>
     <input id="sheetText" class="sheet-text" type="text" autocomplete="off" autocapitalize="sentences" enterkeyhint="done" aria-label="Write your own line" hidden>
     <textarea id="sheetArea" class="sheet-area" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" hidden></textarea>
+    <button id="sheetPaste" class="sheet-paste" type="button" hidden>Paste from clipboard</button>
     <p id="sheetError" class="sheet-error" role="alert" hidden></p>
     <button id="sheetAction" class="sheet-action" type="button">Log</button>
     <button id="sheetCancel" class="sheet-cancel" type="button" hidden>Cancel</button>
@@ -2293,6 +2295,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       this.title = byId('sheetTitle');
       this.textField = byId('sheetText');
       this.areaField = byId('sheetArea');
+      this.pasteButton = byId('sheetPaste');
       this.error = byId('sheetError');
       this.labels = byId('sheetLabels');
       this.wheelsEl = byId('sheetWheels');
@@ -2385,6 +2388,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       this.areaField.value = '';
       this.areaField.placeholder = cfg.area ? cfg.area.placeholder : '';
       this.areaField.setAttribute('aria-label', cfg.area ? cfg.area.label : '');
+      this.pasteButton.hidden = !cfg.area || !canReadClipboard();
       this.showError('');
       for (const el of [this.labels, this.wheelsEl]) {
         el.style.gridTemplateColumns = cfg.columns;
@@ -2409,6 +2413,19 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
     cancel() {
       const cfg = this.close();
       if (cfg && cfg.onCancel) cfg.onCancel();
+    }
+
+    /**
+     * Fills the big field with what is on the clipboard, so pasting needs no keyboard.
+     * On a phone the keyboard can cover the field; the browser may also ask first, or refuse.
+     */
+    async pasteIntoArea() {
+      try {
+        this.areaField.value = await navigator.clipboard.readText();
+        this.showError('');
+      } catch (_) {
+        this.showError('The clipboard could not be read. Hold the field and choose Paste.');
+      }
     }
 
     /** Shows what is wrong, above the big button; '' takes the message away. */
@@ -2449,6 +2466,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
     listen() {
       this.action.addEventListener('click', () => this.act());
       this.areaField.addEventListener('input', () => this.showError(''));
+      this.pasteButton.addEventListener('click', () => this.pasteIntoArea());
       this.backdrop.addEventListener('click', () => this.cancel());
       this.cancelButton.addEventListener('click', () => this.other());
 
@@ -2492,6 +2510,11 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
         viewport.addEventListener('scroll', lift);
       }
     }
+  }
+
+  /** Whether this browser lets a page read the clipboard (after a tap, and maybe a question). */
+  function canReadClipboard() {
+    return !!(navigator.clipboard && typeof navigator.clipboard.readText === 'function');
   }
 
   FN.sheet = { Sheet };
