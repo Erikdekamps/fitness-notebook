@@ -1,14 +1,14 @@
 /**
  * A tiny static file server for the browser tests, so the app runs over http like on GitHub Pages.
  *
- *   node e2e/server.js            # http://127.0.0.1:4173/index.html
+ *   node tests/e2e/server.js      # http://127.0.0.1:4173/index.html
  */
 import { createServer } from 'node:http';
 import { readFile } from 'node:fs/promises';
 import { extname, join, normalize, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
-const ROOT = fileURLToPath(new URL('..', import.meta.url));
+const ROOT = fileURLToPath(new URL('../..', import.meta.url));
 const PORT = Number(process.env.PORT) || 4173;
 const TYPES = {
   '.html': 'text/html; charset=utf-8',

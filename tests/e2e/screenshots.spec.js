@@ -1,7 +1,7 @@
 /**
  * Screenshot tests: each screen and panel must look the same as its saved picture (the baseline).
  *
- *   npm run test:e2e                       # compares with the baselines in e2e/screenshots/
+ *   npm run test:e2e                       # compares with the baselines in tests/e2e/screenshots/
  *   npm run test:screenshots:update        # takes new baselines, after a change to the look on purpose
  *
  * When one differs, the report (reports/e2e/) shows the baseline, the new picture and the difference.

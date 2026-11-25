@@ -10,12 +10,12 @@
  *
  * Only the logic is mutated: the <script data-testable> blocks of index.html, the same blocks
  * the unit tests load. tests/mutation/ignore-page-blocks.js skips the blocks that draw the page;
- * the browser tests (e2e/) check those.
+ * the browser tests (tests/e2e/) check those.
  */
 /** @type {import('@stryker-mutator/api/core').PartialStrykerOptions} */
 export default {
   testRunner: 'tap',
-  tap: { testFiles: ['tests/*.test.js'] },
+  tap: { testFiles: ['tests/unit/*.test.js'] },
   mutate: ['index.html'],
   plugins: ['@stryker-mutator/*', './tests/mutation/ignore-page-blocks.js'],
   ignorers: ['page-blocks'],

@@ -6,7 +6,7 @@
  * marked `data-testable`. A block is known by the name it adds to the shared FN object:
  * `FN.notebook = { Notebook }` belongs to <script data-module="notebook">.
  *
- * The blocks that draw the page are skipped here because the browser tests (e2e/) check them.
+ * The blocks that draw the page are skipped here because the browser tests (tests/e2e/) check them.
  */
 import { readFileSync } from 'node:fs';
 import { declareValuePlugin, PluginKind } from '@stryker-mutator/api/plugin';

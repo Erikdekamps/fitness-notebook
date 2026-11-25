@@ -5,9 +5,9 @@
   "description": "A fitness log that looks and feels like a paper notebook. The whole app is one file: index.html.",
   "type": "module",
   "scripts": {
-    "test": "node --test \"tests/*.test.js\"",
+    "test": "node --test \"tests/unit/*.test.js\"",
     "test:e2e": "playwright test",
-    "test:screenshots:update": "playwright test e2e/screenshots.spec.js --update-snapshots",
+    "test:screenshots:update": "playwright test tests/e2e/screenshots.spec.js --update-snapshots",
     "test:mutation": "stryker run && node tests/mutation/survivors.js --check",
     "test:crap": "node --test \"tests/crap/*.test.js\" && node tests/crap/crap.js",
     "test:all": "npm test && npm run test:e2e && npm run test:crap && npm run test:mutation"

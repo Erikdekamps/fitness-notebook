@@ -14,15 +14,15 @@ const CI = !!process.env.CI;
 const PORT = 4173;
 
 export default defineConfig({
-  testDir: 'e2e',
+  testDir: 'tests/e2e',
   testMatch: '**/*.spec.js',
-  globalSetup: './e2e/global-setup.js',
+  globalSetup: './tests/e2e/global-setup.js',
   fullyParallel: true,
   forbidOnly: CI,
   retries: CI ? 1 : 0,
   workers: CI ? 2 : undefined,
   outputDir: 'test-results',
-  // Baselines for e2e/screenshots.spec.js: one picture per screen per project, taken on Linux.
+  // Baselines for tests/e2e/screenshots.spec.js: one picture per screen per project, taken on Linux.
   snapshotPathTemplate: '{testDir}/screenshots/{arg}-{projectName}{ext}',
   expect: {
     // A few pixels may differ (anti-aliasing); a changed look differs far more than this.
@@ -40,7 +40,7 @@ export default defineConfig({
     locale: 'nl-NL',
   },
   webServer: {
-    command: 'node e2e/server.js',
+    command: 'node tests/e2e/server.js',
     url: `http://127.0.0.1:${PORT}/index.html`,
     reuseExistingServer: !CI,
     env: { PORT: String(PORT) },
