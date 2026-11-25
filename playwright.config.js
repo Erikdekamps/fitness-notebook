@@ -11,7 +11,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
 const CI = !!process.env.CI;
-const PORT = 4173;
+const PORT = Number(process.env.E2E_PORT) || 4173; // another port lets two checkouts run their tests at once
 
 export default defineConfig({
   testDir: 'tests/e2e',

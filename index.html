@@ -2377,34 +2377,62 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       return wheels;
     }
 
-    /** Puts the title, question, text field and wheel labels of a config in place. */
+    /** Puts the title, buttons, question, fields and wheel labels of a config in place. */
     fill(cfg) {
       this.title.textContent = cfg.title;
-      this.action.textContent = cfg.actionLabel;
-      this.cancelButton.hidden = !(cfg.otherLabel || cfg.cancelLabel);
-      this.cancelButton.textContent = cfg.otherLabel || cfg.cancelLabel || '';
-      this.info.hidden = !cfg.info;
-      this.info.innerHTML = cfg.info
-        ? `<h3>${escapeHtml(cfg.info.heading)}</h3>` +
-          cfg.info.details.map((detail) => `<p class="is-muted">${escapeHtml(detail)}</p>`).join('') +
-          `<p>${escapeHtml(cfg.info.note)}</p>`
-        : '';
-      this.textField.hidden = !cfg.text;
-      this.textField.value = cfg.text ? cfg.text.value || '' : '';
-      this.textField.placeholder = cfg.text ? cfg.text.placeholder : '';
-      this.textField.setAttribute('aria-label', (cfg.text && cfg.text.label) || 'Write your own line');
-      this.areaField.hidden = !cfg.area;
-      this.areaField.value = '';
-      this.areaField.placeholder = cfg.area ? cfg.area.placeholder : '';
-      this.areaField.setAttribute('aria-label', cfg.area ? cfg.area.label : '');
-      this.pasteButton.hidden = !cfg.area || !canReadClipboard();
+      this.fillButtons(cfg);
+      this.fillInfo(cfg.info);
+      this.fillText(cfg.text);
+      this.fillArea(cfg.area);
       this.showError('');
+      this.fillLabels(cfg);
+      this.wheelsEl.replaceChildren();
+    }
+
+    /** The big button, and the small one under it when the config names it. */
+    fillButtons(cfg) {
+      const other = cfg.otherLabel || cfg.cancelLabel || '';
+      this.action.textContent = cfg.actionLabel;
+      this.cancelButton.hidden = !other;
+      this.cancelButton.textContent = other;
+    }
+
+    /** The question above the buttons: a heading, some details and a note. */
+    fillInfo(info) {
+      this.info.hidden = !info;
+      this.info.innerHTML = info
+        ? `<h3>${escapeHtml(info.heading)}</h3>` +
+          info.details.map((detail) => `<p class="is-muted">${escapeHtml(detail)}</p>`).join('') +
+          `<p>${escapeHtml(info.note)}</p>`
+        : '';
+    }
+
+    /** The one-line text field. */
+    fillText(text) {
+      const { value = '', placeholder = '', label = 'Write your own line' } = text || {};
+      this.textField.hidden = !text;
+      this.textField.value = value;
+      this.textField.placeholder = placeholder;
+      this.textField.setAttribute('aria-label', label);
+    }
+
+    /** The big field to paste text in, with its Paste button where the browser can read the clipboard. */
+    fillArea(area) {
+      const { placeholder = '', label = '' } = area || {};
+      this.areaField.hidden = !area;
+      this.areaField.value = '';
+      this.areaField.placeholder = placeholder;
+      this.areaField.setAttribute('aria-label', label);
+      this.pasteButton.hidden = !area || !canReadClipboard();
+    }
+
+    /** The columns of the wheels and the labels above them. */
+    fillLabels(cfg) {
       for (const el of [this.labels, this.wheelsEl]) {
         el.style.gridTemplateColumns = cfg.columns;
         el.style.justifyContent = cfg.center ? 'center' : '';
       }
       this.labels.innerHTML = cfg.labels.map((l) => `<span${l.left ? ' class="is-left"' : ''}>${escapeHtml(l.text)}</span>`).join('');
-      this.wheelsEl.replaceChildren();
     }
 
     /** Closes the sheet. Returns the config it had, or null when it was closed already. */
@@ -2848,23 +2876,12 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       if (h && e.pointerId === h.pointerId && Math.hypot(e.clientX - h.x, e.clientY - h.y) > 8) this.cancelHold();
       const d = this.drag;
       if (!d || e.pointerId !== d.pointerId) return;
-      const { rows, from, tops, heights } = d;
-      const last = rows.length - 1;
-      const size = heights[from];
-      const dy = clamp(e.clientY - d.startY, tops[0] - tops[from], tops[last] + heights[last] - tops[from] - size);
-      const middle = tops[from] + dy + size / 2;
-      let to = from;
-      // A row pushed all the way to the end sits right on the middle of the last place: that counts as there.
-      for (let i = from + 1; i <= last; i++) if (middle >= tops[i] + heights[i] / 2) to = i;
-      for (let i = from - 1; i >= 0; i--) if (middle <= tops[i] + heights[i] / 2) to = i;
-      d.to = to;
+      const { from, tops, heights } = d;
+      const last = tops.length - 1;
+      const dy = clamp(e.clientY - d.startY, tops[0] - tops[from], tops[last] + heights[last] - tops[from] - heights[from]);
+      d.to = placeAt(d, dy);
       d.row.style.transform = `translateY(${dy}px)`;
-      rows.forEach((other, i) => { // the rows in between step aside
-        if (other === d.row) return;
-        const shift = i > from && i <= to ? -size : i < from && i >= to ? size : 0;
-        other.classList.add('is-shifting');
-        other.style.transform = shift ? `translateY(${shift}px)` : '';
-      });
+      stepAside(d);
     }
 
     endDrag(e) {
@@ -2890,6 +2907,27 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       const moved = this.container.querySelector(`.row[data-key="${CSS.escape(key)}"]`);
       if (moved) moved.focus();
     }
+  }
+
+  /** The place a picked-up row has reached, `dy` pixels from where it started: it takes a place once its middle passes that place's middle. */
+  function placeAt({ from, tops, heights }, dy) {
+    const middle = tops[from] + dy + heights[from] / 2;
+    let to = from;
+    // A row pushed all the way to the end sits right on the middle of the last place: that counts as there.
+    for (let i = from + 1; i < tops.length; i++) if (middle >= tops[i] + heights[i] / 2) to = i;
+    for (let i = from - 1; i >= 0; i--) if (middle <= tops[i] + heights[i] / 2) to = i;
+    return to;
+  }
+
+  /** The rows between where the picked-up row came from and where it is now step aside by its height. */
+  function stepAside({ row, rows, from, to, heights }) {
+    const size = heights[from];
+    rows.forEach((other, i) => {
+      if (other === row) return;
+      const shift = i > from && i <= to ? -size : i < from && i >= to ? size : 0;
+      other.classList.add('is-shifting');
+      other.style.transform = shift ? `translateY(${shift}px)` : '';
+    });
   }
 
   FN.holdSort = { HoldSort };
@@ -2951,7 +2989,11 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
         this.timeEl.textContent = left;
         this.el.setAttribute('aria-label', `Rest timer: ${left} left. Tap to stop.`);
       }
-      const run = !!left && !document.hidden;
+      this.setTicking(!!left && !document.hidden);
+    }
+
+    /** Draws four times a second while there is time left to show, and not at all otherwise. */
+    setTicking(run) {
       if (run && !this.ticking) this.ticking = setInterval(() => this.draw(), 250);
       if (!run && this.ticking) {
         clearInterval(this.ticking);
@@ -3010,12 +3052,9 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       this.kgList = Progress.kgOptions(start.weight);
 
       this.wheels = this.sheet.open({
-        title: this.fixing ? 'Change this line' : editing ? 'Log a set' : 'Add a line',
+        title: this.title(),
         ...this.nextButton(),
-        text: {
-          value: editing && editing.type === 'text' ? editing.text : '',
-          placeholder: hasWheels ? 'or write your own line' : 'write a line',
-        },
+        text: this.textSpec(hasWheels),
         columns: 'minmax(0, 1fr) 64px 48px',
         labels: [{ text: 'Machine', left: true }, { text: 'kg' }, { text: 'reps' }],
         wheels: hasWheels ? this.wheelSpecs(machineIndex, start) : [],
@@ -3030,6 +3069,21 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       });
       this.preview();
       this.page.makeRoom(editing, this.logging ? 'log' : 'line');
+    }
+
+    /** What a screen reader calls the panel. */
+    title() {
+      if (this.fixing) return 'Change this line';
+      return this.editing ? 'Log a set' : 'Add a line';
+    }
+
+    /** The text field: the text of the line being changed, and a hint that says whether there are wheels too. */
+    textSpec(hasWheels) {
+      const editing = this.editing;
+      return {
+        value: editing && editing.type === 'text' ? editing.text : '',
+        placeholder: hasWheels ? 'or write your own line' : 'write a line',
+      };
     }
 
     /** What the panel is for: a new line, a change, the first set of a plan line, or the next set (`logging`). */
@@ -3139,12 +3193,18 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
         this.page.preview(this.editing, 'text', '');
         return;
       }
-      if (setLine) {
-        // The set is not there until it is logged: the line stays as it is, the button says which set comes.
-        if (!this.editing) this.page.clearNext();
-        this.page.restoreRow(setLine);
-        return;
-      }
+      if (setLine) this.keepLine(setLine);
+      else this.previewNew(next);
+    }
+
+    /** The set is not there until it is logged: the line stays as it is, the button says which set comes. */
+    keepLine(setLine) {
+      if (!this.editing) this.page.clearNext();
+      this.page.restoreRow(setLine);
+    }
+
+    /** Shows `next` in pencil where it will be written: under the line just logged, in the line being changed, or at the bottom. */
+    previewNew(next) {
       const editing = this.editing;
       if (this.logging) {
         // Other kg, reps or machine than the line just logged: that becomes a line of its own, right under it.
@@ -4423,22 +4483,27 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
         if (this.current.view === 'machineStats') this.refresh(); // the chart follows the page width
       });
 
-      // Another tab changed the notebook: show the new version.
-      window.addEventListener('storage', (e) => {
-        if (e.key === TIMER_KEY) {
-          this.timer.reload();
-          return;
-        }
-        if (e.key === PREFS_KEY) {
-          this.prefs = Prefs.load();
-          if (this.current.view === 'settings' && !this.sheet.isOpen()) this.refresh();
-          return;
-        }
-        const typing = document.activeElement && document.activeElement.classList.contains('line-input');
-        if (e.key !== STORAGE_KEY || this.sheet.isOpen() || typing) return;
-        this.notebook.reload(Store.load() || Notebook.exampleData());
-        this.refresh();
-      });
+      window.addEventListener('storage', (e) => this.onStorage(e));
+    }
+
+    /** Another tab changed something that is saved: the timer, the settings or the notebook. Show the new version. */
+    onStorage(e) {
+      if (e.key === TIMER_KEY) this.timer.reload();
+      else if (e.key === PREFS_KEY) this.reloadPrefs();
+      else if (e.key === STORAGE_KEY) this.reloadNotebook();
+    }
+
+    reloadPrefs() {
+      this.prefs = Prefs.load();
+      if (this.current.view === 'settings' && !this.sheet.isOpen()) this.refresh();
+    }
+
+    /** Not while a panel is open or a name is being typed: that would pull the page from under it. */
+    reloadNotebook() {
+      const typing = !!document.activeElement && document.activeElement.classList.contains('line-input');
+      if (this.sheet.isOpen() || typing) return;
+      this.notebook.reload(Store.load() || Notebook.exampleData());
+      this.refresh();
     }
   }
 
