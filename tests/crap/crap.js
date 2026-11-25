@@ -16,7 +16,7 @@
  *
  * Coverage comes from two levels, and a statement counts as run when either ran it:
  *   unit tests     V8 coverage of `node --test` (always collected here)
- *   browser tests  V8 coverage that e2e/ writes to reports/coverage/e2e/ (when you ran them first)
+ *   browser tests  V8 coverage that tests/e2e/ writes to reports/coverage/e2e/ (when you ran them first)
  * Without browser coverage, the blocks that draw the page are left out of the check.
  *
  * Writes reports/crap/crap.json.
@@ -215,7 +215,7 @@ export const crap = (complexity, coverage) => complexity ** 2 * (1 - coverage) *
 function unitCoverage() {
   const dir = mkdtempSync(join(tmpdir(), 'fn-coverage-'));
   try {
-    const run = spawnSync(process.execPath, ['--test', 'tests/*.test.js'], { cwd: ROOT, env: { ...process.env, NODE_V8_COVERAGE: dir }, encoding: 'utf8' });
+    const run = spawnSync(process.execPath, ['--test', 'tests/unit/*.test.js'], { cwd: ROOT, env: { ...process.env, NODE_V8_COVERAGE: dir }, encoding: 'utf8' });
     if (run.status !== 0) {
       process.stdout.write(run.stdout + run.stderr);
       throw new Error('The unit tests failed, so there is no CRAP score.');

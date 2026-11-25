@@ -13,7 +13,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { test as base, expect } from '@playwright/test';
 
-export const COVERAGE_DIR = fileURLToPath(new URL('../reports/coverage/e2e/', import.meta.url));
+export const COVERAGE_DIR = fileURLToPath(new URL('../../reports/coverage/e2e/', import.meta.url));
 export const TODAY = new Date('2026-11-23T10:00:00');
 
 export const test = base.extend({

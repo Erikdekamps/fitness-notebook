@@ -9,7 +9,7 @@
 import { readFileSync } from 'node:fs';
 import { runInThisContext } from 'node:vm';
 
-const PAGE = new URL('../index.html', import.meta.url);
+const PAGE = new URL('../../index.html', import.meta.url);
 const BLOCK = /<script data-module="([^"]+)" data-testable>\n([\s\S]*?)\n<\/script>/g;
 
 let loaded = false;
