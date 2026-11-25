@@ -102,3 +102,20 @@ test('a picked-up line shows the drag icon; it goes away when the line is put do
   await expect(page.locator('#lines .row.is-moving')).toHaveCount(0);
   expect(await page.evaluate(() => getComputedStyle(document.body).cursor)).not.toBe('grabbing');
 });
+
+test('a long press opens no menu while a line is held, and does again after', async ({ page }) => {
+  const target = row(page, seatedRow);
+  /** True when the page stopped the browser's own menu. */
+  const menuStopped = () => target.evaluate((el) => !el.dispatchEvent(new MouseEvent('contextmenu', { bubbles: true, cancelable: true })));
+  expect(await menuStopped()).toBe(false);
+
+  const box = await target.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await expect(target).toHaveClass(/is-moving/);
+  expect(await menuStopped()).toBe(true);
+
+  await page.mouse.up();
+  await expect(page.locator('#lines .row.is-moving')).toHaveCount(0);
+  expect(await menuStopped()).toBe(false);
+});

@@ -16,6 +16,9 @@ export async function openApp(page) {
 }
 
 export const sheet = (page) => page.locator('#sheet');
+
+/** Waits until nothing slides or fades any more, so a place measured on the screen is where things stay. */
+export const stillness = (page) => page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== 'running'));
 export const actionButton = (page) => page.locator('#sheetAction');
 export const otherButton = (page) => page.locator('#sheetCancel');
 export const rows = (page) => page.locator('#lines .row');
@@ -77,13 +80,26 @@ async function middle(locator) {
   return { x: box.x + box.width / 2, y: box.y + box.height / 2 };
 }
 
+/**
+ * After the press: waits until the app has picked the row up (450 ms after the touch), not for a fixed time,
+ * which is too short on a busy machine. A row that cannot be picked up (a date) never is: then go on after a while.
+ * A hold shorter than HOLD_MS is on purpose too short: that one is just waited out.
+ */
+async function waitPickedUp(page, from, hold) {
+  if (hold < HOLD_MS) {
+    await page.waitForTimeout(hold);
+    return;
+  }
+  await from.and(page.locator('.is-moving')).waitFor({ timeout: 2000 }).catch(() => {});
+}
+
 /** Mouse: press on a line, hold it still, then drag it onto the place of another line. */
 export async function mouseHoldAndDrag(page, from, to, { hold = HOLD_MS } = {}) {
   const a = await middle(from);
   const b = await middle(to);
   await page.mouse.move(a.x, a.y);
   await page.mouse.down();
-  await page.waitForTimeout(hold);
+  await waitPickedUp(page, from, hold);
   await page.mouse.move(a.x, b.y, { steps: 12 });
   await page.mouse.up();
 }
@@ -131,7 +147,7 @@ export async function touchHoldAndDrag(page, from, to, { hold = HOLD_MS } = {}) 
   const b = await middle(to);
   const touch = await finger(page);
   await touch.down(a.x, a.y);
-  await page.waitForTimeout(hold);
+  await waitPickedUp(page, from, hold);
   for (let i = 1; i <= 12; i++) {
     await touch.move(a.x, a.y + ((b.y - a.y) * i) / 12);
     await page.waitForTimeout(16);
@@ -192,4 +208,15 @@ export async function swipe(page, rowLocator, dx, { touch }) {
     await page.mouse.move(x + dx, y, { steps: 10 });
     await page.mouse.up();
   }
+}
+
+/**
+ * Starts the app on a notebook of the test's own instead of the example one. Call it before openApp.
+ * Only fills an empty browser, so a reload keeps what the test did since.
+ */
+export async function startWith(page, { machines = [], plans = [], lines = [] }) {
+  const data = JSON.stringify({ version: 1, machines, plans, lines });
+  await page.addInitScript((saved) => {
+    if (!localStorage.getItem('fitness-notebook.v1')) localStorage.setItem('fitness-notebook.v1', saved);
+  }, data);
 }

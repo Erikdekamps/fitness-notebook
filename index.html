@@ -2237,7 +2237,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
           this.swallowClick = false;
           return;
         }
-        const item = e.target.closest('.wheel-item');
+        const item = tappedItem(el, e);
         if (item) this.setIndex(Number(item.dataset.index), true);
       });
 
@@ -2282,6 +2282,16 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       this.el.classList.remove('is-dragging');
       this.setIndex(Math.round(this.el.scrollTop / WHEEL_ITEM_PX), true);
     }
+  }
+
+  /**
+   * The item of wheel `el` that was tapped, or null. A mouse press is captured by the wheel (for dragging),
+   * so its click lands on the wheel and does not say which item: look at what is under the pointer.
+   */
+  function tappedItem(el, e) {
+    const under = document.elementFromPoint(e.clientX, e.clientY);
+    const item = under && under.closest('.wheel-item');
+    return item && el.contains(item) ? item : null;
   }
 
   FN.wheel = { Wheel };

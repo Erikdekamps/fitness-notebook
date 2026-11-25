@@ -110,3 +110,46 @@ test('removing the date of a plan day removes the whole day; Undo brings it back
   await expect(page.locator('#lines .row--date').last()).toContainText('Leg day');
   expect(await lastDay(page)).toEqual(['Leg press', 'Leg curl']);
 });
+
+test('in a plan day, other reps show in pencil right under the line, and become a line of their own', async ({ page }) => {
+  await startDate(page, 'Leg day');
+  await actionButton(page).click(); // Log set 1 of Leg press
+  await expect(actionButton(page)).toHaveText('Log set 2');
+
+  await pick(page, 'Reps', '10');
+  const preview = page.locator('#lines [data-preview]');
+  await expect(preview).toHaveText(/Leg press\s*80 × 10 × 1/);
+  await expect(preview.locator('.row-content')).toHaveClass(/is-pencil/);
+  await expect(actionButton(page)).toHaveText('Log set 1');
+
+  await pick(page, 'Reps', '12'); // back to the same reps: no line of its own any more
+  await expect(preview).toHaveCount(0);
+  await expect(actionButton(page)).toHaveText('Log set 2');
+
+  await pick(page, 'Reps', '10');
+  await actionButton(page).click();
+  await expect(preview).toHaveCount(0);
+  await page.keyboard.press('Escape');
+  expect(await lastDay(page)).toEqual(['Leg press', 'Leg press', 'Leg curl']);
+  await expect(page.locator('#lines .row--machine .nums').last()).toHaveText('80 × 10 × 1');
+});
+
+test('add a machine to a plan by writing its name: a new one is made, one already in the plan is refused', async ({ page }) => {
+  await openSettings(page);
+  await page.locator('#planList .row').filter({ hasText: 'Leg day' }).click();
+  await page.getByRole('button', { name: 'tap here to add a machine' }).click();
+  const field = page.getByRole('textbox', { name: 'New machine' });
+
+  await field.fill('Hip thrust');
+  await expect(page.locator('#planAddRow')).toHaveText('Hip thrust'); // in pencil while typing
+  await actionButton(page).click();
+  await expect(page.locator('#planMachines .name')).toHaveText(['Leg press', 'Leg curl', 'Hip thrust']);
+
+  await field.fill('leg PRESS'); // in the plan already, in other letters
+  await actionButton(page).click();
+  await expect(page.getByText('That machine is in the plan already')).toBeVisible();
+  await expect(page.locator('#planMachines .name')).toHaveText(['Leg press', 'Leg curl', 'Hip thrust']);
+
+  await backTo(page, 'settings');
+  await expect(page.locator('#machineList .name').filter({ hasText: 'Hip thrust' })).toHaveCount(1); // a machine like any other
+});

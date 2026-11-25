@@ -58,3 +58,13 @@ test('settings: another rest time, or no timer at all', async ({ page }) => {
   await addLine(page, { machine: 'Fly', kg: '20', reps: '10' });
   await expect(timer(page)).toBeHidden();
 });
+
+test('a timer started in one tab shows in another tab, and stops there too', async ({ page, newTab }) => {
+  const other = await newTab();
+  await other.goto('/index.html');
+  await expect(timer(other)).toBeHidden();
+  await addLine(page, { machine: 'Fly', kg: '20', reps: '10' });
+  await expect(timer(other)).toBeVisible();
+  await timer(page).click();
+  await expect(timer(other)).toBeHidden();
+});
