@@ -311,11 +311,36 @@ test('addPlan: a clean name, no machines yet, and it saves', () => {
   assert.equal(saved.count, 1);
 });
 
-test('plansAZ and planNameTaken: alphabetical; upper and lower case do not count', () => {
-  const { notebook, plan } = makePlanned();
+test('plans keep your own order: a new plan goes last, not A to Z', () => {
+  const { notebook } = makePlanned();
   notebook.addPlan('arms');
-  assert.deepEqual(notebook.plansAZ().map((p) => p.name), ['arms', 'Leg day']);
+  assert.deepEqual(notebook.plans.map((p) => p.name), ['Leg day', 'arms']);
+});
+
+test('movePlan: to a place in the list, never past the ends', () => {
+  const { notebook, saved } = makePlanned();
+  notebook.addPlan('Arms');
+  notebook.addPlan('Back');
+  const names = () => notebook.plans.map((p) => p.name);
+  const arms = notebook.plans[1].id;
+  assert.equal(notebook.movePlan(arms, 0), true);
+  assert.deepEqual(names(), ['Arms', 'Leg day', 'Back']);
+  notebook.movePlan(arms, 99);
+  assert.deepEqual(names(), ['Leg day', 'Back', 'Arms']);
+  notebook.movePlan(arms, -5);
+  assert.deepEqual(names(), ['Arms', 'Leg day', 'Back']);
+  notebook.movePlan(arms, 1);
+  assert.deepEqual(names(), ['Leg day', 'Arms', 'Back']);
+  assert.equal(saved.count, 6); // 2 plans added, 4 moves
+  assert.equal(notebook.movePlan('nope', 0), false);
+  assert.equal(saved.count, 6);
+});
+
+test('planNameTaken: any plan with that name counts; upper and lower case do not', () => {
+  const { notebook, plan } = makePlanned();
+  notebook.addPlan('arms'); // two plans: the name of one is taken, though the other has another name
   assert.equal(notebook.planNameTaken('LEG day'), true);
+  assert.equal(notebook.planNameTaken('Arms'), true);
   assert.equal(notebook.planNameTaken('Leg day', plan.id), false);
   assert.equal(notebook.planNameTaken('Back'), false);
 });
@@ -575,6 +600,7 @@ const CHANGES = {
   addPlanMachine: (n) => n.addPlanMachine('p-legs', n.addMachine('Hip thrust').id),
   removePlanMachine: (n) => n.removePlanMachine('p-legs', 'm-leg'),
   movePlanMachine: (n) => n.movePlanMachine('p-legs', 'm-chest', 0),
+  movePlan: (n) => n.addPlan('Arms') && n.movePlan('p-legs', 1),
   removeExamples: (n) => n.removeExamples(),
   replaceAll: (n) => n.replaceAll({ version: 1, machines: [], plans: [], lines: [] }),
   moveLine: (n) => n.moveLine('t1', 0),
