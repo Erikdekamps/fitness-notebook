@@ -8,9 +8,12 @@ import { backTo, openApp, openSettings, row, startDate } from './app.js';
 
 const WCAG = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22a', 'wcag22aa'];
 
-/** Checks the page as it is now. */
+/** Checks the page once it is still: no panel sliding in, no wheel turning. axe would judge a half-faded frame. */
 async function expectAccessible(page) {
   await page.evaluate(() => document.fonts.ready);
+  await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== 'running'));
+  // A wheel settles 160 ms after it last scrolled; give it two of those.
+  await page.waitForTimeout(350);
   const { violations } = await new AxeBuilder({ page }).withTags(WCAG).analyze();
   const found = violations.map((v) => `${v.id} (${v.impact}): ${v.help}\n    ${v.nodes.map((n) => n.target.join(' ')).slice(0, 5).join('\n    ')}`);
   expect(found, 'WCAG violations').toEqual([]);
