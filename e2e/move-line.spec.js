@@ -84,3 +84,21 @@ test.describe('phone', () => {
     expect(await page.evaluate(() => scrollY)).toBe(before);
   });
 });
+
+test('a picked-up line shows the drag icon; it goes away when the line is put down', async ({ page }) => {
+  const target = row(page, seatedRow);
+  const icon = () => target.locator('.row-content').evaluate((el) => getComputedStyle(el, '::before').content);
+  expect(await icon()).toBe('none');
+
+  const box = await target.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.waitForTimeout(HOLD_MS);
+  await expect(target).toHaveClass(/is-moving/);
+  expect(await icon()).not.toBe('none');
+  expect(await page.evaluate(() => getComputedStyle(document.body).cursor)).toBe('grabbing');
+
+  await page.mouse.up();
+  await expect(page.locator('#lines .row.is-moving')).toHaveCount(0);
+  expect(await page.evaluate(() => getComputedStyle(document.body).cursor)).not.toBe('grabbing');
+});

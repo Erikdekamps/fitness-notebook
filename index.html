@@ -480,6 +480,24 @@ button {
 .row.is-moving > .row-content { background: var(--paper); box-shadow: 0 4px 12px rgba(70, 45, 20, .18); }
 .row.is-shifting { transition: transform .15s var(--ease); }
 
+/* A notebook line that is picked up shows the drag icon (the same as a plan's handle) in its left margin. */
+#lines .row.is-moving > .row-content { position: relative; }
+#lines .row.is-moving > .row-content::before {
+  content: '';
+  position: absolute;
+  top: calc(var(--line) / 2 - 7px);
+  left: 6px;
+  width: 22px;
+  height: 14px;
+  background: var(--pencil);
+  -webkit-mask: var(--drag-icon) center / contain no-repeat;
+  mask: var(--drag-icon) center / contain no-repeat;
+}
+:root {
+  --drag-icon: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='22' height='14' viewBox='0 0 22 14' fill='none' stroke='black' stroke-width='2.2' stroke-linecap='round'%3E%3Cpath d='M2 3h18M2 11h18'/%3E%3C/svg%3E");
+}
+body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
+
 .text-btn {
   display: block;
   height: var(--line);
@@ -3336,6 +3354,7 @@ button {
       const from = rows.indexOf(row);
       this.drag = { row, rows, from, to: from, startY: y, pointerId, tops: rows.map((r) => r.offsetTop), heights: rows.map((r) => r.offsetHeight) };
       row.classList.add('is-moving');
+      document.body.classList.add('is-dragging');
       if (navigator.vibrate) navigator.vibrate(10);
     }
 
@@ -3368,6 +3387,7 @@ button {
       const d = this.drag;
       if (!d || e.pointerId !== d.pointerId) return;
       this.drag = null;
+      document.body.classList.remove('is-dragging');
       if (e.type === 'pointerup' && d.to !== d.from) this.notebook.moveLine(d.row.dataset.key, d.to);
       this.render();
     }
