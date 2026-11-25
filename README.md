@@ -12,6 +12,7 @@ Open `index.html` in a browser, or the GitHub Pages site.
 npm test                # unit tests (Node 22, nothing to install)
 npm ci                  # once, for the checks below
 npm run test:e2e        # browser tests: Chrome and Safari, desktop and phone, WCAG 2.2 AA
+npm run test:screenshots:update   # new screenshot baselines, after changing the look on purpose (on Linux)
 npm run test:crap       # CRAP score, max 15 per function
 npm run test:mutation   # mutation testing, min 95%
 npm run test:all        # all of the above
