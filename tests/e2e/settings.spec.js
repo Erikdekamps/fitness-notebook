@@ -1,6 +1,6 @@
 /** Settings: the machines list (add, rename, remove) and plan names. */
 import { test, expect } from './fixtures.js';
-import { actionButton, addLine, backTo, finger, openApp, openSettings, pick, row, startDate } from './app.js';
+import { HOLD_MS, actionButton, addLine, backTo, holdAndDrag, openApp, openSettings, pick, row, startDate } from './app.js';
 
 const machineNames = (page) => page.locator('#machineList .row .name').allTextContents();
 
@@ -115,23 +115,17 @@ test('plans stay in the order they were made, not A to Z', async ({ page }) => {
   expect(await planNames(page)).toEqual(['Push', 'Pull', 'Legs']);
 });
 
-test('drag a plan by its handle to put it in another place; it stays after a reload', async ({ page, isMobile }) => {
+const planRow = (page, name) => page.locator('#planList .row').filter({ hasText: name });
+
+test('plans have no handle: the room is for the number of machines', async ({ page }) => {
+  await addPlans(page, ['Push']);
+  await expect(page.locator('#planList .row-handle')).toHaveCount(0);
+  await expect(planRow(page, 'Push')).toContainText('0 machines');
+});
+
+test('hold a plan, then drag it to another place; it stays there after a reload', async ({ page, isMobile }) => {
   await addPlans(page, ['Push', 'Pull', 'Legs']);
-  const handle = (name) => page.getByRole('button', { name: `Move ${name}: drag, or use arrow up and down` });
-  const from = await handle('Legs').boundingBox();
-  const to = await handle('Push').boundingBox();
-  const x = from.x + from.width / 2;
-  if (isMobile) {
-    const touch = await finger(page);
-    await touch.down(x, from.y + from.height / 2);
-    for (let i = 1; i <= 8; i++) await touch.move(x, from.y + from.height / 2 + ((to.y - from.y) * i) / 8);
-    await touch.up();
-  } else {
-    await page.mouse.move(x, from.y + from.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(x, to.y + to.height / 2, { steps: 8 });
-    await page.mouse.up();
-  }
+  await holdAndDrag(page, planRow(page, 'Legs'), planRow(page, 'Push'), { touch: isMobile });
   await expect.poll(() => planNames(page)).toEqual(['Legs', 'Push', 'Pull']);
   await expect(page.locator('#plan')).toBeHidden(); // a drag is not a tap: the plan did not open
 
@@ -140,26 +134,40 @@ test('drag a plan by its handle to put it in another place; it stays after a rel
   expect(await planNames(page)).toEqual(['Legs', 'Push', 'Pull']);
 });
 
-test('arrow keys on a plan handle move it one place, and keep the focus on it', async ({ page }) => {
+test('while a plan is held it shows the drag icon; let go and it is gone', async ({ page }) => {
   await addPlans(page, ['Push', 'Pull']);
-  const handle = page.getByRole('button', { name: 'Move Pull: drag, or use arrow up and down' });
-  await handle.focus();
-  await page.keyboard.press('ArrowUp');
+  const held = planRow(page, 'Pull');
+  const icon = () => held.locator('.row-content').evaluate((el) => getComputedStyle(el, '::before').content);
+  expect(await icon()).toBe('none');
+  const box = await held.boundingBox();
+  await page.mouse.move(box.x + box.width / 3, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.waitForTimeout(HOLD_MS);
+  await expect(held).toHaveClass(/is-moving/);
+  expect(await icon()).not.toBe('none');
+  await page.mouse.up();
+  await expect(page.locator('#planList .row.is-moving')).toHaveCount(0);
+});
+
+test('Alt with arrow up or down moves the focused plan one place, and keeps the focus on it', async ({ page }) => {
+  await addPlans(page, ['Push', 'Pull']);
+  await planRow(page, 'Pull').focus();
+  await page.keyboard.press('Alt+ArrowUp');
   expect(await planNames(page)).toEqual(['Pull', 'Push']);
-  await expect(page.getByRole('button', { name: 'Move Pull: drag, or use arrow up and down' })).toBeFocused();
+  await expect(planRow(page, 'Pull')).toBeFocused();
 });
 
 test('the plan wheel of a new date follows your order', async ({ page }) => {
   await addPlans(page, ['Push', 'Pull']);
-  await page.getByRole('button', { name: 'Move Pull: drag, or use arrow up and down' }).focus();
-  await page.keyboard.press('ArrowUp');
+  await planRow(page, 'Pull').focus();
+  await page.keyboard.press('Alt+ArrowUp');
   await backTo(page, 'notebook');
   await page.getByRole('button', { name: 'Start a new date' }).click();
   const items = await page.getByRole('spinbutton', { name: 'Plan', exact: true }).locator('.wheel-item').allTextContents();
   expect(items).toEqual(['No plan', 'Pull', 'Push']);
 });
 
-test('tapping a plan (not its handle) still opens it', async ({ page }) => {
+test('a quick tap on a plan still opens it', async ({ page }) => {
   await addPlans(page, ['Push']);
   await page.locator('#planList .row .name').filter({ hasText: 'Push' }).click();
   await expect(page.locator('#planTitle')).toHaveText('Push');
