@@ -481,9 +481,9 @@ button {
 .row.is-moving > .row-content { background: var(--paper); box-shadow: 0 4px 12px rgba(70, 45, 20, .18); }
 .row.is-shifting { transition: transform .15s var(--ease); }
 
-/* A notebook line that is picked up shows the drag icon (the same as a plan's handle) in its left margin. */
-#lines .row.is-moving > .row-content { position: relative; }
-#lines .row.is-moving > .row-content::before {
+/* A row picked up by holding it (a notebook line, a plan in settings) shows the drag icon in its left margin. */
+.hold-sort .row.is-moving > .row-content { position: relative; }
+.hold-sort .row.is-moving > .row-content::before {
   content: '';
   position: absolute;
   top: calc(var(--line) / 2 - 7px);
@@ -1691,9 +1691,14 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       return this.plans.find((p) => p.id === id) || null;
     }
 
-    /** The plans in alphabetical order. */
-    plansAZ() {
-      return Notebook.sortMachines(this.plans);
+    /** Moves a plan to place `to` (0 is the top) in the list of plans. False when there is no such plan. */
+    movePlan(id, to) {
+      const from = this.plans.findIndex((p) => p.id === id);
+      if (from === -1) return false;
+      const [plan] = this.plans.splice(from, 1);
+      this.plans.splice(clamp(to, 0, this.plans.length), 0, plan);
+      this.save();
+      return true;
     }
 
     /** True when another plan already has this name (upper and lower case do not count). */
@@ -2244,7 +2249,11 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
         else if (e.key === 'End') target = this.items.length - 1;
         if (target === null) return;
         e.preventDefault();
-        el.scrollTop = clamp(target, 0, this.items.length - 1) * WHEEL_ITEM_PX; // the scroll event reports it
+        // Report the new pick at once and settle a moment later: Safari may send the scroll event late, or not at all.
+        el.scrollTop = clamp(target, 0, this.items.length - 1) * WHEEL_ITEM_PX;
+        this.sync(false);
+        clearTimeout(this.settleTimer);
+        this.settleTimer = setTimeout(() => this.settle(), 160);
       });
 
       // Mouse drag (touch and trackpads scroll natively).
@@ -2698,6 +2707,195 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
 
 <!-- ==== 3. Panels: adding and changing lines ================================================== -->
 
+<script data-module="handleSort">
+/**
+ * A list you put in your own order with the handle of each row:
+ *   <div class="row" data-key="…"><div class="row-content">… <button class="row-handle">…</button></div>…</div>
+ * Drag a handle up or down; the rows in between step aside. Arrow up and down on a focused handle
+ * move its row one place. onMove(key, to) stores the new place (0 is the top); render() draws the list again.
+ */
+(function (FN) {
+  'use strict';
+  const { clamp } = FN.util;
+
+  class HandleSort {
+    constructor(container, { onMove, render }) {
+      this.container = container;
+      this.onMove = onMove;
+      this.render = render;
+      this.drag = null;
+      container.addEventListener('pointerdown', (e) => this.startDrag(e));
+      container.addEventListener('pointermove', (e) => this.moveDrag(e));
+      container.addEventListener('pointerup', (e) => this.endDrag(e));
+      container.addEventListener('pointercancel', (e) => this.endDrag(e));
+      container.addEventListener('keydown', (e) => this.moveWithKey(e));
+    }
+
+    startDrag(e) {
+      const handle = e.target.closest('.row-handle');
+      if (!handle || this.drag || (e.pointerType === 'mouse' && e.button !== 0)) return;
+      const row = handle.closest('.row');
+      const rows = Array.from(this.container.children);
+      const from = rows.indexOf(row);
+      this.drag = { row, rows, from, to: from, startY: e.clientY, pointerId: e.pointerId, step: row.offsetHeight };
+      try { handle.setPointerCapture(e.pointerId); } catch (_) { /* pointer already released */ }
+      row.classList.add('is-moving');
+    }
+
+    moveDrag(e) {
+      const d = this.drag;
+      if (!d || e.pointerId !== d.pointerId) return;
+      const dy = clamp(e.clientY - d.startY, -d.from * d.step, (d.rows.length - 1 - d.from) * d.step);
+      d.to = d.from + Math.round(dy / d.step);
+      d.row.style.transform = `translateY(${dy}px)`;
+      d.rows.forEach((other, i) => { // the rows in between step aside
+        if (other === d.row) return;
+        const shift = i > d.from && i <= d.to ? -d.step : i < d.from && i >= d.to ? d.step : 0;
+        other.classList.add('is-shifting');
+        other.style.transform = shift ? `translateY(${shift}px)` : '';
+      });
+    }
+
+    endDrag(e) {
+      const d = this.drag;
+      if (!d || e.pointerId !== d.pointerId) return;
+      this.drag = null;
+      if (e.type === 'pointerup' && d.to !== d.from) this.onMove(d.row.dataset.key, d.to);
+      this.render();
+    }
+
+    /** Arrow up and down on a handle move its row one place, and the focus stays on that handle. */
+    moveWithKey(e) {
+      const handle = e.target.closest('.row-handle');
+      const step = { ArrowUp: -1, ArrowDown: 1 }[e.key];
+      if (!handle || !step) return;
+      e.preventDefault();
+      const key = handle.closest('.row').dataset.key;
+      const from = Array.from(this.container.children).findIndex((row) => row.dataset.key === key);
+      this.onMove(key, from + step);
+      this.render();
+      const moved = this.container.querySelector(`.row[data-key="${CSS.escape(key)}"] .row-handle`);
+      if (moved) moved.focus();
+    }
+  }
+
+  FN.handleSort = { HandleSort };
+})(globalThis.FN = globalThis.FN || {});
+</script>
+
+<script data-module="holdSort">
+/**
+ * A list you put in your own order without handles: hold a row still for a moment to pick it up,
+ * then drag it up or down. While it is picked up it shows the drag icon, the page does not scroll,
+ * and a long press opens no menu. Alt with arrow up or down moves a focused row one place.
+ *
+ * group(row): the rows it may move among (itself included), or null when it cannot be picked up.
+ * onMove(key, to) stores the new place in that group (0 is the top); render() draws the list again.
+ * isBusy(): true while a panel is open. Works with the SwipeRows of the same list.
+ */
+(function (FN) {
+  'use strict';
+  const { HOLD_MS } = FN.config;
+  const { clamp } = FN.util;
+
+  class HoldSort {
+    constructor(container, { swipeRows, group, onMove, render, isBusy = () => false }) {
+      Object.assign(this, { container, swipeRows, group, onMove, render, isBusy });
+      this.hold = null; // a finger held still on a row, waiting to pick it up
+      this.drag = null; // a row picked up, following the finger
+      container.classList.add('hold-sort');
+      container.addEventListener('pointerdown', (e) => this.startHold(e));
+      container.addEventListener('pointermove', (e) => this.moveDrag(e));
+      container.addEventListener('pointerup', (e) => this.endDrag(e));
+      container.addEventListener('pointercancel', (e) => this.endDrag(e));
+      container.addEventListener('keydown', (e) => this.moveWithKey(e));
+      container.addEventListener('touchmove', (e) => { if (this.drag) e.preventDefault(); }, { passive: false });
+      container.addEventListener('contextmenu', (e) => { if (this.hold || this.drag) e.preventDefault(); });
+    }
+
+    /** Holding a row still for a moment picks it up. Moving first is a scroll or a swipe instead. */
+    startHold(e) {
+      this.cancelHold();
+      if (this.isBusy() || this.drag || (e.pointerType === 'mouse' && e.button !== 0)) return;
+      const row = e.target.closest('.row');
+      if (!row || row.matches('.is-removing') || e.target.closest('.row-delete')) return;
+      if (row.querySelector('.row-content').style.transform) return; // slid open to show Delete
+      const timer = setTimeout(() => this.pickUp(), HOLD_MS);
+      this.hold = { row, pointerId: e.pointerId, x: e.clientX, y: e.clientY, timer };
+    }
+
+    cancelHold() {
+      if (this.hold) clearTimeout(this.hold.timer);
+      this.hold = null;
+    }
+
+    pickUp() {
+      const { row, pointerId, y } = this.hold;
+      this.hold = null;
+      const rows = this.group(row);
+      if (!rows || rows.length < 2) return; // nowhere to go
+      this.swipeRows.cancelGesture();
+      try { row.setPointerCapture(pointerId); } catch (_) { /* pointer already released */ }
+      const from = rows.indexOf(row);
+      this.drag = { row, rows, from, to: from, startY: y, pointerId, tops: rows.map((r) => r.offsetTop), heights: rows.map((r) => r.offsetHeight) };
+      row.classList.add('is-moving');
+      document.body.classList.add('is-dragging');
+      if (navigator.vibrate) navigator.vibrate(10);
+    }
+
+    moveDrag(e) {
+      const h = this.hold;
+      if (h && e.pointerId === h.pointerId && Math.hypot(e.clientX - h.x, e.clientY - h.y) > 8) this.cancelHold();
+      const d = this.drag;
+      if (!d || e.pointerId !== d.pointerId) return;
+      const { rows, from, tops, heights } = d;
+      const last = rows.length - 1;
+      const size = heights[from];
+      const dy = clamp(e.clientY - d.startY, tops[0] - tops[from], tops[last] + heights[last] - tops[from] - size);
+      const middle = tops[from] + dy + size / 2;
+      let to = from;
+      // A row pushed all the way to the end sits right on the middle of the last place: that counts as there.
+      for (let i = from + 1; i <= last; i++) if (middle >= tops[i] + heights[i] / 2) to = i;
+      for (let i = from - 1; i >= 0; i--) if (middle <= tops[i] + heights[i] / 2) to = i;
+      d.to = to;
+      d.row.style.transform = `translateY(${dy}px)`;
+      rows.forEach((other, i) => { // the rows in between step aside
+        if (other === d.row) return;
+        const shift = i > from && i <= to ? -size : i < from && i >= to ? size : 0;
+        other.classList.add('is-shifting');
+        other.style.transform = shift ? `translateY(${shift}px)` : '';
+      });
+    }
+
+    endDrag(e) {
+      if (this.hold && e.pointerId === this.hold.pointerId) this.cancelHold();
+      const d = this.drag;
+      if (!d || e.pointerId !== d.pointerId) return;
+      this.drag = null;
+      document.body.classList.remove('is-dragging');
+      if (e.type === 'pointerup' && d.to !== d.from) this.onMove(d.row.dataset.key, d.to);
+      this.render();
+    }
+
+    /** Alt with arrow up or down moves the focused row one place in its group, and keeps the focus on it. */
+    moveWithKey(e) {
+      const step = { ArrowUp: -1, ArrowDown: 1 }[e.key];
+      const row = e.target;
+      const rows = e.altKey && step && !this.isBusy() && row.matches('.row') ? this.group(row) : null;
+      if (!rows) return;
+      e.preventDefault();
+      const key = row.dataset.key;
+      this.onMove(key, rows.indexOf(row) + step);
+      this.render();
+      const moved = this.container.querySelector(`.row[data-key="${CSS.escape(key)}"]`);
+      if (moved) moved.focus();
+    }
+  }
+
+  FN.holdSort = { HoldSort };
+})(globalThis.FN = globalThis.FN || {});
+</script>
+
 <script data-module="timerButton">
 /** The rest timer, top left: starts when a set is logged and counts down. At 0:00 it goes away. Tap it to stop. */
 (function (FN) {
@@ -3081,7 +3279,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       const start = Calendar.parts(editing ? editing.date : this.today);
       const writtenYears = this.notebook.lines.filter((l) => l.type === 'date').map((l) => Calendar.parts(l.date).y);
       this.years = range(Math.min(now.y - YEARS_BACK, start.y, ...writtenYears), Math.max(now.y, start.y));
-      this.plans = editing ? [] : this.notebook.plansAZ(); // only a new date can start from a plan
+      this.plans = editing ? [] : this.notebook.plans; // only a new date can start from a plan; in your own order
       const withPlans = this.plans.length > 0;
 
       this.wheels = this.sheet.open({
@@ -3175,12 +3373,11 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
  */
 (function (FN) {
   'use strict';
-  const { HOLD_MS } = FN.config;
-  const { clamp } = FN.util;
   const { byId, scrollToBottom } = FN.dom;
   const { Progress } = FN.progress;
   const { LineMarkup } = FN.lineMarkup;
   const { SwipeRows } = FN.swipeRows;
+  const { HoldSort } = FN.holdSort;
   const { LineEditor } = FN.lineEditor;
   const { DateEditor } = FN.dateEditor;
 
@@ -3198,8 +3395,6 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       this.filler = byId('notebookFiller');
       this.todayBtn = byId('todayBtn');
       this.busy = false; // a panel is open
-      this.hold = null; // a finger held still on a line, waiting to pick it up
-      this.drag = null; // a line picked up, following the finger
       this.lineEditor = new LineEditor({ notebook, sheet, page: this, timer });
       this.dateEditor = new DateEditor({ notebook, sheet, page: this });
       this.listen();
@@ -3342,90 +3537,14 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
 
     /* ---- Moving a line up or down in its day ---- */
 
-    /** The rows of a line's day without its date: the rows it can move among. */
+    /** The rows of a line's day without its date: the rows it can move among. A date never moves. */
     dayRows(row) {
+      if (row.matches('.row--date')) return null;
       const rows = [row];
       const movable = (r) => r && r.matches('.row:not(.row--date)');
       for (let r = row.previousElementSibling; movable(r); r = r.previousElementSibling) rows.unshift(r);
       for (let r = row.nextElementSibling; movable(r); r = r.nextElementSibling) rows.push(r);
       return rows;
-    }
-
-    /** A finger held still on a line for a moment picks it up. Moving first is a scroll or a swipe instead. */
-    startHold(e) {
-      this.cancelHold();
-      if (this.busy || this.drag || (e.pointerType === 'mouse' && e.button !== 0)) return;
-      const row = e.target.closest('.row');
-      if (!row || row.matches('.row--date, .is-removing') || e.target.closest('.row-delete')) return;
-      if (row.querySelector('.row-content').style.transform) return; // slid open to show Delete
-      const timer = setTimeout(() => this.pickUp(), HOLD_MS);
-      this.hold = { row, pointerId: e.pointerId, x: e.clientX, y: e.clientY, timer };
-    }
-
-    cancelHold() {
-      if (this.hold) clearTimeout(this.hold.timer);
-      this.hold = null;
-    }
-
-    pickUp() {
-      const { row, pointerId, y } = this.hold;
-      this.hold = null;
-      const rows = this.dayRows(row);
-      if (rows.length < 2) return; // alone in its day: nowhere to go
-      this.swipeRows.cancelGesture();
-      try { row.setPointerCapture(pointerId); } catch (_) { /* pointer already released */ }
-      const from = rows.indexOf(row);
-      this.drag = { row, rows, from, to: from, startY: y, pointerId, tops: rows.map((r) => r.offsetTop), heights: rows.map((r) => r.offsetHeight) };
-      row.classList.add('is-moving');
-      document.body.classList.add('is-dragging');
-      if (navigator.vibrate) navigator.vibrate(10);
-    }
-
-    moveDrag(e) {
-      const h = this.hold;
-      if (h && e.pointerId === h.pointerId && Math.hypot(e.clientX - h.x, e.clientY - h.y) > 8) this.cancelHold();
-      const d = this.drag;
-      if (!d || e.pointerId !== d.pointerId) return;
-      const { rows, from, tops, heights } = d;
-      const last = rows.length - 1;
-      const size = heights[from];
-      const dy = clamp(e.clientY - d.startY, tops[0] - tops[from], tops[last] + heights[last] - tops[from] - size);
-      const middle = tops[from] + dy + size / 2;
-      let to = from;
-      // A line pushed all the way to the end sits right on the middle of the last place: that counts as there.
-      for (let i = from + 1; i <= last; i++) if (middle >= tops[i] + heights[i] / 2) to = i;
-      for (let i = from - 1; i >= 0; i--) if (middle <= tops[i] + heights[i] / 2) to = i;
-      d.to = to;
-      d.row.style.transform = `translateY(${dy}px)`;
-      rows.forEach((other, i) => { // the rows in between step aside
-        if (other === d.row) return;
-        const shift = i > from && i <= to ? -size : i < from && i >= to ? size : 0;
-        other.classList.add('is-shifting');
-        other.style.transform = shift ? `translateY(${shift}px)` : '';
-      });
-    }
-
-    endDrag(e) {
-      if (this.hold && e.pointerId === this.hold.pointerId) this.cancelHold();
-      const d = this.drag;
-      if (!d || e.pointerId !== d.pointerId) return;
-      this.drag = null;
-      document.body.classList.remove('is-dragging');
-      if (e.type === 'pointerup' && d.to !== d.from) this.notebook.moveLine(d.row.dataset.key, d.to);
-      this.render();
-    }
-
-    /** Alt with arrow up or down moves the focused line one place in its day. */
-    moveWithKey(e) {
-      const step = { ArrowUp: -1, ArrowDown: 1 }[e.key];
-      const row = e.target;
-      if (!e.altKey || !step || this.busy || !row.matches('.row:not(.row--date)')) return;
-      e.preventDefault();
-      const key = row.dataset.key;
-      this.notebook.moveLine(key, this.dayRows(row).indexOf(row) + step);
-      this.render();
-      const moved = this.linesEl.querySelector(`.row[data-key="${CSS.escape(key)}"]`);
-      if (moved) moved.focus();
     }
 
     /* ---- Back to today ---- */
@@ -3453,14 +3572,13 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
         onDelete: (row) => this.removeLine(row.dataset.key),
       });
 
-      this.linesEl.addEventListener('pointerdown', (e) => this.startHold(e));
-      this.linesEl.addEventListener('pointermove', (e) => this.moveDrag(e));
-      this.linesEl.addEventListener('pointerup', (e) => this.endDrag(e));
-      this.linesEl.addEventListener('pointercancel', (e) => this.endDrag(e));
-      this.linesEl.addEventListener('keydown', (e) => this.moveWithKey(e));
-      // While a line is picked up the page must not scroll, and a long press must not open a menu.
-      this.linesEl.addEventListener('touchmove', (e) => { if (this.drag) e.preventDefault(); }, { passive: false });
-      this.linesEl.addEventListener('contextmenu', (e) => { if (this.hold || this.drag) e.preventDefault(); });
+      new HoldSort(this.linesEl, {
+        swipeRows: this.swipeRows,
+        group: (row) => this.dayRows(row),
+        onMove: (id, to) => this.notebook.moveLine(id, to),
+        render: () => this.render(),
+        isBusy: () => this.busy,
+      });
 
       this.todayBtn.addEventListener('click', () => scrollToBottom(true));
     }
@@ -3490,7 +3608,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
 </script>
 
 <script data-module="settingsScreen">
-/** The settings screen: the plans, the machines list, the rest timer and the backup (export and import). */
+/** The settings screen: the plans (in your own order: hold one, then drag it), the machines list, the rest timer and the backup (export and import). */
 (function (FN) {
   'use strict';
   const { escapeHtml } = FN.util;
@@ -3499,6 +3617,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
   const { Backup } = FN.backup;
   const { LineInput } = FN.lineInput;
   const { SwipeRows } = FN.swipeRows;
+  const { HoldSort } = FN.holdSort;
   const { REST_TIMES_S, Icons } = FN.config;
   const { indexOr } = FN.util;
   const { Prefs } = FN.prefs;
@@ -3541,7 +3660,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
     /* ---- Plans ---- */
 
     renderPlans() {
-      this.planList.innerHTML = this.notebook.plansAZ().map((plan) => planRowHtml(plan, this.notebook.planMachines(plan.id).length)).join('');
+      this.planList.innerHTML = this.notebook.plans.map((plan) => planRowHtml(plan, this.notebook.planMachines(plan.id).length)).join('');
     }
 
     /** Asks for a name, then opens the new plan so its machines can be added. */
@@ -3748,9 +3867,16 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       byId('addPlanRow').addEventListener('click', (e) => {
         if (e.target.closest('.pencil-btn')) this.addPlan();
       });
-      new SwipeRows(this.planList, {
+      const planRows = new SwipeRows(this.planList, {
         onTap: (row) => this.app.open({ view: 'plan', planId: row.dataset.key }),
         onDelete: (row) => this.removePlan(row.dataset.key),
+      });
+      new HoldSort(this.planList, {
+        swipeRows: planRows,
+        group: () => Array.from(this.planList.children),
+        onMove: (id, to) => this.notebook.movePlan(id, to),
+        render: () => this.renderPlans(),
+        isBusy: () => this.sheet.isOpen(),
       });
 
       new SwipeRows(this.list, {
@@ -3810,6 +3936,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
   const { byId, shake } = FN.dom;
   const { LineInput } = FN.lineInput;
   const { SwipeRows } = FN.swipeRows;
+  const { HandleSort } = FN.handleSort;
 
   class PlanScreen {
     /** app: to draw the screen again after an undo. */
@@ -3823,7 +3950,6 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       this.list = byId('planMachines');
       this.addRow = byId('planAddRow');
       this.planId = null;
-      this.drag = null;
       this.listen();
     }
 
@@ -3926,55 +4052,6 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       field.focus();
     }
 
-    /* ---- Moving a machine up or down ---- */
-
-    startDrag(e) {
-      const handle = e.target.closest('.row-handle');
-      if (!handle || this.drag || (e.pointerType === 'mouse' && e.button !== 0)) return;
-      const row = handle.closest('.row');
-      const rows = Array.from(this.list.children);
-      const from = rows.indexOf(row);
-      this.drag = { row, rows, from, to: from, startY: e.clientY, pointerId: e.pointerId, step: row.offsetHeight };
-      try { handle.setPointerCapture(e.pointerId); } catch (_) { /* pointer already released */ }
-      row.classList.add('is-moving');
-    }
-
-    moveDrag(e) {
-      const d = this.drag;
-      if (!d || e.pointerId !== d.pointerId) return;
-      const dy = clamp(e.clientY - d.startY, -d.from * d.step, (d.rows.length - 1 - d.from) * d.step);
-      d.to = d.from + Math.round(dy / d.step);
-      d.row.style.transform = `translateY(${dy}px)`;
-      d.rows.forEach((other, i) => { // the rows in between step aside
-        if (other === d.row) return;
-        const shift = i > d.from && i <= d.to ? -d.step : i < d.from && i >= d.to ? d.step : 0;
-        other.classList.add('is-shifting');
-        other.style.transform = shift ? `translateY(${shift}px)` : '';
-      });
-    }
-
-    endDrag(e) {
-      const d = this.drag;
-      if (!d || e.pointerId !== d.pointerId) return;
-      this.drag = null;
-      if (e.type === 'pointerup' && d.to !== d.from) this.notebook.movePlanMachine(this.planId, d.row.dataset.key, d.to);
-      this.renderList();
-    }
-
-    /** Arrow up and down on a handle move its machine one place. */
-    moveWithKey(e) {
-      const handle = e.target.closest('.row-handle');
-      const step = { ArrowUp: -1, ArrowDown: 1 }[e.key];
-      if (!handle || !step) return;
-      e.preventDefault();
-      const key = handle.closest('.row').dataset.key;
-      const from = Array.from(this.list.children).findIndex((row) => row.dataset.key === key);
-      this.notebook.movePlanMachine(this.planId, key, from + step);
-      this.renderList();
-      const moved = this.list.querySelector(`.row[data-key="${CSS.escape(key)}"] .row-handle`);
-      if (moved) moved.focus();
-    }
-
     listen() {
       this.addRow.addEventListener('click', (e) => {
         if (e.target.closest('.pencil-btn')) this.addMachine();
@@ -3988,11 +4065,10 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
         onDelete: (row) => this.removeMachine(row.dataset.key),
       });
 
-      this.list.addEventListener('pointerdown', (e) => this.startDrag(e));
-      this.list.addEventListener('pointermove', (e) => this.moveDrag(e));
-      this.list.addEventListener('pointerup', (e) => this.endDrag(e));
-      this.list.addEventListener('pointercancel', (e) => this.endDrag(e));
-      this.list.addEventListener('keydown', (e) => this.moveWithKey(e));
+      new HandleSort(this.list, {
+        onMove: (machineId, to) => this.notebook.movePlanMachine(this.planId, machineId, to),
+        render: () => this.renderList(),
+      });
     }
   }
 

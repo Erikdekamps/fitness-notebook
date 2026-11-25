@@ -4,6 +4,7 @@
  */
 import { expect } from './fixtures.js';
 
+export const SETTLE_MS = 250; // a bit longer than a wheel takes to settle (160 ms)
 export const HOLD_MS = 600; // a bit longer than the app's HOLD_MS (450), so a hold is a hold
 
 /** The example notebook: the last day, 16 November, as the app starts it. */
@@ -42,10 +43,28 @@ export async function pick(page, label, value) {
   for (let i = 0; i < items.length; i++) {
     const now = Number(await wheel.getAttribute('aria-valuenow'));
     if (now === target) break;
-    await wheel.press(now < target ? 'ArrowDown' : 'ArrowUp');
-    await expect(wheel).not.toHaveAttribute('aria-valuenow', String(now));
+    await pressUntilItMoves(wheel, now < target ? 'ArrowDown' : 'ArrowUp', now);
   }
   await expect(wheel).toHaveAttribute('aria-valuetext', value);
+  // A wheel settles 160 ms after it stops, and that can change the others (a machine loads its kg and reps):
+  // wait for it, as a person would, before turning the next wheel.
+  await page.waitForTimeout(SETTLE_MS);
+}
+
+/**
+ * Presses a key on a wheel and waits for it to move. The wheel reports a key at once, so no move means
+ * the press was lost: WebKit's scroll snapping sometimes puts the wheel straight back. Then press again.
+ */
+async function pressUntilItMoves(wheel, key, from) {
+  for (let attempt = 1; ; attempt++) {
+    await wheel.press(key);
+    try {
+      await expect(wheel).not.toHaveAttribute('aria-valuenow', String(from), { timeout: 1000 });
+      return;
+    } catch (error) {
+      if (attempt === 3) throw error;
+    }
+  }
 }
 
 /** Waits until a wheel shows a value (it follows another wheel after that one stops). */
