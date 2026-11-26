@@ -60,6 +60,25 @@ test('logSet: only the bottom line counts, and never an example line', () => {
   assert.equal(notebook.setLineFor({ type: 'text', text: 'x' }), null);
 });
 
+test('sameSet: both machine lines, same machine, kg and reps; a pencil plan line never counts', () => {
+  const set = { type: 'machine', machineId: 'm-leg', weight: 80, reps: 12 };
+  const plan = { ...set, type: 'plan' }; // a plan line has the machine, kg and reps too
+  assert.equal(Notebook.sameSet(set, { ...set, weight: 80.001 }), true);
+  assert.equal(Notebook.sameSet(set, plan), false);
+  assert.equal(Notebook.sameSet(plan, set), false);
+  assert.equal(Notebook.sameSet(plan, plan), false);
+  assert.equal(Notebook.sameSet(set, null), false);
+  assert.equal(Notebook.sameSet(set, { ...set, machineId: 'm-chest' }), false);
+  assert.equal(Notebook.sameSet(set, { ...set, reps: 10 }), false);
+});
+
+test('isMachineLine: only a line of type machine', () => {
+  assert.equal(Notebook.isMachineLine({ type: 'machine' }), true);
+  assert.equal(Notebook.isMachineLine({ type: 'plan' }), false);
+  assert.equal(Notebook.isMachineLine(null), false);
+  assert.equal(Notebook.isMachineLine(undefined), false);
+});
+
 test('addSet: one more set on any machine line; a demo line becomes yours', () => {
   const { notebook } = makeNotebook();
   notebook.addLine({ type: 'text', text: 'Biking' });

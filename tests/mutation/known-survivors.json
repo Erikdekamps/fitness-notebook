@@ -75,16 +75,6 @@
     "reason": "A truthy value that is not an object has no timerOn or restSeconds, so the defaults are used either way."
   },
   {
-    "block": "notebook", "mutator": "ConditionalExpression",
-    "original": "last.type === 'machine'", "replacement": "true",
-    "reason": "A line that is not a machine line has no kg, so the kg check after it already fails."
-  },
-  {
-    "block": "notebook", "mutator": "ConditionalExpression",
-    "original": "fields.type === 'machine'", "replacement": "true",
-    "reason": "Fields that are not a machine line have no kg, so the kg check after it already fails."
-  },
-  {
     "block": "notebook", "mutator": "ArrayDeclaration",
     "original": "[]", "replacement": "[\"Stryker was here\"]",
     "reason": "The fallback list of machine ids of a plan that is gone: no machine has that id."

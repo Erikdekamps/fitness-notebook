@@ -1,9 +1,14 @@
-# Runs every test level on every pull request. All of them must pass;
-# the "test" job at the end sums them up in one check.
+# Runs every test level on every pull request, cheapest first. All of them must pass.
 #
-#   unit       the logic in index.html, in Node. Nothing to install.
-#   browser    the app in Chrome and Safari (desktop and phone), with WCAG checks, then the CRAP check
-#   mutation   Stryker changes the logic on purpose; the unit tests must notice
+#   checks             unit tests > CRAP check of the logic > mutation tests, one after the other.
+#     |                When one fails, nothing after it runs, and no browser job starts.
+#     +-- browser (chrome)   desktop and phone in Chrome, then the CRAP check of every function
+#     |                      (it needs the coverage of both)
+#     +-- browser (safari)   desktop Safari
+#     +-- browser (iphone)   phone Safari
+#
+# Branch protection requires each of these four checks. A job that is skipped because an earlier
+# one failed does not block a merge by itself, but the job that failed does.
 #
 # Not run on main: there the deploy workflow runs the unit tests first
 # and does not publish when they fail.
@@ -20,56 +25,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  unit:
-    runs-on: ubuntu-latest
-    steps:
-      - name: Check out the repo
-        uses: actions/checkout@v7
-
-      - name: Set up Node
-        uses: actions/setup-node@v7
-        with:
-          node-version: 22
-
-      - name: Unit tests
-        run: npm test
-
-  browser:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
-    steps:
-      - name: Check out the repo
-        uses: actions/checkout@v7
-
-      - name: Set up Node
-        uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Install
-        run: npm ci
-
-      - name: Install Chromium and WebKit
-        run: npx playwright install --with-deps chromium webkit
-
-      - name: Browser tests
-        run: npm run test:e2e
-
-      - name: CRAP check (unit and browser coverage)
-        run: npm run test:crap
-
-      - name: Keep the reports
-        if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v7
-        with:
-          name: browser-reports
-          path: |
-            reports/e2e/
-            reports/crap/
-          retention-days: 14
-
-  mutation:
+  checks:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -85,10 +41,17 @@ jobs:
       - name: Install
         run: npm ci
 
+      - name: Unit tests
+        run: npm test
+
+      # No browser coverage here, so only the logic blocks are scored. browser (chrome) scores them all.
+      - name: CRAP check (unit coverage)
+        run: npm run test:crap
+
       - name: Mutation tests
         run: npm run test:mutation
 
-      - name: Keep the report
+      - name: Keep the mutation report
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7
         with:
@@ -96,16 +59,75 @@ jobs:
           path: reports/mutation/
           retention-days: 14
 
-  # One check that sums up the three above. Branch protection requires "test",
-  # so the jobs above can change without changing that rule.
-  test:
-    needs: [unit, browser, mutation]
-    if: ${{ always() }}
+  # Playwright projects (playwright.config.js) split over three jobs of about the same length,
+  # each with only the browser it needs. When one fails, the others stop: the run has failed already.
+  browser:
+    needs: checks
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - name: chrome
+            browser: chromium
+            projects: --project=desktop --project=iphone-chrome
+            crap: true
+          - name: safari
+            browser: webkit
+            projects: --project=safari
+          - name: iphone
+            browser: webkit
+            projects: --project=iphone
+    name: browser (${{ matrix.name }})
     steps:
-      - name: All test levels passed
-        run: |
-          echo "unit: ${{ needs.unit.result }}, browser: ${{ needs.browser.result }}, mutation: ${{ needs.mutation.result }}"
-          test "${{ needs.unit.result }}" = success
-          test "${{ needs.browser.result }}" = success
-          test "${{ needs.mutation.result }}" = success
+      - name: Check out the repo
+        uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Playwright version
+        id: playwright
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      # The browser itself is kept between runs; the system libraries it needs are installed every time.
+      - name: Keep the browser between runs
+        id: browser-cache
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}-${{ matrix.browser }}
+
+      - name: Install ${{ matrix.browser }}
+        if: steps.browser-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps ${{ matrix.browser }}
+
+      - name: Install what ${{ matrix.browser }} needs
+        if: steps.browser-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps ${{ matrix.browser }}
+
+      - name: Browser tests
+        run: npx playwright test ${{ matrix.projects }}
+
+      # Each Chrome project runs a few lines the other never runs (touch on the phone, mouse on the desktop),
+      # so this needs both, and only runs here.
+      - name: CRAP check (unit and browser coverage)
+        if: ${{ matrix.crap }}
+        run: npm run test:crap
+
+      - name: Keep the reports
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: browser-report-${{ matrix.name }}
+          path: |
+            reports/e2e/
+            reports/crap/
+          retention-days: 14

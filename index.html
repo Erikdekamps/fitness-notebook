@@ -1290,12 +1290,8 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       } catch (_) {
         return { error: 'That is not a backup' };
       }
-      if (!file || file.app !== Backup.APP || !Array.isArray(file.machines) || !Array.isArray(file.lines)) {
-        return { error: 'That is not a Fitness Notebook backup' };
-      }
-      if (typeof file.version !== 'number' || file.version > Backup.VERSION) {
-        return { error: 'That backup is from a newer version of the app' };
-      }
+      const error = Backup.problemWith(file);
+      if (error) return { error };
       return {
         data: {
           version: 1,
@@ -1304,6 +1300,18 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
           lines: file.lines.map((l) => Backup.cleanLine(l)).filter(Boolean),
         },
       };
+    },
+
+    /** Why a parsed file cannot be imported, or null when it can. */
+    problemWith(file) {
+      if (!Backup.isBackup(file)) return 'That is not a Fitness Notebook backup';
+      if (typeof file.version !== 'number' || file.version > Backup.VERSION) return 'That backup is from a newer version of the app';
+      return null;
+    },
+
+    /** Whether a parsed file is a backup of this app: its name, and lists of machines and lines. */
+    isBackup(file) {
+      return !!file && file.app === Backup.APP && Array.isArray(file.machines) && Array.isArray(file.lines);
     },
 
     /** A short description of notebook data, for the "replace?" question: [lines and dates, machines], and the plans when it has any. */
@@ -1538,10 +1546,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
      */
     setLineFor(fields) {
       const last = this.lines[this.lines.length - 1];
-      const same =
-        last && !last.example && last.type === 'machine' && fields && fields.type === 'machine' &&
-        last.machineId === fields.machineId && round2(last.weight) === round2(fields.weight) && last.reps === fields.reps;
-      return same ? last : null;
+      return last && !last.example && Notebook.sameSet(last, fields) ? last : null;
     }
 
     /**
@@ -1579,16 +1584,22 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
     moveLine(id, to) {
       const index = this.lines.findIndex((l) => l.id === id);
       if (index === -1 || this.lines[index].type === 'date') return false;
-      let start = index;
-      while (start > 0 && this.lines[start - 1].type !== 'date') start--;
-      let end = index + 1;
-      while (end < this.lines.length && this.lines[end].type !== 'date') end++;
+      const { start, end } = this.dayAround(index);
       const place = clamp(to, 0, end - start - 1);
       if (place === index - start) return true;
       const [line] = this.lines.splice(index, 1);
       this.lines.splice(start + place, 0, line);
       this.save();
       return true;
+    }
+
+    /** Where the lines of the day around line `index` start and end: { start, end }, the date line not included. */
+    dayAround(index) {
+      let start = index;
+      while (start > 0 && this.lines[start - 1].type !== 'date') start--;
+      let end = index + 1;
+      while (end < this.lines.length && this.lines[end].type !== 'date') end++;
+      return { start, end };
     }
 
     /**
@@ -1820,6 +1831,20 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       return data;
     }
 
+    /** Whether two lines are a set on the same machine with the same kg and reps. */
+    static sameSet(a, b) {
+      return Notebook.isMachineLine(a) && Notebook.isMachineLine(b) && a.machineId === b.machineId && Notebook.sameNumbers(a, b);
+    }
+
+    static isMachineLine(line) {
+      return !!line && line.type === 'machine';
+    }
+
+    /** Same kg (to two decimals) and same reps. */
+    static sameNumbers(a, b) {
+      return round2(a.weight) === round2(b.weight) && a.reps === b.reps;
+    }
+
     /** Machines (or plans) in alphabetical order of their name, ignoring upper and lower case. Returns a new list. */
     static sortMachines(machines) {
       return machines.slice().sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }));
@@ -1955,6 +1980,11 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
     };
   }
 
+  /** A mouse press with another button than the main one: it starts no swipe or drag. */
+  function isOtherButton(e) {
+    return e.pointerType === 'mouse' && e.button !== 0;
+  }
+
   /** Plays the "no" shake on an element. */
   function shake(el) {
     el.classList.remove('is-shaking');
@@ -1978,7 +2008,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
-  FN.dom = { byId, onNextFrame, shake, scrollToBottom, downloadFile };
+  FN.dom = { byId, onNextFrame, isOtherButton, shake, scrollToBottom, downloadFile };
 })(globalThis.FN = globalThis.FN || {});
 </script>
 
@@ -2077,13 +2107,18 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       if (e.isComposing || e.keyCode === 229) return;
       if (e.key === 'Enter') {
         e.preventDefault();
-        const result = this.onSubmit(this.el.value.trim(), this.el) || 'close';
-        if (result === 'clear') this.el.value = '';
-        else if (result === 'close') this.close();
+        this.submit();
       } else if (e.key === 'Escape') {
         e.preventDefault();
         this.close();
       }
+    }
+
+    /** Hands the text to onSubmit, which says what happens next: 'clear' the field, 'keep' it, or 'close' (the default). */
+    submit() {
+      const result = this.onSubmit(this.el.value.trim(), this.el) || 'close';
+      if (result === 'clear') this.el.value = '';
+      else if (result === 'close') this.close();
     }
 
     close() {
@@ -2190,7 +2225,13 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       const index = clamp(Math.round(position), 0, this.items.length - 1);
       const first = Math.max(0, Math.floor(position) - 3);
       const last = Math.min(this.items.length - 1, Math.ceil(position) + 3);
+      this.unstyleOutside(first, last);
+      this.styleAround(first, last, position, index);
+      if (index !== this.current) this.pick(index, silent);
+    }
 
+    /** Takes the size and fade off the items that left the window first..last. */
+    unstyleOutside(first, last) {
       for (const i of this.styled) {
         if (i >= first && i <= last) continue;
         const node = this.itemAt(i);
@@ -2199,6 +2240,10 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
         node.classList.remove('is-current');
         this.styled.delete(i);
       }
+    }
+
+    /** The items first..last get smaller and fainter the further they are from `position`; item `index` is current. */
+    styleAround(first, last, position, index) {
       for (let i = first; i <= last; i++) {
         const node = this.itemAt(i);
         const distance = Math.abs(i - position);
@@ -2207,13 +2252,14 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
         node.classList.toggle('is-current', i === index);
         this.styled.add(i);
       }
+    }
 
-      if (index !== this.current) {
-        this.current = index;
-        this.el.setAttribute('aria-valuenow', String(index));
-        this.el.setAttribute('aria-valuetext', this.items[index]);
-        if (!silent && this.onChange) this.onChange(index);
-      }
+    /** Item `index` is the pick now; tells onChange unless `silent`. */
+    pick(index, silent) {
+      this.current = index;
+      this.el.setAttribute('aria-valuenow', String(index));
+      this.el.setAttribute('aria-valuetext', this.items[index]);
+      if (!silent && this.onChange) this.onChange(index);
     }
 
     settle() {
@@ -2580,6 +2626,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
   'use strict';
   const { RULE_INSET_PX, OPEN_OFFSET_PX, FULL_SWIPE } = FN.config;
   const { clamp } = FN.util;
+  const { isOtherButton } = FN.dom;
 
   class SwipeRows {
     constructor(container, { onTap, onDelete }) {
@@ -2652,9 +2699,9 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
 
     startGesture(e) {
       this.gesture = null;
-      if (this.swallowClick || (e.pointerType === 'mouse' && e.button !== 0)) return;
-      const row = e.target.closest('.row');
-      if (!row || row.classList.contains('is-removing') || e.target.closest('input, .row-delete, .row-handle')) return;
+      if (this.swallowClick || isOtherButton(e)) return;
+      const row = this.swipeableRow(e);
+      if (!row) return;
       this.gesture = {
         row,
         pointerId: e.pointerId,
@@ -2666,24 +2713,38 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       };
     }
 
+    /** The row a press starts a swipe on, or null: not on a row being removed, a field, Delete or a handle. */
+    swipeableRow(e) {
+      const row = e.target.closest('.row');
+      if (!row || row.classList.contains('is-removing') || e.target.closest('input, .row-delete, .row-handle')) return null;
+      return row;
+    }
+
     moveGesture(e) {
       const g = this.gesture;
       if (!g || e.pointerId !== g.pointerId) return;
       const dx = e.clientX - g.startX;
       const dy = e.clientY - g.startY;
-      if (!g.axis) {
-        if (Math.hypot(dx, dy) < 8) return;
-        g.axis = Math.abs(dx) > Math.abs(dy) * 1.2 ? 'x' : 'y';
-        if (g.axis === 'y') {
-          this.gesture = null; // a scroll: leave it to the browser
-          return;
-        }
-        try { g.row.setPointerCapture(g.pointerId); } catch (_) { /* pointer already released */ }
-      }
+      if (!g.axis && !this.chooseAxis(g, dx, dy)) return;
       const width = g.row.offsetWidth;
       g.x = clamp(g.from + dx, -width, 0);
       this.slide(g.row, g.x, false);
       g.row.classList.toggle('is-armed', -g.x > width * FULL_SWIPE);
+    }
+
+    /**
+     * Decides, once the finger has moved far enough, whether this is a swipe (x) or a scroll (y).
+     * True when the row should follow the finger now.
+     */
+    chooseAxis(g, dx, dy) {
+      if (Math.hypot(dx, dy) < 8) return false;
+      g.axis = Math.abs(dx) > Math.abs(dy) * 1.2 ? 'x' : 'y';
+      if (g.axis === 'y') {
+        this.gesture = null; // a scroll: leave it to the browser
+        return false;
+      }
+      try { g.row.setPointerCapture(g.pointerId); } catch (_) { /* pointer already released */ }
+      return true;
     }
 
     endGesture(e) {
@@ -2692,10 +2753,12 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       this.gesture = null;
       if (g.axis !== 'x') return;
       this.swallowClick = true;
-      if (e.type === 'pointercancel') {
-        this.slide(g.row, g.from, true);
-        return;
-      }
+      if (e.type === 'pointercancel') this.slide(g.row, g.from, true);
+      else this.letGo(g);
+    }
+
+    /** Where a swiped row goes when the finger lets go: removed, open on Delete, or back. */
+    letGo(g) {
       const width = g.row.offsetWidth;
       if (-g.x > width * FULL_SWIPE) {
         this.removeRow(g.row);
@@ -2755,6 +2818,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
 (function (FN) {
   'use strict';
   const { clamp } = FN.util;
+  const { isOtherButton } = FN.dom;
 
   class HandleSort {
     constructor(container, { onMove, render }) {
@@ -2771,7 +2835,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
 
     startDrag(e) {
       const handle = e.target.closest('.row-handle');
-      if (!handle || this.drag || (e.pointerType === 'mouse' && e.button !== 0)) return;
+      if (!handle || this.drag || isOtherButton(e)) return;
       const row = handle.closest('.row');
       const rows = Array.from(this.container.children);
       const from = rows.indexOf(row);
@@ -2835,6 +2899,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
   'use strict';
   const { HOLD_MS } = FN.config;
   const { clamp } = FN.util;
+  const { isOtherButton } = FN.dom;
 
   class HoldSort {
     constructor(container, { swipeRows, group, onMove, render, isBusy = () => false }) {
@@ -2854,12 +2919,18 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
     /** Holding a row still for a moment picks it up. Moving first is a scroll or a swipe instead. */
     startHold(e) {
       this.cancelHold();
-      if (this.isBusy() || this.drag || (e.pointerType === 'mouse' && e.button !== 0)) return;
-      const row = e.target.closest('.row');
-      if (!row || row.matches('.is-removing') || e.target.closest('.row-delete')) return;
-      if (row.querySelector('.row-content').style.transform) return; // slid open to show Delete
+      if (this.isBusy() || this.drag || isOtherButton(e)) return;
+      const row = this.holdableRow(e);
+      if (!row) return;
       const timer = setTimeout(() => this.pickUp(), HOLD_MS);
       this.hold = { row, pointerId: e.pointerId, x: e.clientX, y: e.clientY, timer };
+    }
+
+    /** The row a press can pick up, or null: not one being removed, or slid open to show Delete. */
+    holdableRow(e) {
+      const row = e.target.closest('.row');
+      if (!row || row.matches('.is-removing') || e.target.closest('.row-delete')) return null;
+      return row.querySelector('.row-content').style.transform ? null : row;
     }
 
     cancelHold() {
@@ -3031,8 +3102,12 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
   const { round2, formatKg, indexOr } = FN.util;
   const { Progress } = FN.progress;
   const { LineMarkup } = FN.lineMarkup;
+  const { Notebook } = FN.notebook;
 
   const REPS_FALLBACK = REPS.indexOf(FIRST_TIME_VALUES.reps);
+
+  /** The line when it is of this type, else null. */
+  const ofType = (line, type) => (line && line.type === type ? line : null);
 
   class LineEditor {
     /** page: the notebook screen. It draws the pencil preview and hears when the panel closes. */
@@ -3099,8 +3174,8 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
     /** What the panel is for: a new line, a change, the first set of a plan line, or the next set (`logging`). */
     setMode(editing, logging) {
       this.editing = editing;
-      this.planLine = editing && editing.type === 'plan' ? editing : null;
-      this.editingMachine = editing && editing.type === 'machine' ? editing : null;
+      this.planLine = ofType(editing, 'plan');
+      this.editingMachine = ofType(editing, 'machine');
       this.logging = logging && !!this.editingMachine;
       this.fixing = !!editing && !this.planLine && !this.logging; // a real change: the button says Save
       this.fixingMachine = this.fixing ? this.editingMachine : null;
@@ -3151,11 +3226,16 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       const own = this.editingMachine || this.planLine;
       if (own) return this.machines.findIndex((m) => m.id === own.machineId);
       if (!this.machines.length) return 0;
-      const last = this.notebook.lines[this.notebook.lines.length - 1];
-      const current = last && last.type === 'machine' && !last.example ? this.machines.findIndex((m) => m.id === last.machineId) : -1;
+      const current = this.bottomMachineIndex();
       if (current !== -1) return current;
       const done = Progress.machinesInCurrentDay(this.notebook.lines);
       return Math.max(0, this.machines.findIndex((m) => !done.has(m.id)));
+    }
+
+    /** The wheel place of the machine on the bottom line, when that is a set of your own; else -1. */
+    bottomMachineIndex() {
+      const last = ofType(this.notebook.lines[this.notebook.lines.length - 1], 'machine');
+      return last && !last.example ? this.machines.findIndex((m) => m.id === last.machineId) : -1;
     }
 
     /** What you did last time on a machine, or the first-time values. */
@@ -3176,7 +3256,11 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
     fields() {
       const text = this.sheet.text();
       if (text) return { type: 'text', text };
-      if (!this.machines.length) return null;
+      return this.machines.length ? this.machineFields() : null;
+    }
+
+    /** The machine line the wheels show. */
+    machineFields() {
       const index = this.wheels[0].index;
       const machine = this.machines[index];
       // While the machine wheel is still moving, show the numbers it will fill in.
@@ -3233,9 +3317,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
     setLineFor(next) {
       const line = this.editingMachine;
       if (!line) return this.editing ? null : this.notebook.setLineFor(next);
-      const same = next && next.type === 'machine' && next.machineId === line.machineId &&
-        round2(next.weight) === round2(line.weight) && next.reps === line.reps;
-      return same ? line : null;
+      return Notebook.sameSet(next, line) ? line : null;
     }
 
     /** "Log set 3" when the button logs a set; "Save" when it changes a line; "Log" for a text line. */
@@ -3280,17 +3362,24 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       const setLine = this.setLineFor(next);
       if (setLine) return this.notebook.addSet(setLine.id);
       if (!next) return null;
+      return this.editing ? this.writeOver(next) : this.writeNew(next);
+    }
+
+    /** Writes over (or, while logging, right under) the line the panel was opened on. */
+    writeOver(next) {
       const editing = this.editing;
       const isSet = next.type === 'machine';
       if (this.logging) {
         const line = this.notebook.addLineAfter(editing.id, next);
         return isSet ? line : null;
       }
-      if (editing) {
-        this.notebook.replaceLine(editing.id, next);
-        return this.planLine && isSet ? this.notebook.line(editing.id) : null; // the pencil line is now in pen, with 1 set
-      }
-      if (isSet) return this.notebook.logSet(next);
+      this.notebook.replaceLine(editing.id, next);
+      return this.planLine && isSet ? this.notebook.line(editing.id) : null; // the pencil line is now in pen, with 1 set
+    }
+
+    /** Writes a new line at the bottom: a set counts up the bottom line when it can. */
+    writeNew(next) {
+      if (next.type === 'machine') return this.notebook.logSet(next);
       this.notebook.addLine(next);
       return null;
     }
@@ -3303,9 +3392,14 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       this.shownOn = null;
 
       // In a plan's day the panel comes straight back for the next set.
-      const goOn = !!logged && (this.logging || !!this.planLine || Progress.plannedInDay(this.notebook.lines, logged.id).length > 0);
+      const goOn = !!logged && this.goesOn(logged);
       this.page.done({ scroll: !editing && !!next && !goOn, keepRoom: goOn });
       if (goOn) this.page.openLineEditor(logged, { logging: true });
+    }
+
+    /** After a set: whether the panel comes straight back, in a plan's day. */
+    goesOn(logged) {
+      return this.logging || !!this.planLine || Progress.plannedInDay(this.notebook.lines, logged.id).length > 0;
     }
   }
 
@@ -3331,6 +3425,15 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
   const MONTHS = range(1, 12);
   const PLAN_WHEEL = 3; // the plan wheel comes after day, month and year
 
+  const DATE_LABELS = [{ text: 'day' }, { text: 'month' }, { text: 'year' }];
+
+  /** The columns and labels of the wheels: day, month and year, and a wide plan wheel when there are plans. */
+  function layout(withPlans) {
+    return withPlans
+      ? { columns: '52px 56px 72px minmax(0, 1fr)', center: false, labels: DATE_LABELS.concat({ text: 'plan', left: true }) }
+      : { columns: '64px 64px 84px', center: true, labels: DATE_LABELS };
+  }
+
   class DateEditor {
     /** page: the notebook screen. It draws the pencil preview and hears when the panel closes. */
     constructor({ notebook, sheet, page }) {
@@ -3354,9 +3457,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
 
       this.wheels = this.sheet.open({
         title: editing ? 'Change the date' : 'Start a new date',
-        columns: withPlans ? '52px 56px 72px minmax(0, 1fr)' : '64px 64px 84px',
-        center: !withPlans,
-        labels: [{ text: 'day' }, { text: 'month' }, { text: 'year' }].concat(withPlans ? { text: 'plan', left: true } : []),
+        ...layout(withPlans),
         wheels: [
           { label: 'Day', items: DAYS.map(String), index: start.d - 1 },
           { label: 'Month', items: MONTHS.map(String), index: start.m - 1 },
@@ -4075,9 +4176,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
         onAction: () => {
           const typed = this.sheet.textField.value.trim();
           const index = hasWheel ? wheel.index : 0;
-          const machine = typed
-            ? this.notebook.machines.find((m) => sameName(m.name, typed)) || this.notebook.addMachine(typed)
-            : options[index];
+          const machine = typed ? this.machineNamed(typed) : options[index];
           const added = !!machine && this.notebook.addPlanMachine(plan.id, machine.id);
           this.renderList();
           this.renderAddRow();
@@ -4086,6 +4185,11 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
         },
       });
       showPicked();
+    }
+
+    /** The machine with this name, made when there is none yet. */
+    machineNamed(name) {
+      return this.notebook.machines.find((m) => sameName(m.name, name)) || this.notebook.addMachine(name);
     }
 
     removeMachine(machineId) {
@@ -4415,8 +4519,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
      * or { view: 'plan', planId } for a plan. A plan that is gone shows the settings instead.
      */
     show(next) {
-      let target = next && this.screens[next.view] ? next : { view: 'notebook' };
-      if (target.view === 'plan' && !this.notebook.plan(target.planId)) target = { view: 'settings' };
+      const target = this.targetFor(next);
       this.sheet.cancel();
       if (this.current.view === 'notebook' && target.view !== 'notebook') {
         this.notebookScrollY = window.scrollY;
@@ -4429,6 +4532,12 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       this.refresh();
       window.scrollTo(0, target.view === 'notebook' ? this.notebookScrollY : 0);
       this.screens.notebook.updateTodayButton();
+    }
+
+    /** The screen to show for `next`: the notebook when there is no such screen, settings when the plan is gone. */
+    targetFor(next) {
+      const target = next && this.screens[next.view] ? next : { view: 'notebook' };
+      return target.view === 'plan' && !this.notebook.plan(target.planId) ? { view: 'settings' } : target;
     }
 
     /** Changes some settings and saves them. `changes` is part of { timerOn, restSeconds }. */
