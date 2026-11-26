@@ -16,7 +16,7 @@ They are pictures of the real `index.html`, so they show what is built. Screens 
 | Change a line | [08-change-line.png](08-change-line.png) | Tap a line: "Log set 4" adds a set to it |
 | Change a line | [09-change-line-save.png](09-change-line-save.png) | Change kg or reps: the line shows in pencil and the button says Save |
 | Remove a line | [10-remove-line.png](10-remove-line.png) | Drag left to delete |
-| Settings | [11-settings.png](11-settings.png) | Plans (none yet) and the machines. Rest timer and backup are further down |
+| Settings | [11-settings.png](11-settings.png) | Plans (none yet) and the machines. The kg wheel, rest timer and backup are further down |
 | Settings | [12-settings-rest-time.png](12-settings-rest-time.png) | Pick the rest time, 0:15 to 10:00 |
 | Settings | [13-settings-export.png](13-settings-export.png) | Export: saved as a JSON file |
 | Settings | [14-settings-import.png](14-settings-import.png) | Import: check the file, then replace |
@@ -35,6 +35,8 @@ They are pictures of the real `index.html`, so they show what is built. Screens 
 | A day from a plan | [27-plan-other-reps.png](27-plan-other-reps.png) | Other kg or reps start a new line right under it |
 | Settings | [28-settings-import-text.png](28-settings-import-text.png) | "import from text": paste the text of a backup. "Check the text" checks it like a file, then asks before it replaces anything |
 | Settings | [29-settings-import-text-wrong.png](29-settings-import-text-wrong.png) | Text that is not a backup: the panel says so and keeps the text |
+| Kg wheel | [30-settings-kg-step.png](30-settings-kg-step.png) | Settings, "steps of": the kg wheel goes by 2.5 kg, or by 0.5 kg for small dumbbells. One setting for every machine |
+| Kg wheel | [31-add-line-half-kg.png](31-add-line-half-kg.png) | With steps of 0.5 kg: 12, 12.5, 13 on the kg wheel |
 
 ## Look
 

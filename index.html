@@ -606,6 +606,9 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
     <div id="machineList" class="bleed" role="list" aria-label="Machines"></div>
     <div id="addMachineRow" class="bleed add-row add-row--pencil"></div>
     <div class="blank" aria-hidden="true"></div>
+    <h2 class="section-title">kg wheel</h2>
+    <button id="kgStepBtn" class="stat-link" type="button"><span>steps of</span><span class="stat-value"><span id="kgStepValue">2.5 kg</span><svg width="12" height="22" viewBox="0 0 12 22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2 3l8 8-8 8"/></svg></span></button>
+    <div class="blank" aria-hidden="true"></div>
     <h2 class="section-title">rest timer</h2>
     <button id="timerOnBtn" class="stat-link" type="button" role="switch" aria-checked="true"><span>timer after each set</span><span id="timerOnValue" class="stat-value">on</span></button>
     <button id="restTimeBtn" class="stat-link" type="button"><span>rest time</span><span class="stat-value"><span id="restTimeValue">1:30</span><svg width="12" height="22" viewBox="0 0 12 22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2 3l8 8-8 8"/></svg></span></button>
@@ -779,7 +782,8 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
   const DAY_NAMES = ['zo', 'ma', 'di', 'wo', 'do', 'vr', 'za']; // Dutch, as in the paper notebook
   const MONTH_NAMES = ['januari', 'februari', 'maart', 'april', 'mei', 'juni', 'juli', 'augustus', 'september', 'oktober', 'november', 'december'];
   const MONTH_SHORT = ['jan', 'feb', 'mrt', 'apr', 'mei', 'jun', 'jul', 'aug', 'sep', 'okt', 'nov', 'dec'];
-  const KG_STEP = 2.5;          // every notch on the kg wheel
+  const KG_STEP = 2.5;          // every notch on the kg wheel, unless settings say otherwise
+  const KG_STEPS = [0.5, 2.5];  // the kg steps to pick from in settings: small dumbbells, and the rest
   const KG_MAX = 300;
   const SETS = range(1, 10);
   const REPS = range(1, 50);
@@ -787,7 +791,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
   const YEARS_BACK = 5;
   const REST_STEP_S = 15;       // every notch on the rest time wheel
   const REST_TIMES_S = range(1, 40).map((n) => n * REST_STEP_S); // 0:15 to 10:00
-  const DEFAULT_PREFS = { timerOn: true, restSeconds: 90 };
+  const DEFAULT_PREFS = { timerOn: true, restSeconds: 90, kgStep: KG_STEP };
 
   const WHEEL_ITEM_PX = 36;     // keep in sync with --wheel-item
   const DELETE_WIDTH_PX = 96;   // width of the revealed Delete button
@@ -810,7 +814,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
     handle: svg(22, 14, 2.2, '<path d="M2 3h18M2 11h18"/>'),
   };
 
-  FN.config = { STORAGE_KEY, PREFS_KEY, TIMER_KEY, DAY_NAMES, MONTH_NAMES, MONTH_SHORT, KG_STEP, KG_MAX, SETS, REPS, FIRST_TIME_VALUES, YEARS_BACK, REST_TIMES_S, DEFAULT_PREFS, WHEEL_ITEM_PX, DELETE_WIDTH_PX, RULE_INSET_PX, OPEN_OFFSET_PX, FULL_SWIPE, UNDO_MS, HOLD_MS, PREVIEW_ID, BLANK_ROW, svg, Icons };
+  FN.config = { STORAGE_KEY, PREFS_KEY, TIMER_KEY, DAY_NAMES, MONTH_NAMES, MONTH_SHORT, KG_STEP, KG_STEPS, KG_MAX, SETS, REPS, FIRST_TIME_VALUES, YEARS_BACK, REST_TIMES_S, DEFAULT_PREFS, WHEEL_ITEM_PX, DELETE_WIDTH_PX, RULE_INSET_PX, OPEN_OFFSET_PX, FULL_SWIPE, UNDO_MS, HOLD_MS, PREVIEW_ID, BLANK_ROW, svg, Icons };
 })(globalThis.FN = globalThis.FN || {});
 </script>
 
@@ -1067,12 +1071,12 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
 
     /* ---- The kg wheel ---- */
 
-    /** The kg values on the wheel: 0 to KG_MAX in steps of KG_STEP, always including `mustInclude`. */
-    kgOptions(mustInclude) {
+    /** The kg values on the wheel: 0 to KG_MAX in steps of `step`, always including `mustInclude`. */
+    kgOptions(mustInclude, step = KG_STEP) {
       const value = round2(Number(mustInclude) || 0);
       const max = Math.max(KG_MAX, value);
       const options = [];
-      for (let i = 0; round2(i * KG_STEP) <= max; i++) options.push(round2(i * KG_STEP));
+      for (let i = 0; round2(i * step) <= max; i++) options.push(round2(i * step));
       if (!options.includes(value)) {
         options.push(value);
         options.sort((a, b) => a - b);
@@ -1372,11 +1376,12 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
  *
  * Shape
  *   { timerOn: true | false,   the rest timer is switched on
- *     restSeconds: 90 }        how long the rest timer runs, one of REST_TIMES_S
+ *     restSeconds: 90,         how long the rest timer runs, one of REST_TIMES_S
+ *     kgStep: 2.5 }            every notch on the kg wheel, one of KG_STEPS
  */
 (function (FN) {
   'use strict';
-  const { PREFS_KEY, REST_TIMES_S, DEFAULT_PREFS } = FN.config;
+  const { PREFS_KEY, REST_TIMES_S, KG_STEPS, DEFAULT_PREFS } = FN.config;
 
   const Prefs = {
     /** Settings with only known fields and allowed values; anything else falls back to the default. */
@@ -1385,6 +1390,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       return {
         timerOn: typeof v.timerOn === 'boolean' ? v.timerOn : DEFAULT_PREFS.timerOn,
         restSeconds: REST_TIMES_S.includes(v.restSeconds) ? v.restSeconds : DEFAULT_PREFS.restSeconds,
+        kgStep: KG_STEPS.includes(v.kgStep) ? v.kgStep : DEFAULT_PREFS.kgStep,
       };
     },
 
@@ -3111,11 +3117,13 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
 
   class LineEditor {
     /** page: the notebook screen. It draws the pencil preview and hears when the panel closes. */
-    constructor({ notebook, sheet, page, timer }) {
+    /** kgStep(): every notch on the kg wheel right now, from settings. */
+    constructor({ notebook, sheet, page, timer, kgStep }) {
       this.notebook = notebook;
       this.sheet = sheet;
       this.page = page;
       this.timer = timer;
+      this.kgStep = kgStep;
       this.wheels = null;
     }
 
@@ -3134,7 +3142,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       const machineIndex = this.startMachineIndex();
       const start = this.startValues(hasWheels, machineIndex);
       this.settledIndex = machineIndex;
-      this.kgList = Progress.kgOptions(start.weight);
+      this.kgList = Progress.kgOptions(start.weight, this.kgStep());
 
       this.wheels = this.sheet.open({
         title: this.title(),
@@ -3351,7 +3359,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       this.settledIndex = index;
       const values = this.fixingMachine ? this.wheelValues() : this.lastTime(this.machines[index]);
       const [, kg, reps] = this.wheels;
-      this.kgList = Progress.kgOptions(values.weight);
+      this.kgList = Progress.kgOptions(values.weight, this.kgStep());
       kg.setItems(this.kgList.map(formatKg), indexOr(this.kgList, round2(values.weight)));
       reps.setIndex(indexOr(REPS, values.reps, REPS_FALLBACK), false);
       this.preview();
@@ -3553,7 +3561,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
   const { DateEditor } = FN.dateEditor;
 
   class NotebookScreen {
-    constructor({ notebook, sheet, toast, timer }) {
+    constructor({ notebook, sheet, toast, timer, app }) {
       this.notebook = notebook;
       this.sheet = sheet;
       this.toast = toast;
@@ -3566,7 +3574,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       this.filler = byId('notebookFiller');
       this.todayBtn = byId('todayBtn');
       this.busy = false; // a panel is open
-      this.lineEditor = new LineEditor({ notebook, sheet, page: this, timer });
+      this.lineEditor = new LineEditor({ notebook, sheet, page: this, timer, kgStep: () => app.prefs.kgStep });
       this.dateEditor = new DateEditor({ notebook, sheet, page: this });
       this.listen();
     }
@@ -3789,8 +3797,11 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
   const { LineInput } = FN.lineInput;
   const { SwipeRows } = FN.swipeRows;
   const { HoldSort } = FN.holdSort;
-  const { REST_TIMES_S, Icons } = FN.config;
-  const { indexOr } = FN.util;
+  const { REST_TIMES_S, KG_STEPS, Icons } = FN.config;
+  const { indexOr, formatKg } = FN.util;
+
+  /** A kg step as settings write it: "0.5 kg". */
+  const kgText = (kg) => `${formatKg(kg)} kg`;
   const { Prefs } = FN.prefs;
 
   class SettingsScreen {
@@ -3808,6 +3819,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       this.importFile = byId('importFile');
       this.timerOnBtn = byId('timerOnBtn');
       this.restTimeBtn = byId('restTimeBtn');
+      this.kgStepBtn = byId('kgStepBtn');
       this.listen();
     }
 
@@ -3815,6 +3827,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       this.renderPlans();
       this.renderList();
       this.renderAddRow();
+      this.renderKgStep();
       this.renderTimer();
       this.examplesBtn.hidden = !this.notebook.hasExamples();
     }
@@ -3963,6 +3976,27 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       });
     }
 
+    /* ---- Kg wheel ---- */
+
+    renderKgStep() {
+      byId('kgStepValue').textContent = kgText(this.app.prefs.kgStep);
+    }
+
+    pickKgStep() {
+      const [wheel] = this.sheet.open({
+        title: 'Steps on the kg wheel',
+        columns: '96px',
+        center: true,
+        labels: [{ text: 'step' }],
+        wheels: [{ label: 'Kg step', items: KG_STEPS.map(kgText), index: indexOr(KG_STEPS, this.app.prefs.kgStep) }],
+        actionLabel: 'Save',
+        onAction: () => {
+          this.app.setPrefs({ kgStep: KG_STEPS[wheel.index] });
+          this.renderKgStep();
+        },
+      });
+    }
+
     /* ---- Backup ---- */
 
     exportFile() {
@@ -4057,6 +4091,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
 
       this.timerOnBtn.addEventListener('click', () => this.toggleTimer());
       this.restTimeBtn.addEventListener('click', () => this.pickRestTime());
+      this.kgStepBtn.addEventListener('click', () => this.pickKgStep());
 
       byId('exportBtn').addEventListener('click', () => this.exportFile());
       byId('importBtn').addEventListener('click', () => this.importFile.click());
@@ -4540,7 +4575,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       return target.view === 'plan' && !this.notebook.plan(target.planId) ? { view: 'settings' } : target;
     }
 
-    /** Changes some settings and saves them. `changes` is part of { timerOn, restSeconds }. */
+    /** Changes some settings and saves them. `changes` is part of { timerOn, restSeconds, kgStep }. */
     setPrefs(changes) {
       this.prefs = Prefs.clean({ ...this.prefs, ...changes });
       Prefs.save(this.prefs);

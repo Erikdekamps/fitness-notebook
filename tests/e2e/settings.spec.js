@@ -172,3 +172,20 @@ test('a quick tap on a plan still opens it', async ({ page }) => {
   await page.locator('#planList .row .name').filter({ hasText: 'Push' }).click();
   await expect(page.locator('#planTitle')).toHaveText('Push');
 });
+
+test('steps of 0.5 kg on the kg wheel, for small dumbbells; kept after a reload', async ({ page }) => {
+  await expect(page.locator('#kgStepValue')).toHaveText('2.5 kg');
+  await page.getByRole('button', { name: /steps of/ }).click();
+  await pick(page, 'Kg step', '0.5 kg');
+  await actionButton(page).click();
+  await expect(page.locator('#kgStepValue')).toHaveText('0.5 kg');
+
+  await page.reload(); // opens on the notebook
+  await openSettings(page);
+  await expect(page.locator('#kgStepValue')).toHaveText('0.5 kg');
+  await backTo(page, 'notebook');
+  await page.getByRole('button', { name: 'tap to add a line' }).click();
+  const kg = page.getByRole('spinbutton', { name: 'Weight in kg' });
+  const items = await kg.locator('.wheel-item').allTextContents();
+  expect(items.slice(0, 4)).toEqual(['0', '0.5', '1', '1.5']);
+});
