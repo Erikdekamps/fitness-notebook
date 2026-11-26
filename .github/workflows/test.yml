@@ -1,17 +1,14 @@
-# Runs every test level on every pull request. All of them must pass;
-# the "test" job at the end sums them up in one check.
+# Runs every test level on every pull request, cheapest first. All of them must pass.
 #
-# Quick checks first, the big work after, side by side:
+#   checks             unit tests > CRAP check of the logic > mutation tests, one after the other.
+#     |                When one fails, nothing after it runs, and no browser job starts.
+#     +-- browser (chrome)   desktop and phone in Chrome, then the CRAP check of every function
+#     |                      (it needs the coverage of both)
+#     +-- browser (safari)   desktop Safari
+#     +-- browser (iphone)   phone Safari
 #
-#   quick      unit tests, and the CRAP check of the logic (unit coverage). About 10 seconds.
-#     |        When this fails, nothing else starts.
-#     +-- mutation   Stryker changes the logic on purpose; the unit tests must notice
-#     +-- browser    the app in one browser per job, side by side: Chrome and Safari, desktop and phone,
-#     |              with WCAG checks. The two Chrome jobs keep the coverage they record.
-#     |     |
-#     |     +-- crap   the CRAP check of every function, with the coverage of both Chrome jobs
-#     |
-#   test       sums it all up
+# Branch protection requires each of these four checks. A job that is skipped because an earlier
+# one failed does not block a merge by itself, but the job that failed does.
 #
 # Not run on main: there the deploy workflow runs the unit tests first
 # and does not publish when they fail.
@@ -28,9 +25,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  quick:
+  checks:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 20
     steps:
       - name: Check out the repo
         uses: actions/checkout@v7
@@ -47,31 +44,14 @@ jobs:
       - name: Unit tests
         run: npm test
 
-      # No browser coverage here yet, so only the logic blocks are scored. The crap job scores them all.
+      # No browser coverage here, so only the logic blocks are scored. browser (chrome) scores them all.
       - name: CRAP check (unit coverage)
         run: npm run test:crap
-
-  mutation:
-    needs: quick
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - name: Check out the repo
-        uses: actions/checkout@v7
-
-      - name: Set up Node
-        uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Install
-        run: npm ci
 
       - name: Mutation tests
         run: npm run test:mutation
 
-      - name: Keep the report
+      - name: Keep the mutation report
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7
         with:
@@ -79,25 +59,27 @@ jobs:
           path: reports/mutation/
           retention-days: 14
 
-  # One job per Playwright project (playwright.config.js), each with only the browser it needs.
-  # When one fails, the others stop: the run has failed already.
+  # Playwright projects (playwright.config.js) split over three jobs of about the same length,
+  # each with only the browser it needs. When one fails, the others stop: the run has failed already.
   browser:
-    needs: quick
+    needs: checks
     runs-on: ubuntu-latest
     timeout-minutes: 15
     strategy:
       fail-fast: true
       matrix:
         include:
-          - project: desktop
+          - name: chrome
             browser: chromium
-          - project: iphone-chrome
-            browser: chromium
-          - project: safari
+            projects: --project=desktop --project=iphone-chrome
+            crap: true
+          - name: safari
             browser: webkit
-          - project: iphone
+            projects: --project=safari
+          - name: iphone
             browser: webkit
-    name: browser (${{ matrix.project }})
+            projects: --project=iphone
+    name: browser (${{ matrix.name }})
     steps:
       - name: Check out the repo
         uses: actions/checkout@v7
@@ -132,72 +114,20 @@ jobs:
         run: npx playwright install-deps ${{ matrix.browser }}
 
       - name: Browser tests
-        run: npx playwright test --project=${{ matrix.project }}
+        run: npx playwright test ${{ matrix.projects }}
 
-      - name: Keep the coverage, for the crap job
-        if: ${{ matrix.browser == 'chromium' }}
-        uses: actions/upload-artifact@v7
-        with:
-          name: coverage-${{ matrix.project }}
-          path: reports/coverage/e2e/
-          retention-days: 1
-
-      - name: Keep the report
-        if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v7
-        with:
-          name: browser-report-${{ matrix.project }}
-          path: reports/e2e/
-          retention-days: 14
-
-  # Each Chrome job runs a few lines the other never runs (touch on the phone, mouse on the desktop),
-  # so the check needs the coverage of both.
-  crap:
-    needs: browser
-    runs-on: ubuntu-latest
-    timeout-minutes: 5
-    steps:
-      - name: Check out the repo
-        uses: actions/checkout@v7
-
-      - name: Set up Node
-        uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          cache: npm
-
-      - name: Install
-        run: npm ci
-
-      - name: Get the browser coverage
-        uses: actions/download-artifact@v8
-        with:
-          pattern: coverage-*
-          merge-multiple: true
-          path: reports/coverage/e2e/
-
+      # Each Chrome project runs a few lines the other never runs (touch on the phone, mouse on the desktop),
+      # so this needs both, and only runs here.
       - name: CRAP check (unit and browser coverage)
+        if: ${{ matrix.crap }}
         run: npm run test:crap
 
-      - name: Keep the report
+      - name: Keep the reports
         if: ${{ !cancelled() }}
         uses: actions/upload-artifact@v7
         with:
-          name: crap-report
-          path: reports/crap/
+          name: browser-report-${{ matrix.name }}
+          path: |
+            reports/e2e/
+            reports/crap/
           retention-days: 14
-
-  # One check that sums up the jobs above. Branch protection requires "test",
-  # so the jobs above can change without changing that rule.
-  test:
-    needs: [quick, mutation, browser, crap]
-    if: ${{ always() }}
-    runs-on: ubuntu-latest
-    steps:
-      - name: All test levels passed
-        run: |
-          echo "quick: ${{ needs.quick.result }}, mutation: ${{ needs.mutation.result }}, browser: ${{ needs.browser.result }}, crap: ${{ needs.crap.result }}"
-          test "${{ needs.quick.result }}" = success
-          test "${{ needs.mutation.result }}" = success
-          test "${{ needs.browser.result }}" = success
-          test "${{ needs.crap.result }}" = success
