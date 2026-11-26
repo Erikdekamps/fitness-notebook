@@ -12,7 +12,7 @@ Open `index.html` in a browser, or the GitHub Pages site.
 npm test                # unit tests (Node 22, nothing to install)
 npm ci                  # once, for the checks below
 npm run lint            # ESLint: index.html and the tests
-npm run types           # type check of the tests and tools
+npm run types           # type check: the app in index.html, the tests and the tools
 npm run test:e2e        # browser tests: Chrome and Safari, desktop and phone, WCAG 2.2 AA
 npm run test:screenshots:update   # new screenshot baselines, after changing the look on purpose (on Linux)
 npm run test:crap       # CRAP score, 5 at most per function

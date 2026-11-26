@@ -1505,7 +1505,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
 
   class Notebook {
     /** data: { version, machines, plans, lines }. onSave(data) runs after every change. */
-    constructor(data, { onSave = () => {} } = {}) {
+    constructor(data, { onSave = (_data) => {} } = {}) {
       this.data = Notebook.ready(data);
       this.onSave = onSave;
     }
@@ -1909,6 +1909,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
         { id: 'm-triceps-press', name: 'Triceps press' },
       ];
       const byName = new Map(machines.map((m) => [m.name, m]));
+      /** @type {[string, string, [string, number, number, number][]][]} date, class, [machine, kg, sets, reps] */
       const sessions = [
         ['2026-11-07', 'Biking Basics New Zealand #11', [['Leg press', 75, 3, 12], ['Chest press', 32.5, 3, 10], ['Seated row', 37.5, 3, 12]]],
         ['2026-11-09', 'Biking Basics New Zealand #12', [['Leg press', 75, 3, 12], ['Shoulder press', 20, 3, 10], ['Lat pulldown', 45, 3, 12]]],
@@ -2530,7 +2531,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
     }
 
     itemAt(i) {
-      return this.el.children[i + 1]; // children[0] is the top padding
+      return /** @type {HTMLElement} */ (this.el.children[i + 1]); // children[0] is the top padding
     }
 
     /** Shrinks the text until the longest name fits, so names are never cut off. */
@@ -2661,7 +2662,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
    */
   function tappedItem(el, e) {
     const under = document.elementFromPoint(e.clientX, e.clientY);
-    const item = under && under.closest('.wheel-item');
+    const item = under && /** @type {HTMLElement} */ (under.closest('.wheel-item'));
     return item && el.contains(item) ? item : null;
   }
 
@@ -2834,7 +2835,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       this.el.classList.remove('is-open');
       this.backdrop.hidden = true;
       this.behind.forEach((el) => { el.inert = false; });
-      if (this.el.contains(document.activeElement)) document.activeElement.blur();
+      if (this.el.contains(document.activeElement)) /** @type {HTMLElement} */ (document.activeElement).blur();
       return cfg;
     }
 
@@ -2917,7 +2918,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       });
 
       document.addEventListener('keydown', (e) => {
-        const action = this.config ? Decide.sheetKey(e.key, e.target.classList.contains('wheel')) : null;
+        const action = this.config ? Decide.sheetKey(e.key, /** @type {Element} */ (e.target).classList.contains('wheel')) : null;
         if (!action) return;
         e.preventDefault();
         if (action === 'cancel') this.cancel();
@@ -3248,7 +3249,12 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
 
   class HoldSort {
     constructor(container, { swipeRows, group, onMove, render, isBusy = () => false }) {
-      Object.assign(this, { container, swipeRows, group, onMove, render, isBusy });
+      this.container = container;
+      this.swipeRows = swipeRows;
+      this.group = group;
+      this.onMove = onMove;
+      this.render = render;
+      this.isBusy = isBusy;
       this.hold = null; // a finger held still on a row, waiting to pick it up
       this.drag = null; // a row picked up, following the finger
       container.classList.add('hold-sort');
@@ -3480,6 +3486,12 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       this.timer = timer;
       this.kgStep = kgStep;
       this.wheels = null;
+      // What the panel is doing with the line it was opened on: see Decide.lineMode, set by setMode().
+      this.planLine = null;
+      this.editingMachine = null;
+      this.logging = false;
+      this.fixing = false;
+      this.fixingMachine = null;
       // How each way of writing (Decide.writing) is done. Each gives back the line it wrote.
       this.writers = {
         none: () => null,
@@ -3757,6 +3769,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
   const MONTHS = range(1, 12);
   const PLAN_WHEEL = 3; // the plan wheel comes after day, month and year
 
+  /** @type {{ text: string, left?: boolean }[]} */
   const DATE_LABELS = [{ text: 'day' }, { text: 'month' }, { text: 'year' }];
 
   /** The columns and labels of the wheels: day, month and year, and a wide plan wheel when there are plans. */
@@ -3944,7 +3957,10 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       this.dateEditor.open(line);
     }
 
-    /** An editor calls this when its panel closes. keepRoom: the next panel opens at once, so the page must not jump. */
+    /**
+     * An editor calls this when its panel closes. keepRoom: the next panel opens at once, so the page must not jump.
+     * @param {{ scroll?: boolean, keepRoom?: boolean }} [options]
+     */
     done({ scroll, keepRoom } = {}) {
       this.busy = false;
       this.render({ keepRoom });
@@ -4992,7 +5008,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
     listen() {
       byId('cogBtn').addEventListener('click', () => this.open({ view: 'settings' }));
       byId('statsBtn').addEventListener('click', () => this.open({ view: 'stats' }));
-      document.querySelectorAll('[data-back]').forEach((button) => {
+      /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll('[data-back]')).forEach((button) => {
         button.addEventListener('click', () => this.back(button.dataset.back));
       });
       window.addEventListener('popstate', (e) => this.show(e.state));
