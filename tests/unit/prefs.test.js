@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { load } from './load.js';
 
 const { Prefs } = load('prefs');
-const { PREFS_KEY, STORAGE_KEY, REST_TIMES_S, DEFAULT_PREFS } = load('config');
+const { PREFS_KEY, STORAGE_KEY, REST_TIMES_S, KG_STEPS, DEFAULT_PREFS } = load('config');
 
 /** A stand-in for localStorage. */
 function memoryStorage(initial = {}) {
@@ -11,23 +11,24 @@ function memoryStorage(initial = {}) {
   return { getItem: (k) => (k in items ? items[k] : null), setItem: (k, v) => { items[k] = String(v); }, items };
 }
 
-test('Prefs: the timer is on with 1:30 rest when nothing is saved', () => {
-  assert.deepEqual(DEFAULT_PREFS, { timerOn: true, restSeconds: 90 });
+test('Prefs: the timer is on with 1:30 rest, and the kg wheel goes by 2.5, when nothing is saved', () => {
+  assert.deepEqual(DEFAULT_PREFS, { timerOn: true, restSeconds: 90, kgStep: 2.5 });
   assert.deepEqual(Prefs.load(memoryStorage()), DEFAULT_PREFS);
 });
 
 test('Prefs: saves and loads, apart from the notebook', () => {
   const storage = memoryStorage();
-  assert.ok(Prefs.save({ timerOn: false, restSeconds: 120 }, storage));
+  assert.ok(Prefs.save({ timerOn: false, restSeconds: 120, kgStep: 0.5 }, storage));
   assert.notEqual(PREFS_KEY, STORAGE_KEY);
   assert.ok(!(STORAGE_KEY in storage.items));
-  assert.deepEqual(Prefs.load(storage), { timerOn: false, restSeconds: 120 });
+  assert.deepEqual(Prefs.load(storage), { timerOn: false, restSeconds: 120, kgStep: 0.5 });
 });
 
 test('Prefs: bad or unknown values fall back to the defaults', () => {
   assert.deepEqual(Prefs.clean(null), DEFAULT_PREFS);
-  assert.deepEqual(Prefs.clean({ timerOn: 'yes', restSeconds: 91, beep: true }), DEFAULT_PREFS);
-  assert.deepEqual(Prefs.clean({ timerOn: false }), { timerOn: false, restSeconds: 90 });
+  assert.deepEqual(Prefs.clean({ timerOn: 'yes', restSeconds: 91, kgStep: 1, beep: true }), DEFAULT_PREFS);
+  assert.deepEqual(Prefs.clean({ kgStep: '0.5' }), DEFAULT_PREFS);
+  assert.deepEqual(Prefs.clean({ timerOn: false }), { timerOn: false, restSeconds: 90, kgStep: 2.5 });
   assert.deepEqual(Prefs.load(memoryStorage({ [PREFS_KEY]: '{not json' })), DEFAULT_PREFS);
 });
 
@@ -41,6 +42,11 @@ test('Prefs: rest times run from 0:15 to 10:00 in steps of 15 seconds', () => {
   assert.equal(REST_TIMES_S[0], 15);
   assert.equal(REST_TIMES_S.at(-1), 600);
   assert.ok(REST_TIMES_S.includes(DEFAULT_PREFS.restSeconds));
+});
+
+test('Prefs: the kg wheel goes by 0.5 (small dumbbells) or 2.5', () => {
+  assert.deepEqual(KG_STEPS, [0.5, 2.5]);
+  for (const kgStep of KG_STEPS) assert.equal(Prefs.clean({ kgStep }).kgStep, kgStep);
 });
 
 test('Prefs: clock', () => {

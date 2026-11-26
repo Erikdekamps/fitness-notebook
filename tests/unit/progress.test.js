@@ -167,6 +167,15 @@ test('plannedInDay: an unknown line has no pencil lines, even when the notebook 
   assert.deepEqual(Progress.plannedInDay([planned('p1', 'curl'), planned('p2', 'calf')], 'nope'), []);
 });
 
+test('kgOptions: another step, for small dumbbells', () => {
+  const options = Progress.kgOptions(0, 0.5);
+  assert.deepEqual(options.slice(0, 4), [0, 0.5, 1, 1.5]);
+  assert.equal(options.at(-1), 300);
+  assert.equal(options.length, 601);
+  const odd = Progress.kgOptions(12.25, 0.5);
+  assert.deepEqual(odd.slice(odd.indexOf(12.25) - 1, odd.indexOf(12.25) + 2), [12, 12.25, 12.5]);
+});
+
 test('kgOptions: a value already on the wheel is there once', () => {
   for (const kg of [0, 35, 300]) {
     const options = Progress.kgOptions(kg);
