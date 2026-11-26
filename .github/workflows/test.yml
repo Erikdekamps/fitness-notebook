@@ -1,9 +1,17 @@
 # Runs every test level on every pull request. All of them must pass;
 # the "test" job at the end sums them up in one check.
 #
-#   unit       the logic in index.html, in Node. Nothing to install.
-#   browser    the app in Chrome and Safari (desktop and phone), with WCAG checks, then the CRAP check
-#   mutation   Stryker changes the logic on purpose; the unit tests must notice
+# Quick checks first, the big work after, side by side:
+#
+#   quick      unit tests, and the CRAP check of the logic (unit coverage). About 10 seconds.
+#     |        When this fails, nothing else starts.
+#     +-- mutation   Stryker changes the logic on purpose; the unit tests must notice
+#     +-- browser    the app in one browser per job, side by side: Chrome and Safari, desktop and phone,
+#     |              with WCAG checks. The two Chrome jobs keep the coverage they record.
+#     |     |
+#     |     +-- crap   the CRAP check of every function, with the coverage of both Chrome jobs
+#     |
+#   test       sums it all up
 #
 # Not run on main: there the deploy workflow runs the unit tests first
 # and does not publish when they fail.
@@ -20,23 +28,9 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  unit:
+  quick:
     runs-on: ubuntu-latest
-    steps:
-      - name: Check out the repo
-        uses: actions/checkout@v7
-
-      - name: Set up Node
-        uses: actions/setup-node@v7
-        with:
-          node-version: 22
-
-      - name: Unit tests
-        run: npm test
-
-  browser:
-    runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 5
     steps:
       - name: Check out the repo
         uses: actions/checkout@v7
@@ -50,26 +44,15 @@ jobs:
       - name: Install
         run: npm ci
 
-      - name: Install Chromium and WebKit
-        run: npx playwright install --with-deps chromium webkit
+      - name: Unit tests
+        run: npm test
 
-      - name: Browser tests
-        run: npm run test:e2e
-
-      - name: CRAP check (unit and browser coverage)
+      # No browser coverage here yet, so only the logic blocks are scored. The crap job scores them all.
+      - name: CRAP check (unit coverage)
         run: npm run test:crap
 
-      - name: Keep the reports
-        if: ${{ !cancelled() }}
-        uses: actions/upload-artifact@v7
-        with:
-          name: browser-reports
-          path: |
-            reports/e2e/
-            reports/crap/
-          retention-days: 14
-
   mutation:
+    needs: quick
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -96,16 +79,125 @@ jobs:
           path: reports/mutation/
           retention-days: 14
 
-  # One check that sums up the three above. Branch protection requires "test",
+  # One job per Playwright project (playwright.config.js), each with only the browser it needs.
+  # When one fails, the others stop: the run has failed already.
+  browser:
+    needs: quick
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: true
+      matrix:
+        include:
+          - project: desktop
+            browser: chromium
+          - project: iphone-chrome
+            browser: chromium
+          - project: safari
+            browser: webkit
+          - project: iphone
+            browser: webkit
+    name: browser (${{ matrix.project }})
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Playwright version
+        id: playwright
+        run: echo "version=$(node -p "require('@playwright/test/package.json').version")" >> "$GITHUB_OUTPUT"
+
+      # The browser itself is kept between runs; the system libraries it needs are installed every time.
+      - name: Keep the browser between runs
+        id: browser-cache
+        uses: actions/cache@v6
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}-${{ matrix.browser }}
+
+      - name: Install ${{ matrix.browser }}
+        if: steps.browser-cache.outputs.cache-hit != 'true'
+        run: npx playwright install --with-deps ${{ matrix.browser }}
+
+      - name: Install what ${{ matrix.browser }} needs
+        if: steps.browser-cache.outputs.cache-hit == 'true'
+        run: npx playwright install-deps ${{ matrix.browser }}
+
+      - name: Browser tests
+        run: npx playwright test --project=${{ matrix.project }}
+
+      - name: Keep the coverage, for the crap job
+        if: ${{ matrix.browser == 'chromium' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: coverage-${{ matrix.project }}
+          path: reports/coverage/e2e/
+          retention-days: 1
+
+      - name: Keep the report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: browser-report-${{ matrix.project }}
+          path: reports/e2e/
+          retention-days: 14
+
+  # Each Chrome job runs a few lines the other never runs (touch on the phone, mouse on the desktop),
+  # so the check needs the coverage of both.
+  crap:
+    needs: browser
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out the repo
+        uses: actions/checkout@v7
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install
+        run: npm ci
+
+      - name: Get the browser coverage
+        uses: actions/download-artifact@v8
+        with:
+          pattern: coverage-*
+          merge-multiple: true
+          path: reports/coverage/e2e/
+
+      - name: CRAP check (unit and browser coverage)
+        run: npm run test:crap
+
+      - name: Keep the report
+        if: ${{ !cancelled() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: crap-report
+          path: reports/crap/
+          retention-days: 14
+
+  # One check that sums up the jobs above. Branch protection requires "test",
   # so the jobs above can change without changing that rule.
   test:
-    needs: [unit, browser, mutation]
+    needs: [quick, mutation, browser, crap]
     if: ${{ always() }}
     runs-on: ubuntu-latest
     steps:
       - name: All test levels passed
         run: |
-          echo "unit: ${{ needs.unit.result }}, browser: ${{ needs.browser.result }}, mutation: ${{ needs.mutation.result }}"
-          test "${{ needs.unit.result }}" = success
-          test "${{ needs.browser.result }}" = success
+          echo "quick: ${{ needs.quick.result }}, mutation: ${{ needs.mutation.result }}, browser: ${{ needs.browser.result }}, crap: ${{ needs.crap.result }}"
+          test "${{ needs.quick.result }}" = success
           test "${{ needs.mutation.result }}" = success
+          test "${{ needs.browser.result }}" = success
+          test "${{ needs.crap.result }}" = success
