@@ -127,9 +127,10 @@ export async function finger(page) {
   const fire = (type, x, y) =>
     page.evaluate(([type, x, y]) => {
       // A touch pointer stays with the element it went down on, like a real finger.
-      if (type === 'pointerdown') window.__fingerTarget = document.elementFromPoint(x, y);
+      const page = /** @type {any} */ (window); // the finger's element is kept on the page between events
+      if (type === 'pointerdown') page.__fingerTarget = document.elementFromPoint(x, y);
       const init = { bubbles: true, cancelable: true, composed: true, pointerId: 7, pointerType: 'touch', isPrimary: true };
-      window.__fingerTarget.dispatchEvent(new PointerEvent(type, { ...init, clientX: x, clientY: y, buttons: type === 'pointerup' ? 0 : 1 }));
+      page.__fingerTarget.dispatchEvent(new PointerEvent(type, { ...init, clientX: x, clientY: y, buttons: type === 'pointerup' ? 0 : 1 }));
     }, [type, x, y]);
   return {
     down: (x, y) => fire('pointerdown', (last = { x, y }).x, y),

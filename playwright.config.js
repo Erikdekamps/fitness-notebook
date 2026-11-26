@@ -7,10 +7,14 @@
  * and on an iPhone 13 screen with touch: once in Chrome, once in Safari.
  * The Chrome one gets real touch events (the page scrolls under a finger) and records coverage.
  * In Chromium each test also records which code ran, for the CRAP check (tests/crap/crap.js).
+ * Tests of a rule of the app, not of a browser, run in desktop Chrome only.
  */
 import { defineConfig, devices } from '@playwright/test';
 
 const CI = !!process.env.CI;
+// Tests of a rule of the app (tagged RULES in tests/e2e/fixtures.js) run in desktop Chrome only:
+// a rule works the same in every browser.
+const RULES_ONLY = /@rules/;
 const PORT = Number(process.env.E2E_PORT) || 4173; // another port lets two checkouts run their tests at once
 
 export default defineConfig({
@@ -20,6 +24,7 @@ export default defineConfig({
   fullyParallel: true,
   forbidOnly: CI,
   retries: CI ? 1 : 0,
+  failOnFlakyTests: CI, // a test that only passes on its second try is a broken test
   workers: CI ? 2 : undefined,
   outputDir: 'test-results',
   // Baselines for tests/e2e/screenshots.spec.js: one picture per screen per project, taken on Linux.
@@ -47,8 +52,8 @@ export default defineConfig({
   },
   projects: [
     { name: 'desktop', use: { ...devices['Desktop Chrome'] } },
-    { name: 'iphone-chrome', use: { ...devices['iPhone 13'], defaultBrowserType: 'chromium' } },
-    { name: 'safari', use: { ...devices['Desktop Safari'] } },
-    { name: 'iphone', use: { ...devices['iPhone 13'] } },
+    { name: 'iphone-chrome', grepInvert: RULES_ONLY, use: { ...devices['iPhone 13'], defaultBrowserType: 'chromium' } },
+    { name: 'safari', grepInvert: RULES_ONLY, use: { ...devices['Desktop Safari'] } },
+    { name: 'iphone', grepInvert: RULES_ONLY, use: { ...devices['iPhone 13'] } },
   ],
 });

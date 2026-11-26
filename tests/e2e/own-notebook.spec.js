@@ -1,5 +1,5 @@
 /** Notebooks that are not the example one: a year of training, and one without any machines. */
-import { test, expect } from './fixtures.js';
+import { test, expect, RULES } from './fixtures.js';
 import { actionButton, lastDay, openApp, sheet, startWith } from './app.js';
 
 const LEG_PRESS = { id: 'm-leg-press', name: 'Leg press' };
@@ -15,7 +15,7 @@ function weeklyLegPress(weeks) {
   return lines;
 }
 
-test('a machine with a year of changes: the chart names the months, with the year on the first', async ({ page }) => {
+test('a machine with a year of changes: the chart names the months, with the year on the first', RULES, async ({ page }) => {
   await startWith(page, { machines: [LEG_PRESS], lines: weeklyLegPress(50) });
   await openApp(page);
   await page.getByRole('button', { name: 'Statistics' }).click();
@@ -28,7 +28,7 @@ test('a machine with a year of changes: the chart names the months, with the yea
   for (const label of labels.slice(1)) expect(label).toMatch(/^[a-z]{3}$/); // month names, no dates
 });
 
-test('a machine with a few changes: the chart writes the date under each change', async ({ page }) => {
+test('a machine with a few changes: the chart writes the date under each change', RULES, async ({ page }) => {
   await startWith(page, { machines: [LEG_PRESS], lines: weeklyLegPress(3) });
   await openApp(page);
   await page.getByRole('button', { name: 'Statistics' }).click();
@@ -52,4 +52,16 @@ test('a notebook without machines: the panel has no wheels, only a line to write
   await field.fill('Walk 30 min');
   await actionButton(page).click();
   expect(await lastDay(page)).toEqual(['Walk 30 min']);
+});
+
+test('statistics: the arrows go to the month before, and back to this one', async ({ page }) => {
+  await startWith(page, { machines: [LEG_PRESS], lines: weeklyLegPress(50) }); // until 9 November 2026
+  await openApp(page);
+  await page.getByRole('button', { name: 'Statistics' }).click();
+  await expect(page.locator('#statsBody')).toContainText('november');
+  await expect(page.getByRole('button', { name: 'Month after' })).toHaveCount(0); // nothing after this month
+  await page.getByRole('button', { name: 'Month before' }).click();
+  await expect(page.locator('#statsBody')).toContainText('oktober');
+  await page.getByRole('button', { name: 'Month after' }).click();
+  await expect(page.locator('#statsBody')).toContainText('november');
 });

@@ -12,7 +12,8 @@
  *               A branch is each arm of an if or ?:, the right side of &&, || and ??, and a loop body.
  *
  * A simple function scores low even when no test runs it. A complex function only scores low
- * when tests run nearly all of it. MAX_CRAP or more fails: split the function, or test it.
+ * when tests run nearly all of it. More than MAX_CRAP fails: split the function, or test it.
+ * The score can never be lower than the complexity, so no function may have more than MAX_CRAP - 1 decisions.
  *
  * Coverage comes from two levels, and a statement counts as run when either ran it:
  *   unit tests     V8 coverage of `node --test` (always collected here)
@@ -28,7 +29,7 @@ import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { parse } from 'acorn';
 
-export const MAX_CRAP = 8; // every function must stay under this
+export const MAX_CRAP = 5; // no function may score more than this
 
 const ROOT = fileURLToPath(new URL('../../', import.meta.url));
 const E2E_COVERAGE = join(ROOT, 'reports/coverage/e2e');
@@ -253,22 +254,22 @@ function main() {
   }
   rows.sort((a, b) => b.crap - a.crap || b.complexity - a.complexity);
 
-  const failing = rows.filter((r) => r.crap >= MAX_CRAP);
+  const failing = rows.filter((r) => r.crap > MAX_CRAP);
   mkdirSync(join(ROOT, 'reports/crap'), { recursive: true });
   writeFileSync(REPORT, JSON.stringify({ maxCrap: MAX_CRAP, browserCoverage: withBrowser, functions: rows }, null, 2));
 
   const pad = (s, n) => String(s).padEnd(n);
-  console.log(`CRAP per function (must be under ${MAX_CRAP}). Coverage from unit tests${withBrowser ? ' and browser tests' : ' only; page blocks left out'}.\n`);
+  console.log(`CRAP per function (${MAX_CRAP} at most). Coverage from unit tests${withBrowser ? ' and browser tests' : ' only; page blocks left out'}.\n`);
   console.log(`${pad('CRAP', 7)}${pad('cx', 4)}${pad('cov', 6)}${pad('line', 6)}function`);
   for (const r of rows.slice(0, Math.max(top, failing.length))) {
     console.log(`${pad(r.crap, 7)}${pad(r.complexity, 4)}${pad(Math.round(r.coverage * 100) + '%', 6)}${pad(r.line, 6)}${r.block}: ${r.name}`);
   }
   console.log(`\n${rows.length} functions, report in reports/crap/crap.json`);
   if (failing.length) {
-    console.log(`\nFAIL: ${failing.length} function(s) at ${MAX_CRAP} or more. Split them, or test them.`);
+    console.log(`\nFAIL: ${failing.length} function(s) over ${MAX_CRAP}. Split them, or test them.`);
     process.exitCode = 1;
   } else {
-    console.log(`\nOK: every function is under ${MAX_CRAP}.`);
+    console.log(`\nOK: every function is at ${MAX_CRAP} or less.`);
   }
 }
 

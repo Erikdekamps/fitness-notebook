@@ -1,6 +1,6 @@
 # Runs every test level on every pull request, cheapest first. All of them must pass.
 #
-#   checks             unit tests > CRAP check of the logic > mutation tests, one after the other.
+#   checks             lint > types > unit tests > CRAP check of the logic > mutation tests, one after the other.
 #     |                When one fails, nothing after it runs, and no browser job starts.
 #     +-- browser (chrome)   desktop and phone in Chrome, then the CRAP check of every function
 #     |                      (it needs the coverage of both)
@@ -40,6 +40,12 @@ jobs:
 
       - name: Install
         run: npm ci
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Type check
+        run: npm run types
 
       - name: Unit tests
         run: npm test

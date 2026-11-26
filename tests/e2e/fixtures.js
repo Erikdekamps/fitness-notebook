@@ -16,7 +16,21 @@ import { test as base, expect } from '@playwright/test';
 export const COVERAGE_DIR = fileURLToPath(new URL('../../reports/coverage/e2e/', import.meta.url));
 export const TODAY = new Date('2026-11-23T10:00:00');
 
-export const test = base.extend({
+/**
+ * For a test of a rule of the app, not of how a browser behaves: `test('...', RULES, async ...)`.
+ * A rule works the same in every browser, so these run in desktop Chrome only (playwright.config.js).
+ */
+export const RULES = { tag: '@rules' };
+
+/**
+ * @typedef {import('@playwright/test').Page} Page
+ * @typedef {{ watched: (page: Page) => Promise<Page>, newTab: () => Promise<Page> }} OwnFixtures
+ * @typedef {import('@playwright/test').PlaywrightTestArgs & import('@playwright/test').PlaywrightTestOptions} TestArgs
+ * @typedef {import('@playwright/test').PlaywrightWorkerArgs & import('@playwright/test').PlaywrightWorkerOptions} WorkerArgs
+ */
+
+/** @type {import('@playwright/test').TestType<TestArgs & OwnFixtures, WorkerArgs>} */
+export const test = base.extend(/** @type {any} */ ({
   /** Every page this test watches, with the errors each one had. */
   watched: async ({ browserName }, use, testInfo) => {
     const tabs = [];
@@ -52,6 +66,6 @@ export const test = base.extend({
   newTab: async ({ context, watched }, use) => {
     await use(async () => watched(await context.newPage()));
   },
-});
+}));
 
 export { expect };
