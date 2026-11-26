@@ -153,3 +153,44 @@ test('add a machine to a plan by writing its name: a new one is made, one alread
   await backTo(page, 'settings');
   await expect(page.locator('#machineList .name').filter({ hasText: 'Hip thrust' })).toHaveCount(1); // a machine like any other
 });
+
+test('take a machine out of a plan, and Undo puts it back', async ({ page }) => {
+  await openSettings(page);
+  await page.locator('#planList .row').filter({ hasText: 'Leg day' }).click();
+  await page.locator('#planMachines .row').filter({ hasText: 'Leg press' }).focus();
+  await page.keyboard.press('Delete');
+  await expect(page.locator('#planMachines .name')).toHaveText(['Leg curl']);
+  await page.getByRole('button', { name: 'Undo' }).click();
+  await expect(page.locator('#planMachines .name')).toHaveText(['Leg press', 'Leg curl']);
+});
+
+test('rename a plan on its own screen: the same name changes nothing, a taken name is refused', async ({ page }) => {
+  await openSettings(page);
+  await page.getByRole('button', { name: 'tap here to add a plan' }).click();
+  await page.getByRole('textbox', { name: 'Name of the plan' }).fill('Arms');
+  await actionButton(page).click();
+  await expect(page.locator('#planTitle')).toHaveText('Arms');
+
+  const field = page.locator('#planTitle').getByRole('textbox', { name: 'Name of the plan' });
+  await page.getByRole('button', { name: /Arms: tap to change the name/ }).click();
+  await field.press('Enter'); // the same name: the field just closes
+  await expect(field).toHaveCount(0);
+  await expect(page.locator('#planTitle')).toHaveText('Arms');
+
+  await page.getByRole('button', { name: /Arms: tap to change the name/ }).click();
+  await field.fill('leg day'); // taken, whatever the capitals
+  await field.press('Enter');
+  await expect(field).toHaveValue('leg day'); // the field stays, with what was typed
+  await field.press('Escape');
+  await expect(page.locator('#planTitle')).toHaveText('Arms');
+});
+
+test('a changed date keeps the plan it was started from', async ({ page }) => {
+  await startDate(page, 'Leg day');
+  await page.keyboard.press('Escape'); // the panel for the first machine
+  await page.locator('#lines .row--date').last().click();
+  await expect(actionButton(page)).toHaveText('Save');
+  await pick(page, 'Day', '22');
+  await actionButton(page).click();
+  await expect(page.locator('#lines .row--date').last()).toHaveText(/22\/11.*Leg day/);
+});

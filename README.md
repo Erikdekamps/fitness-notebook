@@ -11,11 +11,13 @@ Open `index.html` in a browser, or the GitHub Pages site.
 ```sh
 npm test                # unit tests (Node 22, nothing to install)
 npm ci                  # once, for the checks below
+npm run lint            # ESLint: index.html and the tests
+npm run types           # type check of the tests and tools
 npm run test:e2e        # browser tests: Chrome and Safari, desktop and phone, WCAG 2.2 AA
 npm run test:screenshots:update   # new screenshot baselines, after changing the look on purpose (on Linux)
-npm run test:crap       # CRAP score, under 8 per function
+npm run test:crap       # CRAP score, 5 at most per function
 npm run test:mutation   # mutation testing, min 95%
 npm run test:all        # all of the above
 ```
 
-Logic lives in `<script data-testable>` blocks of `index.html`; only those are unit and mutation tested. Known harmless mutants are listed in `tests/mutation/known-survivors.json`.
+Logic lives in `<script data-testable>` blocks of `index.html`; only those are unit and mutation tested. What a screen decides (which key does what, what a button says) is in the `decide` block, so it is tested there too; the page blocks only draw. Known harmless mutants are listed in `tests/mutation/known-survivors.json`.

@@ -3,7 +3,7 @@
  * Any violation fails the test, with what is wrong and where.
  */
 import AxeBuilder from '@axe-core/playwright';
-import { test, expect } from './fixtures.js';
+import { test, expect, RULES } from './fixtures.js';
 import { backTo, openApp, openSettings, row, startDate, stillness } from './app.js';
 
 const WCAG = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22a', 'wcag22aa'];
@@ -94,7 +94,7 @@ test('statistics: the month and one machine', async ({ page }) => {
  * behind it. Every pair of text and background colour the app uses must reach 4.5 : 1 (WCAG AA).
  * The colours are read from the page, so changing one in the CSS is checked too.
  */
-test('text colours have enough contrast on their backgrounds', async ({ page }) => {
+test('text colours have enough contrast on their backgrounds', RULES, async ({ page }) => {
   const pairs = await page.evaluate(() => {
     const token = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
     const css = (selector, property) => getComputedStyle(document.querySelector(selector))[property];

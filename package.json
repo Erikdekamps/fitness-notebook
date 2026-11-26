@@ -5,18 +5,26 @@
   "description": "A fitness log that looks and feels like a paper notebook. The whole app is one file: index.html.",
   "type": "module",
   "scripts": {
+    "lint": "eslint .",
+    "types": "tsc -p jsconfig.json",
     "test": "node --test \"tests/unit/*.test.js\"",
     "test:e2e": "playwright test",
     "test:screenshots:update": "playwright test tests/e2e/screenshots.spec.js --update-snapshots",
     "test:mutation": "stryker run && node tests/mutation/survivors.js --check",
     "test:crap": "node --test \"tests/crap/*.test.js\" && node tests/crap/crap.js",
-    "test:all": "npm test && npm run test:e2e && npm run test:crap && npm run test:mutation"
+    "test:all": "npm run lint && npm run types && npm test && npm run test:e2e && npm run test:crap && npm run test:mutation"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.14.0",
+    "@eslint/js": "10.0.1",
     "@playwright/test": "1.65.0",
     "@stryker-mutator/core": "10.1.1",
     "@stryker-mutator/tap-runner": "10.1.1",
-    "acorn": "8.19.0"
+    "@types/node": "26.6.11",
+    "acorn": "8.19.0",
+    "eslint": "10.15.0",
+    "eslint-plugin-html": "8.2.1",
+    "globals": "17.14.0",
+    "typescript": "7.0.2"
   }
 }

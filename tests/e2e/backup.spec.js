@@ -1,6 +1,6 @@
 /** The notebook is kept in the browser, and moves between browsers as a backup: a file, or pasted text. */
 import { readFileSync } from 'node:fs';
-import { test, expect } from './fixtures.js';
+import { test, expect, RULES } from './fixtures.js';
 import { EXAMPLE_LAST_DAY, actionButton, addLine, backTo, lastDay, openApp, openSettings, sheet, startDate } from './app.js';
 
 const MY_DAY = ['Bike 15 min', 'Fly'];
@@ -65,7 +65,7 @@ test('Undo after an import brings the old notebook back', async ({ page }, testI
   await expect.poll(() => lastDay(page)).toEqual(EXAMPLE_LAST_DAY);
 });
 
-test('import from pasted text', async ({ page }, testInfo) => {
+test('import from pasted text', RULES, async ({ page }, testInfo) => {
   await openApp(page);
   await writeMyDay(page);
   const text = readFileSync(await exportBackup(page, testInfo), 'utf8');
@@ -82,7 +82,7 @@ test('import from pasted text', async ({ page }, testInfo) => {
   await expect.poll(() => lastDay(page)).toEqual(MY_DAY);
 });
 
-test('text that is not a backup: the panel says so, keeps the text and changes nothing', async ({ page }) => {
+test('text that is not a backup: the panel says so, keeps the text and changes nothing', RULES, async ({ page }) => {
   await openApp(page);
   await openSettings(page);
   await page.getByRole('button', { name: 'import from text' }).click();

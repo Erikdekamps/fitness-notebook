@@ -41,3 +41,9 @@ test('settings: remove the example lines, and Undo puts them back', async ({ pag
   await page.getByRole('button', { name: 'Undo' }).click();
   await expect(page.locator('#lines .row--date')).toHaveCount(5);
 });
+
+test('a tap on the empty paper below the add line starts a new date', async ({ page }) => {
+  await page.locator('#notebookFiller').click();
+  await expect(page.locator('#sheet')).toHaveClass(/is-open/);
+  await expect(page.getByRole('spinbutton', { name: 'Day', exact: true })).toHaveAttribute('aria-valuetext', '23');
+});

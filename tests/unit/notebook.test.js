@@ -79,6 +79,21 @@ test('isMachineLine: only a line of type machine', () => {
   assert.equal(Notebook.isMachineLine(undefined), false);
 });
 
+test('dateFields: the date, and the plan only when there is one', () => {
+  assert.deepEqual(Notebook.dateFields('2026-11-23', 'Legs'), { type: 'date', date: '2026-11-23', plan: 'Legs' });
+  assert.deepEqual(Notebook.dateFields('2026-11-23', null), { type: 'date', date: '2026-11-23' });
+  assert.deepEqual(Notebook.dateFields('2026-11-23', undefined), { type: 'date', date: '2026-11-23' });
+  assert.deepEqual(Notebook.dateFields('2026-11-23', ''), { type: 'date', date: '2026-11-23' });
+});
+
+test('isOwnUnderExample: a line of your own under an example date', () => {
+  const exampleDate = { id: 'd', type: 'date', example: true };
+  assert.equal(Notebook.isOwnUnderExample({ id: 'a' }, exampleDate), true);
+  assert.equal(Notebook.isOwnUnderExample({ id: 'a', example: true }, exampleDate), false);
+  assert.equal(Notebook.isOwnUnderExample({ id: 'a' }, { id: 'd', type: 'date' }), false);
+  assert.equal(Notebook.isOwnUnderExample({ id: 'a' }, null), false);
+});
+
 test('addSet: one more set on any machine line; a demo line becomes yours', () => {
   const { notebook } = makeNotebook();
   notebook.addLine({ type: 'text', text: 'Biking' });

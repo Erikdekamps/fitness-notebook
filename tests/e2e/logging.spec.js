@@ -1,5 +1,5 @@
 /** Writing the notebook: a new date, sets on a machine, a line of your own, changing and removing lines. */
-import { test, expect } from './fixtures.js';
+import { test, expect, RULES } from './fixtures.js';
 import { actionButton, addLine, lastDay, numbers, openApp, pick, row, sheet, startDate, swipe } from './app.js';
 
 test.beforeEach(async ({ page }) => {
@@ -12,7 +12,7 @@ test('a new date starts on today', async ({ page }) => {
   expect(await lastDay(page)).toEqual([]);
 });
 
-test('log a set, then the same machine, kg and reps again counts up the sets on that line', async ({ page }) => {
+test('log a set, then the same machine, kg and reps again counts up the sets on that line', RULES, async ({ page }) => {
   await startDate(page);
   await addLine(page, { machine: 'Fly', kg: '20', reps: '10', expectButton: 'Log set 1' });
   await expect(numbers(row(page, 'Fly'))).toHaveText('20 × 10 × 1');
@@ -25,14 +25,14 @@ test('log a set, then the same machine, kg and reps again counts up the sets on 
   expect(await lastDay(page)).toEqual(['Fly']);
 });
 
-test('other reps start a new line', async ({ page }) => {
+test('other reps start a new line', RULES, async ({ page }) => {
   await startDate(page);
   await addLine(page, { machine: 'Fly', kg: '20', reps: '10' });
   await addLine(page, { machine: 'Fly', kg: '20', reps: '8', expectButton: 'Log set 1' });
   expect(await lastDay(page)).toEqual(['Fly', 'Fly']);
 });
 
-test('a machine starts on the kg and reps of the last time', async ({ page }) => {
+test('a machine starts on the kg and reps of the last time', RULES, async ({ page }) => {
   await startDate(page);
   await page.getByRole('button', { name: 'tap to add a line' }).click();
   await pick(page, 'Machine', 'Leg press');
@@ -96,7 +96,7 @@ test('swipe a line far to the left to remove it', async ({ page, isMobile }) => 
   await expect.poll(() => lastDay(page)).not.toContain('Leg press');
 });
 
-test('a line gets a mark: an arrow up when heavier than last time', async ({ page }) => {
+test('a line gets a mark: an arrow up when heavier than last time', RULES, async ({ page }) => {
   await startDate(page);
   await addLine(page, { machine: 'Leg press', kg: '85', reps: '12' });
   await expect(row(page, 'Leg press').getByRole('img', { name: 'heavier than last time' })).toBeVisible();
@@ -110,4 +110,15 @@ test('change a line of your own: other words, then Save', async ({ page }) => {
   await field.fill('Spinning class');
   await actionButton(page).click();
   expect((await lastDay(page))[0]).toBe('Spinning class');
+});
+
+test('change a date: tap it, pick another day, then Save', async ({ page }) => {
+  await startDate(page);
+  await page.locator('#lines .row--date').last().click();
+  await expect(sheet(page)).toHaveClass(/is-open/);
+  await expect(actionButton(page)).toHaveText('Save');
+  await expect(page.getByRole('spinbutton', { name: 'Plan', exact: true })).toHaveCount(0); // only a new date starts from a plan
+  await pick(page, 'Day', '22');
+  await actionButton(page).click();
+  await expect(page.locator('#lines .row--date').last()).toHaveText(/22\/11/);
 });

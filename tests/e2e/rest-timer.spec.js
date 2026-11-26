@@ -1,5 +1,5 @@
 /** The rest timer: it starts after each set, counts down and goes away at 0:00. Time is fast-forwarded. */
-import { test, expect } from './fixtures.js';
+import { test, expect, RULES } from './fixtures.js';
 import { actionButton, addLine, backTo, openApp, openSettings, pick, startDate } from './app.js';
 
 const timer = (page) => page.locator('#timerBtn');
@@ -9,7 +9,7 @@ test.beforeEach(async ({ page }) => {
   await startDate(page);
 });
 
-test('after a set the timer counts down from 1:30 and goes away at 0:00', async ({ page }) => {
+test('after a set the timer counts down from 1:30 and goes away at 0:00', RULES, async ({ page }) => {
   await expect(timer(page)).toBeHidden();
   await addLine(page, { machine: 'Fly', kg: '20', reps: '10' });
   await expect(timer(page)).toBeVisible();
@@ -21,7 +21,7 @@ test('after a set the timer counts down from 1:30 and goes away at 0:00', async 
   await expect(timer(page)).toBeHidden();
 });
 
-test('a line of your own starts no timer', async ({ page }) => {
+test('a line of your own starts no timer', RULES, async ({ page }) => {
   await addLine(page, { text: 'Bike 15 min' });
   await expect(timer(page)).toBeHidden();
 });
