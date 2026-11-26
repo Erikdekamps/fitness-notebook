@@ -83,5 +83,15 @@
     "block": "notebook", "mutator": "ObjectLiteral",
     "original": "{ sensitivity: 'base' }", "replacement": "{}",
     "reason": "Only changes the A-Z order of names that differ just in accents (Ole, Olé). Not worth a test."
+  },
+  {
+    "block": "decide", "mutator": "EqualityOperator",
+    "original": "i < tops.length", "replacement": "i <= tops.length",
+    "reason": "One place past the last has no top: the comparison with it is false, so nothing changes."
+  },
+  {
+    "block": "decide", "mutator": "EqualityOperator",
+    "original": "iso > today", "replacement": "iso >= today",
+    "reason": "When the picked date is today, both give today."
   }
 ]

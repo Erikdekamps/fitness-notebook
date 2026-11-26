@@ -1505,7 +1505,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
 
   class Notebook {
     /** data: { version, machines, plans, lines }. onSave(data) runs after every change. */
-    constructor(data, { onSave = () => {} } = {}) {
+    constructor(data, { onSave = (_data) => {} } = {}) {
       this.data = Notebook.ready(data);
       this.onSave = onSave;
     }
@@ -1909,6 +1909,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
         { id: 'm-triceps-press', name: 'Triceps press' },
       ];
       const byName = new Map(machines.map((m) => [m.name, m]));
+      /** @type {[string, string, [string, number, number, number][]][]} date, class, [machine, kg, sets, reps] */
       const sessions = [
         ['2026-11-07', 'Biking Basics New Zealand #11', [['Leg press', 75, 3, 12], ['Chest press', 32.5, 3, 10], ['Seated row', 37.5, 3, 12]]],
         ['2026-11-09', 'Biking Basics New Zealand #12', [['Leg press', 75, 3, 12], ['Shoulder press', 20, 3, 10], ['Lat pulldown', 45, 3, 12]]],
@@ -2000,9 +2001,13 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
  */
 (function (FN) {
   'use strict';
-  const { clamp } = FN.util;
+  const { OPEN_OFFSET_PX, FULL_SWIPE } = FN.config;
+  const { clamp, range } = FN.util;
+  const { Calendar } = FN.calendar;
   const { Progress } = FN.progress;
+  const { Notebook } = FN.notebook;
 
+  const FIELD_KEYS = { Enter: 'submit', Escape: 'cancel' };
   const ROW_KEYS = { Enter: 'tap', ' ': 'tap', Delete: 'remove', Backspace: 'remove' };
   const MOVE_KEYS = { ArrowUp: -1, ArrowDown: 1 };
   const WHEEL_KEYS = { ArrowUp: -1, ArrowDown: 1, PageUp: -5, PageDown: 5 };
@@ -2020,9 +2025,29 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       return ROW_KEYS[key] || null;
     },
 
+    /** How many places an arrow key moves something: up (-1) or down (1), else 0. */
+    arrowStep(key) {
+      return MOVE_KEYS[key] || 0;
+    },
+
     /** How many places a key moves a focused row: Alt with arrow up (-1) or down (1), else 0. */
     moveStep(key, altKey) {
-      return (altKey && MOVE_KEYS[key]) || 0;
+      return altKey ? Decide.arrowStep(key) : 0;
+    },
+
+    /**
+     * What a key does in a text field: 'submit' (Enter), 'cancel' (Escape), or nothing (null).
+     * Never while the keyboard is still putting a character together (as it does for Japanese or Chinese).
+     */
+    fieldKey({ key, isComposing, keyCode }) {
+      if (isComposing || keyCode === 229) return null;
+      return FIELD_KEYS[key] || null;
+    },
+
+    /** What a key does while a panel is open: Escape is 'cancel', Enter on a wheel is 'act', else nothing (null). */
+    sheetKey(key, onWheel) {
+      if (key === 'Escape') return 'cancel';
+      return key === 'Enter' && onWheel ? 'act' : null;
     },
 
     /** The item a key turns a wheel to, from item `current` of `count`; null when the key is not for the wheel. */
@@ -2033,7 +2058,47 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       return key === 'End' ? count - 1 : null;
     },
 
+    /* ---- Swiping a row sideways ---- */
+
+    /** Once a finger has moved 8 px: a swipe ('x') or a scroll ('y'). Null while it is too early to say. */
+    swipeAxis(dx, dy) {
+      if (Math.hypot(dx, dy) < 8) return null;
+      return Math.abs(dx) > Math.abs(dy) * 1.2 ? 'x' : 'y';
+    },
+
+    /** Where a row goes when it is let go `x` px from its place (0 or less): 'remove' it, 'open' on Delete, or 'back'. */
+    swipeEnd(x, width) {
+      if (-x > width * FULL_SWIPE) return 'remove';
+      return -x > OPEN_OFFSET_PX / 2 ? 'open' : 'back';
+    },
+
     /* ---- Dragging a row to another place ---- */
+
+    /** How far the picked-up row can go: [up, down] in px from where it started, to the top and bottom of its group. */
+    dragReach({ from, tops, heights }) {
+      const last = tops.length - 1;
+      return [tops[0] - tops[from], tops[last] + heights[last] - tops[from] - heights[from]];
+    },
+
+    /**
+     * The place a picked-up row has reached, `dy` pixels from where it started.
+     * Pushed all the way to an end, it is there: a line that fills two ruled lines never gets its middle
+     * past the middle of a shorter first or last line.
+     */
+    placeAt(d, dy) {
+      const [up, down] = Decide.dragReach(d);
+      if (dy <= up) return 0;
+      return dy >= down ? d.tops.length - 1 : Decide.placeByMiddle(d, dy);
+    },
+
+    /** In between, a row takes a place once its middle passes that place's middle. */
+    placeByMiddle({ from, tops, heights }, dy) {
+      const middle = tops[from] + dy + heights[from] / 2;
+      let to = from;
+      for (let i = from + 1; i < tops.length; i++) if (middle >= tops[i] + heights[i] / 2) to = i;
+      for (let i = from - 1; i >= 0; i--) if (middle <= tops[i] + heights[i] / 2) to = i;
+      return to;
+    },
 
     /**
      * How far row `i` steps aside while the row that came from place `from` hangs over place `to`:
@@ -2092,7 +2157,94 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       return logging || !!planLine || Progress.plannedInDay(lines, loggedId).length > 0;
     },
 
+    /** The machines on the wheel. A machine removed in settings stays pickable for its own old line (`old`), on top. */
+    pickableMachines(machines, old) {
+      if (!old || machines.some((m) => m.id === old.machineId)) return machines;
+      return [{ id: old.machineId, name: old.name }, ...machines];
+    },
+
+    /** The text field: the text of the line being changed, and a hint that says whether there are wheels too. */
+    lineText(editing, hasWheels) {
+      const own = ofType(editing, 'text');
+      return { value: own ? own.text : '', placeholder: hasWheels ? 'or write your own line' : 'write a line' };
+    },
+
+    /** The name to write for a machine: a line that is changed (`own`) keeps the name it was written with. */
+    machineName(machine, own) {
+      return own && machine.id === own.machineId ? own.name : machine.name;
+    },
+
+    /**
+     * The line that gets one more set when `next` is logged, or null.
+     * On a machine line: that line, while the machine, kg and reps are still its own. A new line: `bottom`,
+     * the bottom line when that is the same set. A text or plan line never gets a set.
+     */
+    setLine({ editing, editingMachine }, next, bottom) {
+      if (editingMachine) return Notebook.sameSet(next, editingMachine) ? editingMachine : null;
+      return editing ? null : bottom;
+    },
+
+    /**
+     * What Log or Save does with `next`: { action, isSet }.
+     *   action  'addSet' on `setLine`, 'logSet' or 'addLine' at the bottom, 'addAfter' the line just logged,
+     *           'replace' the line that is changed, or 'none'
+     *   isSet   a set was logged, so the rest timer starts
+     */
+    writing(mode, next, setLine) {
+      if (setLine) return { action: 'addSet', isSet: true };
+      if (!next) return { action: 'none', isSet: false };
+      return Decide.writingLine(mode, !!ofType(next, 'machine'));
+    },
+
+    writingLine({ editing, logging, planLine }, isSet) {
+      if (!editing) return { action: isSet ? 'logSet' : 'addLine', isSet };
+      if (logging) return { action: 'addAfter', isSet };
+      return { action: 'replace', isSet: isSet && !!planLine }; // a pencil plan line is now in pen, with 1 set
+    },
+
+    /* ---- The panel to add a machine to a plan ---- */
+
+    /** After Add: 'refused' when the written machine was in the plan already, else 'again' while machines are left, else 'done'. */
+    afterAdding(typed, added, left) {
+      if (typed && !added) return 'refused';
+      return left > 0 ? 'again' : 'done';
+    },
+
+    /* ---- Panels ---- */
+
+    /** Whether a panel folds its wheels away for typing: it has none, or its text field has text or the focus. */
+    sheetTyping({ open, wheels, fieldShown, text, focused }) {
+      if (!open) return false;
+      return wheels === 0 || (fieldShown && (text !== '' || focused));
+    },
+
+    /** What gets the focus when a panel opens: 'wheel', 'text', 'area' or 'action' (the big button). */
+    firstFocus({ wheels, typing, text, area }) {
+      if (wheels > 0 && !typing) return 'wheel';
+      if (text) return 'text';
+      return area ? 'area' : 'action';
+    },
+
+    /* ---- Names ---- */
+
+    /** What to do with a name that was written over `current`: 'close' (nothing changed), 'refuse' (taken) or 'rename'. */
+    rename(name, current, taken) {
+      if (!name || name === current) return 'close';
+      return taken ? 'refuse' : 'rename';
+    },
+
     /* ---- The panel to pick a date ---- */
+
+    /** The years on the wheel: `back` years ago until now, and every year that is written or shown. */
+    years(nowYear, startYear, writtenYears, back) {
+      return range(Math.min(nowYear - back, startYear, ...writtenYears), Math.max(nowYear, startYear));
+    },
+
+    /** The picked date, made valid: no 31 November, nothing after today. */
+    validDate(y, m, d, today) {
+      const iso = Calendar.toIso(y, m, Math.min(d, Calendar.daysInMonth(y, m)));
+      return iso > today ? today : iso;
+    },
 
     /** What the button says: Save for a changed date, "Start Leg day" with a plan, else Log. */
     dateActionLabel(editing, plan) {
@@ -2125,6 +2277,11 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
     screenFor(next, views, hasPlan) {
       if (!next || !views.includes(next.view)) return { view: 'notebook' };
       return next.view === 'plan' && !hasPlan(next.planId) ? { view: 'settings' } : next;
+    },
+
+    /** Whether Back can use the browser's own back: this screen was opened from another one (`state` is its history entry). */
+    canGoBack(state, view) {
+      return !!state && state.view === view && view !== 'notebook';
     },
   };
 
@@ -2238,6 +2395,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
  */
 (function (FN) {
   'use strict';
+  const { Decide } = FN.decide;
 
   class LineInput {
     constructor({ value = '', placeholder = '', label, onSubmit, onClose }) {
@@ -2278,14 +2436,11 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
     }
 
     onKey(e) {
-      if (e.isComposing || e.keyCode === 229) return;
-      if (e.key === 'Enter') {
-        e.preventDefault();
-        this.submit();
-      } else if (e.key === 'Escape') {
-        e.preventDefault();
-        this.close();
-      }
+      const action = Decide.fieldKey(e);
+      if (!action) return;
+      e.preventDefault();
+      if (action === 'submit') this.submit();
+      else this.close();
     }
 
     /** Hands the text to onSubmit, which says what happens next: 'clear' the field, 'keep' it, or 'close' (the default). */
@@ -2376,7 +2531,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
     }
 
     itemAt(i) {
-      return this.el.children[i + 1]; // children[0] is the top padding
+      return /** @type {HTMLElement} */ (this.el.children[i + 1]); // children[0] is the top padding
     }
 
     /** Shrinks the text until the longest name fits, so names are never cut off. */
@@ -2507,7 +2662,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
    */
   function tappedItem(el, e) {
     const under = document.elementFromPoint(e.clientX, e.clientY);
-    const item = under && under.closest('.wheel-item');
+    const item = under && /** @type {HTMLElement} */ (under.closest('.wheel-item'));
     return item && el.contains(item) ? item : null;
   }
 
@@ -2522,6 +2677,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
   const { escapeHtml } = FN.util;
   const { byId } = FN.dom;
   const { Wheel } = FN.wheel;
+  const { Decide } = FN.decide;
 
   class Sheet {
     constructor({ toast }) {
@@ -2597,11 +2753,20 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       this.behind.forEach((el) => { el.inert = true; });
       wheels.forEach((wheel, i) => wheel.setItems(cfg.wheels[i].items, cfg.wheels[i].index));
       this.updateTyping();
-      if (wheels.length && !this.el.classList.contains('is-typing')) wheels[0].el.focus({ preventScroll: true });
-      else if (!this.textField.hidden) this.textField.focus({ preventScroll: true });
-      else if (!this.areaField.hidden) this.areaField.focus({ preventScroll: true });
-      else this.action.focus({ preventScroll: true });
+      this.focusFirst(wheels);
       return wheels;
+    }
+
+    /** Puts the focus where you start: the first wheel, else the field that shows, else the big button. */
+    focusFirst(wheels) {
+      const first = Decide.firstFocus({
+        wheels: wheels.length,
+        typing: this.el.classList.contains('is-typing'),
+        text: !this.textField.hidden,
+        area: !this.areaField.hidden,
+      });
+      const targets = { wheel: wheels.map((wheel) => wheel.el)[0], text: this.textField, area: this.areaField, action: this.action };
+      targets[first].focus({ preventScroll: true });
     }
 
     /** Puts the title, buttons, question, fields and wheel labels of a config in place. */
@@ -2670,7 +2835,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       this.el.classList.remove('is-open');
       this.backdrop.hidden = true;
       this.behind.forEach((el) => { el.inert = false; });
-      if (this.el.contains(document.activeElement)) document.activeElement.blur();
+      if (this.el.contains(document.activeElement)) /** @type {HTMLElement} */ (document.activeElement).blur();
       return cfg;
     }
 
@@ -2721,9 +2886,13 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
     /** While typing, the wheels fold away so the field and the button fit above the keyboard. */
     updateTyping() {
       const field = this.textField;
-      const typing =
-        !!this.config &&
-        (this.config.wheels.length === 0 || (!field.hidden && (field.value !== '' || document.activeElement === field)));
+      const typing = Decide.sheetTyping({
+        open: !!this.config,
+        wheels: this.config ? this.config.wheels.length : 0,
+        fieldShown: !field.hidden,
+        text: field.value,
+        focused: document.activeElement === field,
+      });
       this.el.classList.toggle('is-typing', typing);
     }
 
@@ -2743,20 +2912,17 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       // Wait a moment before unfolding the wheels, so a tap on the button still lands on it.
       field.addEventListener('blur', () => setTimeout(() => this.updateTyping(), 250));
       field.addEventListener('keydown', (e) => {
-        if (e.key !== 'Enter' || e.isComposing || e.keyCode === 229) return;
+        if (Decide.fieldKey(e) !== 'submit') return;
         e.preventDefault();
         this.action.click();
       });
 
       document.addEventListener('keydown', (e) => {
-        if (!this.config) return;
-        if (e.key === 'Escape') {
-          e.preventDefault();
-          this.cancel();
-        } else if (e.key === 'Enter' && e.target.classList.contains('wheel')) {
-          e.preventDefault();
-          this.action.click();
-        }
+        const action = this.config ? Decide.sheetKey(e.key, /** @type {Element} */ (e.target).classList.contains('wheel')) : null;
+        if (!action) return;
+        e.preventDefault();
+        if (action === 'cancel') this.cancel();
+        else this.action.click();
       });
 
       // Keep the paper underneath still while the sheet is up.
@@ -2909,9 +3075,10 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
      * True when the row should follow the finger now.
      */
     chooseAxis(g, dx, dy) {
-      if (Math.hypot(dx, dy) < 8) return false;
-      g.axis = Math.abs(dx) > Math.abs(dy) * 1.2 ? 'x' : 'y';
-      if (g.axis === 'y') {
+      const axis = Decide.swipeAxis(dx, dy);
+      if (!axis) return false;
+      g.axis = axis;
+      if (axis === 'y') {
         this.gesture = null; // a scroll: leave it to the browser
         return false;
       }
@@ -2931,10 +3098,10 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
 
     /** Where a swiped row goes when the finger lets go: removed, open on Delete, or back. */
     letGo(g) {
-      const width = g.row.offsetWidth;
-      if (-g.x > width * FULL_SWIPE) {
+      const end = Decide.swipeEnd(g.x, g.row.offsetWidth);
+      if (end === 'remove') {
         this.removeRow(g.row);
-      } else if (-g.x > OPEN_OFFSET_PX / 2) {
+      } else if (end === 'open') {
         if (this.openRow !== g.row) this.closeOpenRow();
         this.slide(g.row, -OPEN_OFFSET_PX, true);
         this.openRow = g.row;
@@ -3047,7 +3214,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
     /** Arrow up and down on a handle move its row one place, and the focus stays on that handle. */
     moveWithKey(e) {
       const handle = e.target.closest('.row-handle');
-      const step = { ArrowUp: -1, ArrowDown: 1 }[e.key];
+      const step = Decide.arrowStep(e.key);
       if (!handle || !step) return;
       e.preventDefault();
       const key = handle.closest('.row').dataset.key;
@@ -3082,7 +3249,12 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
 
   class HoldSort {
     constructor(container, { swipeRows, group, onMove, render, isBusy = () => false }) {
-      Object.assign(this, { container, swipeRows, group, onMove, render, isBusy });
+      this.container = container;
+      this.swipeRows = swipeRows;
+      this.group = group;
+      this.onMove = onMove;
+      this.render = render;
+      this.isBusy = isBusy;
       this.hold = null; // a finger held still on a row, waiting to pick it up
       this.drag = null; // a row picked up, following the finger
       container.classList.add('hold-sort');
@@ -3135,10 +3307,9 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       if (this.isHeldBy(e) && Math.hypot(e.clientX - this.hold.x, e.clientY - this.hold.y) > 8) this.cancelHold();
       const d = this.dragBy(e);
       if (!d) return;
-      const { from, tops, heights } = d;
-      const last = tops.length - 1;
-      const dy = clamp(e.clientY - d.startY, tops[0] - tops[from], tops[last] + heights[last] - tops[from] - heights[from]);
-      d.to = placeAt(d, dy);
+      const [up, down] = Decide.dragReach(d);
+      const dy = clamp(e.clientY - d.startY, up, down);
+      d.to = Decide.placeAt(d, dy);
       d.row.style.transform = `translateY(${dy}px)`;
       stepAside(d);
     }
@@ -3181,16 +3352,6 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       const row = this.container.querySelector(`.row[data-key="${CSS.escape(key)}"]`);
       if (row) row.focus();
     }
-  }
-
-  /** The place a picked-up row has reached, `dy` pixels from where it started: it takes a place once its middle passes that place's middle. */
-  function placeAt({ from, tops, heights }, dy) {
-    const middle = tops[from] + dy + heights[from] / 2;
-    let to = from;
-    // A row pushed all the way to the end sits right on the middle of the last place: that counts as there.
-    for (let i = from + 1; i < tops.length; i++) if (middle >= tops[i] + heights[i] / 2) to = i;
-    for (let i = from - 1; i >= 0; i--) if (middle <= tops[i] + heights[i] / 2) to = i;
-    return to;
   }
 
   /** The rows between where the picked-up row came from and where it is now step aside by its height. */
@@ -3311,7 +3472,6 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
   const { round2, formatKg, indexOr } = FN.util;
   const { Progress } = FN.progress;
   const { LineMarkup } = FN.lineMarkup;
-  const { Notebook } = FN.notebook;
   const { Decide } = FN.decide;
 
   const REPS_FALLBACK = REPS.indexOf(FIRST_TIME_VALUES.reps);
@@ -3326,6 +3486,24 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       this.timer = timer;
       this.kgStep = kgStep;
       this.wheels = null;
+      // What the panel is doing with the line it was opened on: see Decide.lineMode, set by setMode().
+      this.planLine = null;
+      this.editingMachine = null;
+      this.logging = false;
+      this.fixing = false;
+      this.fixingMachine = null;
+      // How each way of writing (Decide.writing) is done. Each gives back the line it wrote.
+      this.writers = {
+        none: () => null,
+        addSet: (next, setLine) => notebook.addSet(setLine.id),
+        logSet: (next) => notebook.logSet(next),
+        addLine: (next) => notebook.addLine(next),
+        addAfter: (next) => notebook.addLineAfter(this.editing.id, next),
+        replace: (next) => {
+          notebook.replaceLine(this.editing.id, next);
+          return notebook.line(this.editing.id);
+        },
+      };
     }
 
     /**
@@ -3373,14 +3551,9 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
 
     /** The text field: the text of the line being changed, and a hint that says whether there are wheels too. */
     textSpec(hasWheels) {
-      const editing = this.editing;
-      return {
-        value: editing && editing.type === 'text' ? editing.text : '',
-        placeholder: hasWheels ? 'or write your own line' : 'write a line',
-      };
+      return Decide.lineText(this.editing, hasWheels);
     }
 
-    /** What the panel is for: a new line, a change, the first set of a plan line, or the next set (`logging`). */
     setMode(editing, logging) {
       this.editing = editing;
       Object.assign(this, Decide.lineMode(editing, logging)); // planLine, editingMachine, logging, fixing, fixingMachine
@@ -3417,10 +3590,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
 
     /** The machines on the wheel, A to Z. A machine removed in settings stays pickable for its own old line. */
     pickableMachines() {
-      const machines = this.notebook.machinesAZ();
-      const old = this.editingMachine || this.planLine;
-      if (old && !machines.some((m) => m.id === old.machineId)) machines.unshift({ id: old.machineId, name: old.name });
-      return machines;
+      return Decide.pickableMachines(this.notebook.machinesAZ(), this.editingMachine || this.planLine);
     }
 
     /**
@@ -3465,8 +3635,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
 
     /** The name to write for a machine: a line that is changed keeps the name it was written with. */
     nameFor(machine) {
-      const own = this.editingMachine;
-      return own && machine.id === own.machineId ? own.name : machine.name;
+      return Decide.machineName(machine, this.editingMachine);
     }
 
     /**
@@ -3518,9 +3687,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
      * itself while machine, kg and reps are unchanged; else the bottom line when it matches.
      */
     setLineFor(next) {
-      const line = this.editingMachine;
-      if (!line) return this.editing ? null : this.notebook.setLineFor(next);
-      return Notebook.sameSet(next, line) ? line : null;
+      return Decide.setLine(this, next, this.notebook.setLineFor(next));
     }
 
     /**
@@ -3556,28 +3723,9 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
     /** Writes what the panel shows. Returns the machine line a set was just logged on, or null. */
     write(next) {
       const setLine = this.setLineFor(next);
-      if (setLine) return this.notebook.addSet(setLine.id);
-      if (!next) return null;
-      return this.editing ? this.writeOver(next) : this.writeNew(next);
-    }
-
-    /** Writes over (or, while logging, right under) the line the panel was opened on. */
-    writeOver(next) {
-      const editing = this.editing;
-      const isSet = next.type === 'machine';
-      if (this.logging) {
-        const line = this.notebook.addLineAfter(editing.id, next);
-        return isSet ? line : null;
-      }
-      this.notebook.replaceLine(editing.id, next);
-      return this.planLine && isSet ? this.notebook.line(editing.id) : null; // the pencil line is now in pen, with 1 set
-    }
-
-    /** Writes a new line at the bottom: a set counts up the bottom line when it can. */
-    writeNew(next) {
-      if (next.type === 'machine') return this.notebook.logSet(next);
-      this.notebook.addLine(next);
-      return null;
+      const { action, isSet } = Decide.writing(this, next, setLine);
+      const line = this.writers[action](next, setLine);
+      return isSet ? line : null;
     }
 
     commit() {
@@ -3621,6 +3769,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
   const MONTHS = range(1, 12);
   const PLAN_WHEEL = 3; // the plan wheel comes after day, month and year
 
+  /** @type {{ text: string, left?: boolean }[]} */
   const DATE_LABELS = [{ text: 'day' }, { text: 'month' }, { text: 'year' }];
 
   /** The columns and labels of the wheels: day, month and year, and a wide plan wheel when there are plans. */
@@ -3647,7 +3796,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       const now = Calendar.parts(this.today);
       const start = Calendar.parts(editing ? editing.date : this.today);
       const writtenYears = this.notebook.lines.filter((l) => l.type === 'date').map((l) => Calendar.parts(l.date).y);
-      this.years = range(Math.min(now.y - YEARS_BACK, start.y, ...writtenYears), Math.max(now.y, start.y));
+      this.years = Decide.years(now.y, start.y, writtenYears, YEARS_BACK);
       this.plans = editing ? [] : this.notebook.plans; // only a new date can start from a plan; in your own order
       const withPlans = this.plans.length > 0;
 
@@ -3682,11 +3831,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
     /** The picked date, made valid: no 31 November, nothing after today. */
     picked() {
       const [day, month, year] = this.wheels;
-      const y = this.years[year.index];
-      const m = MONTHS[month.index];
-      const d = Math.min(DAYS[day.index], Calendar.daysInMonth(y, m));
-      const iso = Calendar.toIso(y, m, d);
-      return iso > this.today ? this.today : iso;
+      return Decide.validDate(this.years[year.index], MONTHS[month.index], DAYS[day.index], this.today);
     }
 
     /** Turns the wheels back to the valid date once they stop. */
@@ -3812,7 +3957,10 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       this.dateEditor.open(line);
     }
 
-    /** An editor calls this when its panel closes. keepRoom: the next panel opens at once, so the page must not jump. */
+    /**
+     * An editor calls this when its panel closes. keepRoom: the next panel opens at once, so the page must not jump.
+     * @param {{ scroll?: boolean, keepRoom?: boolean }} [options]
+     */
     done({ scroll, keepRoom } = {}) {
       this.busy = false;
       this.render({ keepRoom });
@@ -4007,6 +4155,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
   'use strict';
   const { escapeHtml } = FN.util;
   const { byId, shake, downloadFile } = FN.dom;
+  const { Decide } = FN.decide;
   const { Calendar } = FN.calendar;
   const { Backup } = FN.backup;
   const { LineInput } = FN.lineInput;
@@ -4126,12 +4275,12 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
         value: machine.name,
         label: 'Machine name',
         onSubmit: (name, el) => {
-          if (!name || name === machine.name) return 'close';
-          if (this.notebook.nameTaken(name, machine.id)) {
+          const what = Decide.rename(name, machine.name, this.notebook.nameTaken(name, machine.id));
+          if (what === 'refuse') {
             shake(el);
             return 'keep';
           }
-          this.notebook.renameMachine(machine.id, name);
+          if (what === 'rename') this.notebook.renameMachine(machine.id, name);
           return 'close';
         },
         onClose: () => this.renderList(),
@@ -4355,6 +4504,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
   const { Icons } = FN.config;
   const { escapeHtml, sameName, clamp } = FN.util;
   const { byId, shake } = FN.dom;
+  const { Decide } = FN.decide;
   const { LineInput } = FN.lineInput;
   const { SwipeRows } = FN.swipeRows;
   const { HandleSort } = FN.handleSort;
@@ -4444,8 +4594,9 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       const added = !!machine && this.notebook.addPlanMachine(plan.id, machine.id);
       this.renderList();
       this.renderAddRow();
-      if (typed && !added) this.toast.show('That machine is in the plan already');
-      else if (this.notebook.machinesNotInPlan(plan.id).length) this.addMachine(index);
+      const then = Decide.afterAdding(typed, added, this.notebook.machinesNotInPlan(plan.id).length);
+      if (then === 'refused') this.toast.show('That machine is in the plan already');
+      else if (then === 'again') this.addMachine(index);
     }
 
     pickedMachine(typed, onWheel) {
@@ -4477,12 +4628,12 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
         value: plan.name,
         label: 'Name of the plan',
         onSubmit: (name, el) => {
-          if (!name || name === plan.name) return 'close';
-          if (this.notebook.planNameTaken(name, plan.id)) {
+          const what = Decide.rename(name, plan.name, this.notebook.planNameTaken(name, plan.id));
+          if (what === 'refuse') {
             shake(el);
             return 'keep';
           }
-          this.notebook.renamePlan(plan.id, name);
+          if (what === 'rename') this.notebook.renamePlan(plan.id, name);
           return 'close';
         },
         onClose: () => this.renderTitle(),
@@ -4831,8 +4982,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
     }
 
     back(fallbackView) {
-      const pushed = history.state && history.state.view === this.current.view && this.current.view !== 'notebook';
-      if (pushed) history.back(); // popstate shows the screen underneath
+      if (Decide.canGoBack(history.state, this.current.view)) history.back(); // popstate shows the screen underneath
       else this.show({ view: fallbackView });
     }
 
@@ -4858,7 +5008,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
     listen() {
       byId('cogBtn').addEventListener('click', () => this.open({ view: 'settings' }));
       byId('statsBtn').addEventListener('click', () => this.open({ view: 'stats' }));
-      document.querySelectorAll('[data-back]').forEach((button) => {
+      /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll('[data-back]')).forEach((button) => {
         button.addEventListener('click', () => this.back(button.dataset.back));
       });
       window.addEventListener('popstate', (e) => this.show(e.state));

@@ -176,3 +176,229 @@ test('screenFor: a screen that exists; the notebook when it does not; settings w
   // Only a plan screen asks about a plan.
   assert.deepEqual(Decide.screenFor({ view: 'settings', planId: 'gone' }, views, hasPlan), { view: 'settings', planId: 'gone' });
 });
+
+/* ---- More keys ---- */
+
+test('arrowStep: arrow up is one back, arrow down one on', () => {
+  assert.equal(Decide.arrowStep('ArrowUp'), -1);
+  assert.equal(Decide.arrowStep('ArrowDown'), 1);
+  assert.equal(Decide.arrowStep('ArrowLeft'), 0);
+});
+
+test('fieldKey: Enter submits, Escape cancels, and nothing while a character is being put together', () => {
+  assert.equal(Decide.fieldKey({ key: 'Enter', isComposing: false, keyCode: 13 }), 'submit');
+  assert.equal(Decide.fieldKey({ key: 'Escape', isComposing: false, keyCode: 27 }), 'cancel');
+  assert.equal(Decide.fieldKey({ key: 'a', isComposing: false, keyCode: 65 }), null);
+  assert.equal(Decide.fieldKey({ key: 'Enter', isComposing: true, keyCode: 13 }), null);
+  assert.equal(Decide.fieldKey({ key: 'Enter', isComposing: false, keyCode: 229 }), null);
+});
+
+test('sheetKey: Escape cancels the panel; Enter acts only on a wheel', () => {
+  assert.equal(Decide.sheetKey('Escape', false), 'cancel');
+  assert.equal(Decide.sheetKey('Escape', true), 'cancel');
+  assert.equal(Decide.sheetKey('Enter', true), 'act');
+  assert.equal(Decide.sheetKey('Enter', false), null);
+  assert.equal(Decide.sheetKey('a', true), null);
+});
+
+/* ---- Swiping a row ---- */
+
+const { OPEN_OFFSET_PX, FULL_SWIPE } = load('config');
+
+test('swipeAxis: nothing in the first 8 px, then sideways is a swipe and the rest a scroll', () => {
+  assert.equal(Decide.swipeAxis(5, 5), null);
+  assert.equal(Decide.swipeAxis(-7.9, 0), null);
+  assert.equal(Decide.swipeAxis(-8, 0), 'x');
+  assert.equal(Decide.swipeAxis(0, 8), 'y');
+  assert.equal(Decide.swipeAxis(20, -10), 'x');
+  assert.equal(Decide.swipeAxis(-12, 10), 'y'); // not clearly sideways: 12 is not more than 1.2 × 10
+  assert.equal(Decide.swipeAxis(-12.1, 10), 'x');
+  assert.equal(Decide.swipeAxis(10, 10), 'y');
+});
+
+test('swipeEnd: far is remove, half the Delete button is open, less goes back', () => {
+  const width = 400;
+  assert.equal(Decide.swipeEnd(-(width * FULL_SWIPE + 1), width), 'remove');
+  assert.equal(Decide.swipeEnd(-(width * FULL_SWIPE), width), 'open'); // exactly on the line: not yet
+  assert.equal(Decide.swipeEnd(-(OPEN_OFFSET_PX / 2 + 1), width), 'open');
+  assert.equal(Decide.swipeEnd(-(OPEN_OFFSET_PX / 2), width), 'back');
+  assert.equal(Decide.swipeEnd(0, width), 'back');
+});
+
+/* ---- Dragging a row to another place ---- */
+
+// Three rows of 44 px, then one of 88 px.
+const GROUP = { tops: [100, 144, 188, 232], heights: [44, 44, 44, 88] };
+
+test('dragReach: up to the top of the group and down to its bottom', () => {
+  assert.deepEqual(Decide.dragReach({ ...GROUP, from: 0 }), [0, 176]);
+  assert.deepEqual(Decide.dragReach({ ...GROUP, from: 1 }), [-44, 132]);
+  assert.deepEqual(Decide.dragReach({ ...GROUP, from: 3 }), [-132, 0]);
+});
+
+test('placeAt: a row takes a place once its middle passes the middle of that place', () => {
+  const d = { ...GROUP, from: 1 };
+  assert.equal(Decide.placeAt(d, 0), 1);
+  assert.equal(Decide.placeAt(d, 43), 1);
+  assert.equal(Decide.placeAt(d, 44), 2);
+  assert.equal(Decide.placeAt(d, 109), 2);
+  assert.equal(Decide.placeAt(d, 110), 3); // the middle of the tall last row
+  assert.equal(Decide.placeAt(d, -43), 1);
+  assert.equal(Decide.placeAt(d, -44), 0);
+  assert.equal(Decide.placeAt({ ...GROUP, from: 0 }, 176), 3);
+  assert.equal(Decide.placeAt({ ...GROUP, from: 0 }, 0), 0);
+  assert.equal(Decide.placeAt({ ...GROUP, from: 2 }, -44), 1); // right on the middle counts, going up too
+  assert.equal(Decide.placeAt({ ...GROUP, from: 2 }, -43), 2);
+  assert.equal(Decide.placeByMiddle(d, -44), 0); // the first place can be taken by the middle alone
+  assert.equal(Decide.placeAt({ ...GROUP, from: 3 }, 0), 3);
+});
+
+test('placeAt: a tall row pushed all the way up is at the top, though its middle never passes the first row', () => {
+  const tall = { ...GROUP, from: 3 }; // 88 px high, the others 44
+  assert.equal(Decide.placeByMiddle(tall, -132), 1); // by its middle alone it would stop one short
+  assert.equal(Decide.placeAt(tall, -132), 0);
+  assert.equal(Decide.placeAt(tall, -131), 1);
+  // And down: a tall first row among short ones.
+  const down = { tops: [100, 188, 232], heights: [88, 44, 44], from: 0 };
+  assert.equal(Decide.placeByMiddle(down, 88), 1);
+  assert.equal(Decide.placeAt(down, 88), 2);
+  assert.equal(Decide.placeAt(down, 87), 1);
+});
+
+/* ---- More of the panel to add or change a line ---- */
+
+test('pickableMachines: a machine that was removed stays pickable for its own old line, on top', () => {
+  const machines = [{ id: 'chest', name: 'Chest press' }, { id: 'leg', name: 'Leg press' }];
+  assert.equal(Decide.pickableMachines(machines, null), machines);
+  assert.equal(Decide.pickableMachines(machines, set('a', 'leg')), machines);
+  assert.deepEqual(Decide.pickableMachines(machines, { ...set('a', 'gone'), name: 'Old one' }), [{ id: 'gone', name: 'Old one' }, ...machines]);
+  assert.equal(machines.length, 2); // the list itself is left alone
+});
+
+test('lineText: the text of a text line; the hint says whether there are wheels', () => {
+  assert.deepEqual(Decide.lineText(text('t', 'Bike'), true), { value: 'Bike', placeholder: 'or write your own line' });
+  assert.deepEqual(Decide.lineText(set('a', 'leg'), true), { value: '', placeholder: 'or write your own line' });
+  assert.deepEqual(Decide.lineText(null, false), { value: '', placeholder: 'write a line' });
+});
+
+test('machineName: a changed line keeps the name it was written with, for its own machine only', () => {
+  const own = { ...set('a', 'leg'), name: 'Leg press (old)' };
+  assert.equal(Decide.machineName({ id: 'leg', name: 'Leg press' }, own), 'Leg press (old)');
+  assert.equal(Decide.machineName({ id: 'fly', name: 'Fly' }, own), 'Fly');
+  assert.equal(Decide.machineName({ id: 'leg', name: 'Leg press' }, null), 'Leg press');
+});
+
+test('setLine: a machine line gets the set while it is still the same set', () => {
+  const line = set('a', 'leg');
+  const mode = { editing: line, editingMachine: line };
+  const bottom = set('z', 'leg');
+  assert.equal(Decide.setLine(mode, { ...line, id: 'n' }, bottom), line);
+  assert.equal(Decide.setLine(mode, { ...line, id: 'n', reps: 10 }, bottom), null);
+  assert.equal(Decide.setLine(mode, text('t', 'Bike'), bottom), null);
+});
+
+test('setLine: a new line counts up the bottom line; a text or plan line never gets a set', () => {
+  const bottom = set('z', 'leg');
+  assert.equal(Decide.setLine({ editing: null, editingMachine: null }, set('n', 'leg'), bottom), bottom);
+  assert.equal(Decide.setLine({ editing: null, editingMachine: null }, set('n', 'leg'), null), null);
+  assert.equal(Decide.setLine({ editing: text('t', 'Bike'), editingMachine: null }, set('n', 'leg'), bottom), null);
+  assert.equal(Decide.setLine({ editing: planned('p', 'leg'), editingMachine: null }, set('n', 'leg'), bottom), null);
+});
+
+test('writing: one more set on a line, whatever the panel was opened on', () => {
+  const mode = { editing: null, logging: false, planLine: null };
+  assert.deepEqual(Decide.writing(mode, set('n', 'leg'), set('a', 'leg')), { action: 'addSet', isSet: true });
+});
+
+test('writing: nothing to write', () => {
+  assert.deepEqual(Decide.writing({ editing: null, logging: false, planLine: null }, null, null), { action: 'none', isSet: false });
+});
+
+test('writing: a new line at the bottom is a set or a line of your own', () => {
+  const mode = { editing: null, logging: false, planLine: null };
+  assert.deepEqual(Decide.writing(mode, set('n', 'leg'), null), { action: 'logSet', isSet: true });
+  assert.deepEqual(Decide.writing(mode, text('t', 'Bike'), null), { action: 'addLine', isSet: false });
+});
+
+test('writing: while logging, other numbers go right under the line just logged', () => {
+  const line = set('a', 'leg');
+  const mode = { editing: line, logging: true, planLine: null };
+  assert.deepEqual(Decide.writing(mode, set('n', 'leg'), null), { action: 'addAfter', isSet: true });
+  assert.deepEqual(Decide.writing(mode, text('t', 'Bike'), null), { action: 'addAfter', isSet: false });
+});
+
+test('writing: a changed line is replaced, and only a pencil plan line then counts as a set', () => {
+  const line = set('a', 'leg');
+  const plan = planned('p', 'leg');
+  assert.deepEqual(Decide.writing({ editing: line, logging: false, planLine: null }, set('n', 'leg'), null), { action: 'replace', isSet: false });
+  assert.deepEqual(Decide.writing({ editing: plan, logging: false, planLine: plan }, set('n', 'leg'), null), { action: 'replace', isSet: true });
+  assert.deepEqual(Decide.writing({ editing: plan, logging: false, planLine: plan }, text('t', 'Bike'), null), { action: 'replace', isSet: false });
+});
+
+/* ---- Other panels ---- */
+
+test('afterAdding: a written machine that was in the plan is refused; else again while machines are left', () => {
+  assert.equal(Decide.afterAdding('Fly', false, 3), 'refused');
+  assert.equal(Decide.afterAdding('Fly', true, 3), 'again');
+  assert.equal(Decide.afterAdding('', true, 1), 'again');
+  assert.equal(Decide.afterAdding('', true, 0), 'done');
+  assert.equal(Decide.afterAdding('', false, 0), 'done');
+  assert.equal(Decide.afterAdding('Fly', true, 0), 'done');
+});
+
+test('sheetTyping: wheels fold away when there are none, or the field has text or the focus', () => {
+  const base = { open: true, wheels: 3, fieldShown: true, text: '', focused: false };
+  assert.equal(Decide.sheetTyping(base), false);
+  assert.equal(Decide.sheetTyping({ ...base, text: 'Bike' }), true);
+  assert.equal(Decide.sheetTyping({ ...base, focused: true }), true);
+  assert.equal(Decide.sheetTyping({ ...base, wheels: 0 }), true);
+  assert.equal(Decide.sheetTyping({ ...base, wheels: 0, fieldShown: false }), true);
+  assert.equal(Decide.sheetTyping({ ...base, fieldShown: false, text: 'left over', focused: true }), false);
+  assert.equal(Decide.sheetTyping({ ...base, open: false, wheels: 0, text: 'Bike', focused: true }), false);
+});
+
+test('firstFocus: the first wheel, unless typing; then the field that shows; else the button', () => {
+  const none = { wheels: 0, typing: false, text: false, area: false };
+  assert.equal(Decide.firstFocus({ ...none, wheels: 3, text: true }), 'wheel');
+  assert.equal(Decide.firstFocus({ ...none, wheels: 3, typing: true, text: true }), 'text');
+  assert.equal(Decide.firstFocus({ ...none, text: true, area: true }), 'text');
+  assert.equal(Decide.firstFocus({ ...none, area: true }), 'area');
+  assert.equal(Decide.firstFocus(none), 'action');
+  assert.equal(Decide.firstFocus({ ...none, wheels: 3, typing: true }), 'action');
+});
+
+test('rename: nothing or the same name changes nothing; a taken name is refused', () => {
+  assert.equal(Decide.rename('', 'Arms', false), 'close');
+  assert.equal(Decide.rename('Arms', 'Arms', false), 'close');
+  assert.equal(Decide.rename('Arms', 'Arms', true), 'close');
+  assert.equal(Decide.rename('Legs', 'Arms', true), 'refuse');
+  assert.equal(Decide.rename('Legs', 'Arms', false), 'rename');
+});
+
+/* ---- More of the panel to pick a date ---- */
+
+test('years: five years back until now, and wider for a written or shown year', () => {
+  assert.deepEqual(Decide.years(2026, 2026, [], 5), [2021, 2022, 2023, 2024, 2025, 2026]);
+  assert.equal(Decide.years(2026, 2026, [2019, 2025], 5)[0], 2019);
+  assert.equal(Decide.years(2026, 2018, [2019], 5)[0], 2018);
+  assert.equal(Decide.years(2026, 2027, [], 5).at(-1), 2027);
+  assert.equal(Decide.years(2026, 2020, [], 5).at(-1), 2026);
+});
+
+test('validDate: no 31 November, and nothing after today', () => {
+  assert.equal(Decide.validDate(2026, 11, 20, '2026-11-23'), '2026-11-20');
+  assert.equal(Decide.validDate(2026, 11, 31, '2026-12-31'), '2026-11-30');
+  assert.equal(Decide.validDate(2026, 2, 30, '2026-11-23'), '2026-02-28');
+  assert.equal(Decide.validDate(2026, 11, 23, '2026-11-23'), '2026-11-23');
+  assert.equal(Decide.validDate(2026, 11, 24, '2026-11-23'), '2026-11-23');
+  assert.equal(Decide.validDate(2026, 12, 1, '2026-11-23'), '2026-11-23');
+});
+
+/* ---- Back ---- */
+
+test('canGoBack: only on a screen that was opened from another one', () => {
+  assert.equal(Decide.canGoBack({ view: 'settings' }, 'settings'), true);
+  assert.equal(Decide.canGoBack({ view: 'settings' }, 'plan'), false);
+  assert.equal(Decide.canGoBack(null, 'settings'), false);
+  assert.equal(Decide.canGoBack({ view: 'notebook' }, 'notebook'), false);
+});
