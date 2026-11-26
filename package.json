@@ -26,5 +26,8 @@
     "eslint-plugin-html": "8.2.1",
     "globals": "17.14.0",
     "typescript": "7.0.2"
+  },
+  "overrides": {
+    "qs": "6.17.1"
   }
 }
