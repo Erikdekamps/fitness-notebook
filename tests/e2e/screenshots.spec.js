@@ -1,5 +1,6 @@
 /**
- * Screenshot tests: each screen and panel must look the same as its saved picture (the baseline).
+ * Each screen and panel, visited once for two checks: it is accessible (axe, WCAG 2.2 A and AA),
+ * and it looks the same as its saved picture (the baseline).
  *
  *   npm run test:e2e                       # compares with the baselines in tests/e2e/screenshots/
  *   npm run test:screenshots:update        # takes new baselines, after a change to the look on purpose
@@ -13,47 +14,42 @@
  */
 import { test, expect } from './fixtures.js';
 import { backTo, openApp, openSettings, pick, row } from './app.js';
+import { expectAccessible, expectLooksLike } from './look.js';
 
-/** Waits for the fonts, fixes the UI font, then compares the whole screen with its baseline. */
-async function expectLooksLike(page, name) {
-  await page.addStyleTag({ content: ':root { --font-ui: "Liberation Sans", sans-serif; }' });
-  await page.evaluate(() => document.fonts.ready);
-  await expect(page).toHaveScreenshot(`${name}.png`);
+/** Both checks of the screen as it stands. */
+async function expectFine(page, name) {
+  await expectAccessible(page);
+  await expectLooksLike(page, name);
 }
-
-// Not on the iPhone screen in Chrome: Chrome's phone mode draws text edges a little differently on GitHub's
-// machines than anywhere else (1-2% of the pixels, every run). The iPhone in Safari covers the phone layout,
-// desktop Chrome covers Chrome's drawing; this project still runs every other browser test.
-test.skip(({ isMobile, browserName }) => isMobile && browserName === 'chromium', "Chrome's phone mode draws differently between machines");
 
 test.beforeEach(async ({ page }) => {
   await openApp(page);
 });
 
 test('the notebook', async ({ page }) => {
-  await expectLooksLike(page, 'notebook');
+  await expectFine(page, 'notebook');
 });
 
 test('the panel to add a line', async ({ page }) => {
   await page.getByRole('button', { name: 'tap to add a line' }).click();
   await pick(page, 'Machine', 'Leg press');
-  await expectLooksLike(page, 'add-line');
+  await expectFine(page, 'add-line');
 });
 
 test('the panel to change a line', async ({ page }) => {
   await row(page, 'Seated row').click();
   await pick(page, 'Reps', '10');
-  await expectLooksLike(page, 'change-line');
+  await expectFine(page, 'change-line');
 });
 
 test('the panel to start a new date', async ({ page }) => {
   await page.getByRole('button', { name: 'Start a new date' }).click();
-  await expectLooksLike(page, 'new-date');
+  await expectFine(page, 'new-date');
 });
 
 test('settings', async ({ page }) => {
   await openSettings(page);
-  await expectLooksLike(page, 'settings');
+  await expectFine(page, 'settings');
 });
 
 test('a plan', async ({ page }) => {
@@ -68,19 +64,19 @@ test('a plan', async ({ page }) => {
   }
   await page.keyboard.press('Escape');
   await expect(page.locator('#planMachines .row')).toHaveCount(2);
-  await expectLooksLike(page, 'plan');
+  await expectFine(page, 'plan');
 });
 
 test('statistics: the month', async ({ page }) => {
   await page.getByRole('button', { name: 'Statistics' }).click();
   await expect(page.locator('#stats')).toBeVisible();
-  await expectLooksLike(page, 'stats-month');
+  await expectFine(page, 'stats-month');
 });
 
 test('statistics: one machine', async ({ page }) => {
   await page.getByRole('button', { name: 'Statistics' }).click();
   await page.locator('#statsBody [data-machine]').filter({ hasText: 'Leg press' }).click();
   await expect(page.locator('#machineStatsTitle')).toHaveText('Leg press');
-  await expectLooksLike(page, 'stats-machine');
+  await expectFine(page, 'stats-machine');
   await backTo(page, 'stats');
 });

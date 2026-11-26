@@ -1,45 +1,13 @@
 /**
- * Accessibility: every screen and panel is checked with axe against WCAG 2.2, levels A and AA.
- * Any violation fails the test, with what is wrong and where.
+ * Accessibility of the moments that have no saved picture: a line about to go, the rest timer, a panel in settings.
+ * The screens themselves are checked in screenshots.spec.js, on the same visit as their picture.
  */
-import AxeBuilder from '@axe-core/playwright';
 import { test, expect, RULES } from './fixtures.js';
-import { backTo, openApp, openSettings, row, startDate, stillness } from './app.js';
-
-const WCAG = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22a', 'wcag22aa'];
-
-/** Checks the page once it is still: no panel sliding in, no wheel turning. axe would judge a half-faded frame. */
-async function expectAccessible(page) {
-  await page.evaluate(() => document.fonts.ready);
-  await stillness(page);
-  // A wheel settles 160 ms after it last scrolled; give it two of those.
-  await page.waitForTimeout(350);
-  const { violations } = await new AxeBuilder({ page }).withTags(WCAG).analyze();
-  const found = violations.map((v) => `${v.id} (${v.impact}): ${v.help}\n    ${v.nodes.map((n) => n.target.join(' ')).slice(0, 5).join('\n    ')}`);
-  expect(found, 'WCAG violations').toEqual([]);
-}
+import { openApp, openSettings, row, startDate } from './app.js';
+import { expectAccessible } from './look.js';
 
 test.beforeEach(async ({ page }) => {
   await openApp(page);
-});
-
-test('the notebook', async ({ page }) => {
-  await expectAccessible(page);
-});
-
-test('the panel to add a line', async ({ page }) => {
-  await page.getByRole('button', { name: 'tap to add a line' }).click();
-  await expectAccessible(page);
-});
-
-test('the panel to change a line', async ({ page }) => {
-  await row(page, 'Leg press').click();
-  await expectAccessible(page);
-});
-
-test('the panel to start a new date', async ({ page }) => {
-  await page.getByRole('button', { name: 'Start a new date' }).click();
-  await expectAccessible(page);
 });
 
 test('a line ready to be removed, and the message with Undo', async ({ page }) => {
@@ -57,36 +25,10 @@ test('the rest timer', async ({ page }) => {
   await expectAccessible(page);
 });
 
-test('settings', async ({ page }) => {
-  await openSettings(page);
-  await expectAccessible(page);
-});
-
 test('the panel to import from text', async ({ page }) => {
   await openSettings(page);
   await page.getByRole('button', { name: 'import from text' }).click();
   await expectAccessible(page);
-});
-
-test('a plan', async ({ page }) => {
-  await openSettings(page);
-  await page.getByRole('button', { name: 'tap here to add a plan' }).click();
-  await page.getByRole('textbox', { name: 'Name of the plan' }).fill('Leg day');
-  await page.locator('#sheetAction').click();
-  await page.getByRole('button', { name: 'tap here to add a machine' }).click();
-  await page.locator('#sheetAction').click();
-  await page.keyboard.press('Escape');
-  await expect(page.locator('#planMachines .row')).toHaveCount(1);
-  await expectAccessible(page);
-});
-
-test('statistics: the month and one machine', async ({ page }) => {
-  await page.getByRole('button', { name: 'Statistics' }).click();
-  await expectAccessible(page);
-  await page.locator('#statsBody [data-machine]').filter({ hasText: 'Leg press' }).click();
-  await expect(page.locator('#machineStatsTitle')).toHaveText('Leg press');
-  await expectAccessible(page);
-  await backTo(page, 'stats');
 });
 
 /**
