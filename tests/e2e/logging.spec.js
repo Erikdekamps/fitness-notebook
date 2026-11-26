@@ -101,3 +101,13 @@ test('a line gets a mark: an arrow up when heavier than last time', async ({ pag
   await addLine(page, { machine: 'Leg press', kg: '85', reps: '12' });
   await expect(row(page, 'Leg press').getByRole('img', { name: 'heavier than last time' })).toBeVisible();
 });
+
+test('change a line of your own: other words, then Save', async ({ page }) => {
+  await row(page, 'Biking Basics New Zealand #15').click();
+  const field = page.getByRole('textbox', { name: 'Write your own line' });
+  await expect(field).toHaveValue('Biking Basics New Zealand #15');
+  await expect(actionButton(page)).toHaveText('Save');
+  await field.fill('Spinning class');
+  await actionButton(page).click();
+  expect((await lastDay(page))[0]).toBe('Spinning class');
+});

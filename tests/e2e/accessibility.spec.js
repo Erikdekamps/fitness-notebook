@@ -4,14 +4,14 @@
  */
 import AxeBuilder from '@axe-core/playwright';
 import { test, expect } from './fixtures.js';
-import { backTo, openApp, openSettings, row, startDate } from './app.js';
+import { backTo, openApp, openSettings, row, startDate, stillness } from './app.js';
 
 const WCAG = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22a', 'wcag22aa'];
 
 /** Checks the page once it is still: no panel sliding in, no wheel turning. axe would judge a half-faded frame. */
 async function expectAccessible(page) {
   await page.evaluate(() => document.fonts.ready);
-  await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== 'running'));
+  await stillness(page);
   // A wheel settles 160 ms after it last scrolled; give it two of those.
   await page.waitForTimeout(350);
   const { violations } = await new AxeBuilder({ page }).withTags(WCAG).analyze();
