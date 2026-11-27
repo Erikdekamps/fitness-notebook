@@ -1,6 +1,6 @@
 /** Making a plan in settings, then a day from it: the machines in pencil, logged one after the other. */
 import { test, expect } from './fixtures.js';
-import { actionButton, addLine, backTo, finger, holdAndDrag, lastDay, numbers, openApp, openSettings, otherButton, pick, row, sheet, startDate } from './app.js';
+import { actionButton, addLine, backTo, holdAndDrag, lastDay, numbers, openApp, openSettings, otherButton, pick, row, sheet, startDate } from './app.js';
 
 /** Makes "Leg day" with Leg press and Leg curl, and goes back to the notebook. */
 async function makeLegDay(page) {
@@ -29,33 +29,24 @@ test.beforeEach(async ({ page }) => {
   await makeLegDay(page);
 });
 
-test('a plan keeps its machines in the order you put them; the handle moves one', async ({ page }) => {
+const planMachine = (page, name) => page.locator('#planMachines .row').filter({ hasText: name });
+
+test('a plan keeps its machines in the order you put them; Alt with arrow up moves the focused one', async ({ page }) => {
   await openSettings(page);
   await page.locator('#planList .row').filter({ hasText: 'Leg day' }).click();
-  await page.getByRole('button', { name: /Move Leg curl/ }).focus();
-  await page.keyboard.press('ArrowUp');
+  await planMachine(page, 'Leg curl').focus();
+  await page.keyboard.press('Alt+ArrowUp');
   await expect(page.locator('#planMachines .name')).toHaveText(['Leg curl', 'Leg press']);
+  await expect(planMachine(page, 'Leg curl')).toBeFocused();
 });
 
-test('drag a machine in a plan by its handle', async ({ page, isMobile }) => {
+test('hold a machine in a plan, then drag it to another place; there is no handle to drag', async ({ page, isMobile }) => {
   await openSettings(page);
   await page.locator('#planList .row').filter({ hasText: 'Leg day' }).click();
-  const handle = (name) => page.getByRole('button', { name: `Move ${name}: drag, or use arrow up and down` });
-  const from = await handle('Leg curl').boundingBox();
-  const to = await handle('Leg press').boundingBox();
-  const x = from.x + from.width / 2;
-  if (isMobile) {
-    const touch = await finger(page);
-    await touch.down(x, from.y + from.height / 2);
-    for (let i = 1; i <= 8; i++) await touch.move(x, from.y + from.height / 2 + ((to.y - from.y) * i) / 8);
-    await touch.up();
-  } else {
-    await page.mouse.move(x, from.y + from.height / 2);
-    await page.mouse.down();
-    await page.mouse.move(x, to.y + to.height / 2, { steps: 8 });
-    await page.mouse.up();
-  }
+  await expect(page.locator('#planMachines button')).toHaveCount(2); // only each row's Delete, out of sight
+  await holdAndDrag(page, planMachine(page, 'Leg curl'), planMachine(page, 'Leg press'), { touch: isMobile });
   await expect(page.locator('#planMachines .name')).toHaveText(['Leg curl', 'Leg press']);
+  await expect(page.locator('#machineStats')).toBeHidden(); // a drag is not a tap: the machine's page did not open
 });
 
 test('a day from a plan: log each machine in turn, the pencil lines turn into pen', async ({ page }) => {

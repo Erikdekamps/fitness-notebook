@@ -388,13 +388,13 @@ button {
   align-items: center;
   justify-content: center;
   height: 112px;
+  height: clamp(72px, calc(100svh - 600px), 224px); /* twice that where it fits, smaller on a short screen */
   margin-top: -4px;
   color: var(--muted);
   font-size: 15px;
 }
 
 .sheet-picture img { display: block; width: 100%; height: 100%; object-fit: contain; }
-@media (max-height: 700px) { .sheet-picture { height: 72px; } } /* a small phone keeps room for the paper above the panel */
 @media (max-height: 540px) { .sheet-picture { display: none; } } /* a phone on its side has no room for it */
 .sheet-labels .is-left { padding-left: 4px; text-align: left; }
 .wheels { position: relative; }
@@ -477,25 +477,11 @@ button {
 #planTitle { flex: 1 1 auto; min-width: 0; }
 .title-btn { display: block; width: 100%; height: var(--line); overflow: hidden; text-align: left; text-overflow: ellipsis; white-space: nowrap; }
 
-.row-handle { /* drag it to move a machine up or down in a plan */
-  flex: none;
-  align-self: center;
-  display: grid;
-  place-items: center;
-  width: 44px;
-  height: 44px;
-  margin: 0 -12px 0 auto;
-  border-radius: 12px;
-  color: var(--pencil);
-  cursor: grab;
-  touch-action: none;
-}
-
 .row.is-moving { z-index: 2; clip-path: none; }
 .row.is-moving > .row-content { background: var(--paper); box-shadow: 0 4px 12px rgba(70, 45, 20, .18); }
 .row.is-shifting { transition: transform .15s var(--ease); }
 
-/* A row picked up by holding it (a notebook line, a plan in settings) shows the drag icon in its left margin. */
+/* A row picked up by holding it (a notebook line, a plan, a machine in a plan) shows the drag icon in its left margin. */
 .hold-sort .row.is-moving > .row-content { position: relative; }
 .hold-sort .row.is-moving > .row-content::before {
   content: '';
@@ -529,8 +515,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
 
 #planMachines .row-content { flex-wrap: nowrap; align-items: flex-start; }
 #planMachines .name { flex: 1 1 auto; line-height: var(--line); }
-#planMachines .thumb { margin-right: 4px; }
-#planMachines .row-handle { margin-left: 0; }
+#planMachines .thumb { margin-right: -6px; }
 
 a.stat-link { text-decoration: none; } /* a credit that opens its source */
 .stat-link .out { flex: none; }
@@ -883,7 +868,6 @@ a.stat-link { text-decoration: none; } /* a credit that opens its source */
     up: svg(16, 22, 2, '<path d="M8 20V3M2 9l6-6 6 6"/>'),
     down: svg(16, 22, 2, '<path d="M8 2v17M2 13l6 6 6-6"/>'),
     chevron: svg(12, 22, 2.5, '<path d="M2 3l8 8-8 8"/>'),
-    handle: svg(22, 14, 2.2, '<path d="M2 3h18M2 11h18"/>'),
   };
 
   FN.config = { STORAGE_KEY, PREFS_KEY, TIMER_KEY, DAY_NAMES, MONTH_NAMES, MONTH_SHORT, KG_STEP, KG_STEPS, KG_MAX, SETS, REPS, FIRST_TIME_VALUES, YEARS_BACK, REST_TIMES_S, DEFAULT_PREFS, WHEEL_ITEM_PX, DELETE_WIDTH_PX, RULE_INSET_PX, OPEN_OFFSET_PX, FULL_SWIPE, UNDO_MS, HOLD_MS, PREVIEW_ID, BLANK_ROW, svg, Icons };
@@ -3411,7 +3395,7 @@ a.stat-link { text-decoration: none; } /* a credit that opens its source */
     /** The row a press starts a swipe on, or null: not on a row being removed, a field, Delete or a handle. */
     swipeableRow(e) {
       const row = e.target.closest('.row');
-      if (!row || row.classList.contains('is-removing') || e.target.closest('input, .row-delete, .row-handle')) return null;
+      if (!row || row.classList.contains('is-removing') || e.target.closest('input, .row-delete')) return null;
       return row;
     }
 
@@ -3488,7 +3472,7 @@ a.stat-link { text-decoration: none; } /* a credit that opens its source */
 
     /** The row a tap is for, or null: not a tap in a field or on a handle, nor on a row that is going away. */
     tappableRow(target) {
-      if (target.closest('input, .row-handle')) return null;
+      if (target.closest('input')) return null;
       const row = target.closest('.row');
       return row && !row.classList.contains('is-removing') ? row : null;
     }
@@ -3508,84 +3492,6 @@ a.stat-link { text-decoration: none; } /* a credit that opens its source */
 </script>
 
 <!-- ==== 3. Panels: adding and changing lines ================================================== -->
-
-<script data-module="handleSort">
-/**
- * A list you put in your own order with the handle of each row:
- *   <div class="row" data-key="…"><div class="row-content">… <button class="row-handle">…</button></div>…</div>
- * Drag a handle up or down; the rows in between step aside. Arrow up and down on a focused handle
- * move its row one place. onMove(key, to) stores the new place (0 is the top); render() draws the list again.
- */
-(function (FN) {
-  'use strict';
-  const { clamp } = FN.util;
-  const { isOtherButton, capturePointer } = FN.dom;
-  const { Decide } = FN.decide;
-
-  class HandleSort {
-    constructor(container, { onMove, render }) {
-      this.container = container;
-      this.onMove = onMove;
-      this.render = render;
-      this.drag = null;
-      container.addEventListener('pointerdown', (e) => this.startDrag(e));
-      container.addEventListener('pointermove', (e) => this.moveDrag(e));
-      container.addEventListener('pointerup', (e) => this.endDrag(e));
-      container.addEventListener('pointercancel', (e) => this.endDrag(e));
-      container.addEventListener('keydown', (e) => this.moveWithKey(e));
-    }
-
-    startDrag(e) {
-      const handle = e.target.closest('.row-handle');
-      if (!handle || this.drag || isOtherButton(e)) return;
-      const row = handle.closest('.row');
-      const rows = Array.from(this.container.children);
-      const from = rows.indexOf(row);
-      this.drag = { row, rows, from, to: from, startY: e.clientY, pointerId: e.pointerId, step: row.offsetHeight };
-      capturePointer(handle, e.pointerId);
-      row.classList.add('is-moving');
-    }
-
-    moveDrag(e) {
-      const d = this.drag;
-      if (!d || e.pointerId !== d.pointerId) return;
-      const dy = clamp(e.clientY - d.startY, -d.from * d.step, (d.rows.length - 1 - d.from) * d.step);
-      d.to = d.from + Math.round(dy / d.step);
-      d.row.style.transform = `translateY(${dy}px)`;
-      d.rows.forEach((other, i) => { // the rows in between step aside
-        if (other === d.row) return;
-        const shift = Decide.shiftFor(i, d.from, d.to, d.step);
-        other.classList.add('is-shifting');
-        other.style.transform = shift ? `translateY(${shift}px)` : '';
-      });
-    }
-
-    endDrag(e) {
-      const d = this.drag;
-      if (!d || e.pointerId !== d.pointerId) return;
-      this.drag = null;
-      if (e.type === 'pointerup' && d.to !== d.from) this.onMove(d.row.dataset.key, d.to);
-      this.render();
-    }
-
-    /** Arrow up and down on a handle move its row one place, and the focus stays on that handle. */
-    moveWithKey(e) {
-      const handle = e.target.closest('.row-handle');
-      const step = Decide.arrowStep(e.key);
-      if (!handle || !step) return;
-      e.preventDefault();
-      const key = handle.closest('.row').dataset.key;
-      const from = Array.from(this.container.children).findIndex((row) => row.dataset.key === key);
-      this.onMove(key, from + step);
-      this.render();
-      const moved = this.container.querySelector(`.row[data-key="${CSS.escape(key)}"] .row-handle`);
-      if (moved) moved.focus();
-    }
-  }
-
-  FN.handleSort = { HandleSort };
-})(globalThis.FN = globalThis.FN || {});
-</script>
 
 <script data-module="holdSort">
 /**
@@ -4777,18 +4683,17 @@ a.stat-link { text-decoration: none; } /* a credit that opens its source */
 <script data-module="planScreen">
 /**
  * One plan: its machines in the order you do them, with their drawings. Names only, no kg or reps.
- * Tap a machine to open its page, drag its handle to move it, drag the row left to take it out.
+ * Tap a machine to open its page; hold it, then drag it, to move it; drag it left to take it out.
  * Tap the name at the top to change it. A plan is removed in settings: drag it left.
  */
 (function (FN) {
   'use strict';
-  const { Icons } = FN.config;
   const { escapeHtml, clamp } = FN.util;
   const { byId, shake, thumbHtml } = FN.dom;
   const { Decide } = FN.decide;
   const { LineInput } = FN.lineInput;
   const { SwipeRows } = FN.swipeRows;
-  const { HandleSort } = FN.handleSort;
+  const { HoldSort } = FN.holdSort;
 
   class PlanScreen {
     /** app: to draw the screen again after an undo. */
@@ -4912,14 +4817,16 @@ a.stat-link { text-decoration: none; } /* a credit that opens its source */
         if (e.target.closest('.title-btn')) this.rename();
       });
 
-      new SwipeRows(this.list, {
+      const machineRows = new SwipeRows(this.list, {
         onTap: (row) => this.app.open({ view: 'machineStats', machineId: row.dataset.key }),
         onDelete: (row) => this.removeMachine(row.dataset.key),
       });
-
-      new HandleSort(this.list, {
+      new HoldSort(this.list, {
+        swipeRows: machineRows,
+        group: () => Array.from(this.list.children),
         onMove: (machineId, to) => this.notebook.movePlanMachine(this.planId, machineId, to),
         render: () => this.renderList(),
+        isBusy: () => this.sheet.isOpen(),
       });
     }
   }
@@ -4928,8 +4835,7 @@ a.stat-link { text-decoration: none; } /* a credit that opens its source */
     const name = escapeHtml(machine.name);
     return (
       `<div class="row row--machine" role="listitem" tabindex="0" data-key="${escapeHtml(machine.id)}">` +
-      `<div class="row-content"><span class="name">${name}</span>${thumbHtml(machine.picture)}` +
-      `<button class="row-handle" type="button" aria-label="Move ${name}: drag, or use arrow up and down">${Icons.handle}</button></div>` +
+      `<div class="row-content"><span class="name">${name}</span>${thumbHtml(machine.picture)}</div>` +
       `<button class="row-delete" type="button" tabindex="-1" aria-label="Take ${name} out of the plan"><span>Delete</span></button>` +
       '</div>'
     );

@@ -37,13 +37,13 @@ They are pictures of the real `index.html`, so they show what is built. Screens 
 | Settings | [29-settings-import-text-wrong.png](29-settings-import-text-wrong.png) | Text that is not a backup: the panel says so and keeps the text |
 | Kg wheel | [30-settings-kg-step.png](30-settings-kg-step.png) | Settings, "steps of": the kg wheel goes by 2.5 kg, or by 0.5 kg for small dumbbells. One setting for every machine |
 | Kg wheel | [31-add-line-half-kg.png](31-add-line-half-kg.png) | With steps of 0.5 kg: 12, 12.5, 13 on the kg wheel |
-| Drawings | [32-add-line-picture.png](32-add-line-picture.png) | Above the wheels, the drawing of the machine on the wheel. Turn the wheel and it changes with it |
+| Drawings | [32-add-line-picture.png](32-add-line-picture.png) | Above the wheels, the drawing of the machine on the wheel, big where the screen has room. Turn the wheel and it changes with it |
 | Drawings | [33-add-line-no-picture.png](33-add-line-no-picture.png) | A machine without a drawing, such as Dumbbells: "no picture". The panel keeps its height |
 | Machines | [34-settings-machines.png](34-settings-machines.png) | Settings: one line says how many machines there are; tap it to see them. Machines are not added, renamed or removed |
 | Machines | [35-machines.png](35-machines.png) | Every machine A to Z, each with a small drawing in pencil. Tap one to open its page |
 | Machines | [36-machine-page.png](36-machine-page.png) | One machine: its drawing, big, and the steps of the move under it (tap the drawing, or a number); then what it works |
 | Machines | [37-machine-page-step-2.png](37-machine-page-step-2.png) | Further down: what it works, and with what; then your weights on it (also the page statistics opens) |
-| Plans | [38-plan-drawings.png](38-plan-drawings.png) | A plan: each machine with its drawing. Tap one to open its page |
+| Plans | [38-plan-drawings.png](38-plan-drawings.png) | A plan: each machine with its drawing. Tap one to open its page; hold one, then drag it, to move it |
 | Drawings | [39-settings-drawings-credits.png](39-settings-drawings-credits.png) | Settings, at the bottom: who made the drawings, what they are based on, their license, and what was changed |
 
 ## Look

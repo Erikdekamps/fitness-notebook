@@ -82,7 +82,7 @@ test('svg: an icon of the given size that takes the text colour and is hidden fr
 });
 
 test('Icons: each one is a drawn, decorative svg whose viewBox matches its size', () => {
-  assert.deepEqual(Object.keys(config.Icons).sort(), ['chevron', 'down', 'handle', 'up']);
+  assert.deepEqual(Object.keys(config.Icons).sort(), ['chevron', 'down', 'up']);
   const drawings = new Set();
   for (const [name, markup] of Object.entries(config.Icons)) {
     const { attrs, body } = svgAttributes(markup);
@@ -93,5 +93,5 @@ test('Icons: each one is a drawn, decorative svg whose viewBox matches its size'
     assert.match(body, /^<path d="M[^"]+"\/>$/, name);
     drawings.add(body);
   }
-  assert.equal(drawings.size, 4); // no two icons look the same
+  assert.equal(drawings.size, 3); // no two icons look the same
 });
