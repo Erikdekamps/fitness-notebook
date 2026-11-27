@@ -158,6 +158,19 @@ test.describe('a notebook from before drawings', () => {
     await expect(machineRow(page, 'Hack squat')).toHaveCount(0);
   });
 
+  test('a renamed starting machine keeps its drawing, a name from another app gets one, and neither gets a second machine', async ({ page }) => {
+    await startWith(page, {
+      machines: [{ id: 'm-leg-press', name: 'Seated leg press' }, { id: 'm-h1', name: 'Squat (barbell)' }],
+      lines: [{ id: 'd', type: 'date', date: '2026-11-20' }],
+    });
+    await openApp(page);
+    await openSettings(page);
+    await expect(machineRow(page, 'Seated leg press').locator('img.thumb')).toHaveAttribute('src', 'pictures/leg-press/frame-1.svg');
+    await expect(machineRow(page, 'Squat (barbell)').locator('img.thumb')).toHaveAttribute('src', 'pictures/squat/frame-1.svg');
+    await expect(machineRow(page, 'Leg press')).toHaveCount(0);
+    await expect(machineRow(page, 'Squat')).toHaveCount(0);
+  });
+
   test('a backup from before drawings gets them when it is imported', async ({ page }) => {
     await openApp(page);
     await openSettings(page);

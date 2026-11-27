@@ -939,16 +939,34 @@ a.stat-link { text-decoration: none; } /* a credit that opens its source */
     ['Weighted push-up', 'weighted-push-up'], ['Wide-grip pulldown', 'wide-grip-lat-pulldown'], ['Wrist curl', 'wrist-curl'],
     ['Wrist extension', 'wrist-extension'],
   ];
+  /**
+   * Other names that get a drawing too: how another app names these (such as "Squat (barbell)"), and a few
+   * exercises people log without a machine. [name, picture]. They are never added to a notebook by themselves.
+   * @type {[string, string][]}
+   */
+  const OTHER_NAMES = [
+    ['Bench press (barbell)', 'bench-press'], ['Bent over row (barbell)', 'barbell-row'], ['Bicep curl (dumbbell)', 'bicep-curl'],
+    ['Hammer curl (dumbbell)', 'hammer-curl'], ['Incline bench press (dumbbell)', 'incline-dumbbell-press'],
+    ['Low cable fly crossovers', 'cable-fly'], ['Lunge (dumbbell)', 'walking-lunge'], ['Romanian deadlift (barbell)', 'romanian-deadlift'],
+    ['Shoulder press (dumbbell)', 'seated-dumbbell-press'], ['Squat (barbell)', 'squat'], ['Standing calf raise (Smith)', 'standing-calf-raise'],
+    ['Straight arm lat pulldown (cable)', 'straight-arm-pulldown'], ['Triceps extension (dumbbell)', 'dumbbell-overhead-tricep-extension'],
+    ['Triceps rope pushdown', 'rope-tricep-pushdown'],
+    ['Back extension', 'back-extension'], ['Pull up', 'pull-up'], ['Pull-up', 'pull-up'], ['Push up', 'push-up'], ['Push-up', 'push-up'],
+  ];
   const FRAMES = [1, 2, 3];
-  const KNOWN = new Set(CATALOG.map(([, picture]) => picture));
+  const NAMES = CATALOG.concat(OTHER_NAMES);
+  /** Every drawing, once, A to Z: the folders in pictures/. */
+  const DRAWINGS = [...new Set(NAMES.map(([, picture]) => picture))].sort();
 
   const Pictures = {
     CATALOG,
+    OTHER_NAMES,
     FRAMES,
+    DRAWINGS,
 
     /** Whether `picture` is one of the drawings. */
     has(picture) {
-      return KNOWN.has(picture);
+      return DRAWINGS.includes(picture);
     },
 
     /** Where frame 1, 2 or 3 of a drawing is. */
@@ -956,9 +974,15 @@ a.stat-link { text-decoration: none; } /* a credit that opens its source */
       return `pictures/${picture}/frame-${frame}.svg`;
     },
 
-    /** The drawing of the machine with this name in the list, or null. */
+    /** The drawing of this name, in the list or among the other names; else null. */
     forName(name) {
-      const found = CATALOG.find(([own]) => sameName(own, name));
+      const found = NAMES.find(([own]) => sameName(own, name));
+      return found ? found[1] : null;
+    },
+
+    /** The drawing of the machine of the list that has this id, also after it was renamed; else null. */
+    forId(id) {
+      const found = CATALOG.find(([name]) => Pictures.idFor(name) === id);
       return found ? found[1] : null;
     },
 
@@ -967,9 +991,12 @@ a.stat-link { text-decoration: none; } /* a credit that opens its source */
       return 'm-' + name.toLowerCase().replaceAll(' ', '-');
     },
 
-    /** A machine with the drawing of its name, when the list has one. */
+    /**
+     * A machine with its drawing, when there is one: the drawing of its name, else of its id.
+     * A machine the notebook started with keeps its id when it is renamed ("Seated leg press" is still m-leg-press).
+     */
     withPicture(machine) {
-      const picture = Pictures.forName(machine.name);
+      const picture = Pictures.forName(machine.name) || Pictures.forId(machine.id);
       return picture ? { ...machine, picture } : machine;
     },
 
@@ -979,8 +1006,8 @@ a.stat-link { text-decoration: none; } /* a credit that opens its source */
     },
 
     /**
-     * The machines with drawings, for machines from before drawings: every machine whose name is in the list
-     * gets its drawing, and each machine of the list that is not there yet is added. Any other list stays
+     * The machines with drawings, for machines from before drawings: every machine gets the drawing of its name
+     * or id (withPicture), and each machine of the list that is not there yet is added. Any other list stays
      * as it is, so a machine you remove later stays removed.
      */
     addTo(machines) {

@@ -90,7 +90,7 @@ test('cleanMachine: needs an id and a name', () => {
 
 test('cleanMachine: keeps a drawing this app has; leaves out one it has not got', () => {
   assert.deepEqual(Backup.cleanMachine({ id: 'm', name: 'Row', picture: 'seated-row' }), { id: 'm', name: 'Row', picture: 'seated-row' });
-  assert.deepEqual(Backup.cleanMachine({ id: 'm', name: 'Row', picture: 'push-up' }), { id: 'm', name: 'Row' });
+  assert.deepEqual(Backup.cleanMachine({ id: 'm', name: 'Row', picture: 'burpee' }), { id: 'm', name: 'Row' });
   assert.deepEqual(Backup.cleanMachine({ id: 'm', name: 'Row', picture: 7 }), { id: 'm', name: 'Row' });
 });
 

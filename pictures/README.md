@@ -2,7 +2,7 @@
 
 The drawings of the machines: three per machine, how the move goes. Machine `<name>` has
 `<name>/frame-1.svg`, `frame-2.svg` and `frame-3.svg`. The `pictures` block of `index.html` says which
-machine has which drawing.
+machine has which drawing, and which other names get one (such as "Squat (barbell)", or "Pull up").
 
 ## Credit
 

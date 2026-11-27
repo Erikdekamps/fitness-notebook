@@ -1,7 +1,7 @@
 /**
  * Makes pictures/ from a copy of Workout Guide (https://github.com/bryllim/workout-guide).
- * For every machine in the app's list of drawings (the "pictures" block of index.html) it writes the three
- * frames of its drawing, changed in two ways (pictures/README.md says the same):
+ * For every drawing the app uses (Pictures.DRAWINGS, in the "pictures" block of index.html) it writes its three
+ * frames, changed in two ways (pictures/README.md says the same):
  *   - cut to what is drawn: one frame around all three, so the drawing keeps its place from frame to frame
  *   - colored in the notebook's pen blue, instead of white
  * The lines of the drawing are not changed.
@@ -55,7 +55,7 @@ try {
   for (const picture of readdirSync(OUT)) {
     if (!picture.includes('.') && !Pictures.has(picture)) rmSync(join(OUT, picture), { recursive: true });
   }
-  for (const [, picture] of Pictures.CATALOG) {
+  for (const picture of Pictures.DRAWINGS) {
     const frames = Pictures.FRAMES.map((n) => readFileSync(join(assets, picture, `frame-${n}.svg`), 'utf8'));
     const boxes = await page.evaluate((svgs) => svgs.map((svg) => {
       document.body.innerHTML = svg;
@@ -66,7 +66,7 @@ try {
     mkdirSync(join(OUT, picture), { recursive: true });
     frames.forEach((svg, i) => writeFileSync(join(OUT, picture, `frame-${i + 1}.svg`), changed(svg, box)));
   }
-  console.log(`${Pictures.CATALOG.length} drawings written to pictures/`);
+  console.log(`${Pictures.DRAWINGS.length} drawings written to pictures/`);
 } finally {
   await browser.close();
 }
