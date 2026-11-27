@@ -27,14 +27,6 @@ export default defineConfig({
   failOnFlakyTests: CI, // a test that only passes on its second try is a broken test
   workers: CI ? 2 : undefined,
   outputDir: 'test-results',
-  // Baselines for tests/e2e/screenshots.spec.js: one picture per screen per project, taken on Linux.
-  snapshotPathTemplate: '{testDir}/screenshots/{arg}-{projectName}{ext}',
-  expect: {
-    // A few pixels may differ (anti-aliasing); a changed look differs far more than this.
-    // threshold: how different a pixel's colour may be before it counts as changed (0 to 1; the default 0.2 lets a
-    // slightly other paper colour through).
-    toHaveScreenshot: { threshold: 0.02, maxDiffPixelRatio: 0.005, animations: 'disabled', caret: 'hide' },
-  },
   reporter: CI
     ? [['github'], ['list'], ['html', { open: 'never', outputFolder: 'reports/e2e' }]]
     : [['list'], ['html', { open: 'never', outputFolder: 'reports/e2e' }]],

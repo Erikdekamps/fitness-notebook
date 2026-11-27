@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { load } from './load.js';
 
 const { Notebook } = load('notebook');
+const { Pictures } = load('pictures');
 
 const date = (id, iso) => ({ id, type: 'date', date: iso });
 const text = (id, words) => ({ id, type: 'text', text: words });
@@ -149,60 +150,68 @@ test('line and machine: find by id, null when missing', () => {
 
 test('machinesAZ: alphabetical, ignoring case, without changing the list', () => {
   const { notebook } = makeNotebook();
-  notebook.addMachine('abductor');
+  notebook.machines.push({ id: 'm-ab', name: 'abductor' });
   assert.deepEqual(notebook.machinesAZ().map((m) => m.name), ['abductor', 'Chest press', 'Leg press']);
   assert.equal(notebook.machines[0].name, 'Leg press');
 });
 
-test('nameTaken: upper and lower case do not count, and a machine may keep its own name', () => {
-  const { notebook } = makeNotebook();
-  assert.equal(notebook.nameTaken('leg PRESS'), true);
-  assert.equal(notebook.nameTaken('Leg press', 'm-leg'), false);
-  assert.equal(notebook.nameTaken('Rowing'), false);
+test('start: the saved notebook, with the machines that have drawings; with nothing saved, the example one', () => {
+  const example = Notebook.start(null);
+  assert.deepEqual(example.machines, Notebook.exampleData().machines);
+  assert.ok(example.lines.length > 0 && example.lines.every((l) => l.example));
+  const saved = { version: 1, machines: [{ id: 'm-leg', name: 'Leg press' }], plans: [], lines: [date('d1', '2026-11-16')] };
+  const started = Notebook.start(saved);
+  assert.equal(started.machines.length, Pictures.CATALOG.length);
+  assert.deepEqual(started.machines[0], { id: 'm-leg', name: 'Leg press', picture: 'leg-press' });
+  assert.deepEqual(started.lines, saved.lines);
 });
 
-test('addMachine: cleans the name; re-adding a removed machine picks its history back up', () => {
-  const { notebook } = makeNotebook();
-  assert.equal(notebook.addMachine('  Hip   thrust ').name, 'Hip thrust');
-  notebook.removeMachine('m-leg');
-  assert.equal(notebook.addMachine('leg press').id, 'm-leg');
-});
-
-test('addMachine: a new name gets an id of its own, never that of a removed machine with another name', () => {
-  const { notebook } = makeNotebook();
-  notebook.removeMachine('m-leg'); // its line stays, pointing at a machine that is gone
-  const rowing = notebook.addMachine('Rowing');
-  assert.ok(rowing.id.startsWith('m'));
-  assert.ok(![undefined, 'm-leg', 'm-chest'].includes(rowing.id));
-  assert.equal(notebook.machine(rowing.id), rowing);
-});
-
-test('addMachine: picks up the most recent history of that name, and pencil lines are no history', () => {
-  const line = (id, type, machineId) => ({ id, type, machineId, name: 'Leg press', weight: 80, sets: 3, reps: 12 });
-  const notebook = new Notebook({
+test('withPictures: a machine with a drawing takes its name, in the list of machines and in every line of it', () => {
+  const data = {
     version: 1,
-    machines: [],
-    lines: [line('l1', 'machine', 'm-old'), line('l2', 'machine', 'm-new'), { id: 'p1', type: 'plan', machineId: 'm-pencil', name: 'Leg press' }],
-  });
-  assert.equal(notebook.addMachine('Leg press').id, 'm-new');
+    machines: [{ id: 'm-leg-press', name: 'Seated leg press' }, { id: 'm-h1', name: 'Squat (barbell)' }, { id: 'm-own', name: 'Rotary torso' }],
+    plans: [{ id: 'p', name: 'Legs', machineIds: ['m-leg-press', 'm-h1'] }],
+    lines: [
+      date('d1', '2026-11-16'),
+      { id: 'l1', type: 'machine', machineId: 'm-leg-press', name: 'Leg press', weight: 80, sets: 3, reps: 12 },
+      { id: 'l2', type: 'machine', machineId: 'm-leg-press', name: 'Seated leg press', weight: 85, sets: 3, reps: 12 },
+      { id: 'l3', type: 'plan', machineId: 'm-h1', name: 'Squat (barbell)' },
+      { id: 'l4', type: 'machine', machineId: 'm-own', name: 'Rotary torso', weight: 30, sets: 3, reps: 12 },
+      text('t1', 'Seated leg press'),
+    ],
+  };
+  const named = Notebook.withPictures(data);
+  assert.deepEqual(named.machines.slice(0, 3).map((m) => m.name), ['Leg press', 'Squat', 'Rotary torso']);
+  assert.deepEqual(named.lines.map((l) => l.name || l.text || l.date), ['2026-11-16', 'Leg press', 'Leg press', 'Squat', 'Rotary torso', 'Seated leg press']);
+  assert.equal(named.lines[1], data.lines[1]); // a line that has the name already is left as it is
+  assert.deepEqual(named.plans, data.plans); // plans hold ids, so they show the new names by themselves
+  assert.equal(data.lines[2].name, 'Seated leg press'); // the data given is left alone
 });
 
-test('renameMachine: old lines keep the name they were written with', () => {
-  const { notebook } = makeNotebook();
-  assert.equal(notebook.renameMachine('m-leg', ' Leg press  (blue) '), true);
-  assert.equal(notebook.machine('m-leg').name, 'Leg press (blue)');
-  assert.equal(notebook.line('l1').name, 'Leg press');
-  assert.equal(notebook.renameMachine('nope', 'x'), false);
+test('linesNamed: only lines of a machine with a drawing take its name; other lines stay as they are', () => {
+  const machines = [{ id: 'm-a', name: 'Leg press', picture: 'leg-press' }, { id: 'm-b', name: 'Rotary torso' }];
+  const lines = [
+    { id: 'l1', type: 'machine', machineId: 'm-a', name: 'Old name', weight: 80, sets: 3, reps: 12 },
+    { id: 'l2', type: 'machine', machineId: 'm-b', name: 'Torso', weight: 30, sets: 3, reps: 12 },
+    { id: 'l3', type: 'machine', machineId: 'm-gone', name: 'Gone', weight: 10, sets: 1, reps: 10 },
+    text('t1', 'Leg press'),
+  ];
+  const named = Notebook.linesNamed(lines, machines);
+  assert.deepEqual(named.map((l) => l.name || l.text), ['Leg press', 'Torso', 'Gone', 'Leg press']);
+  assert.deepEqual(named.slice(1), lines.slice(1));
+  assert.equal(named[2], lines[2]);
 });
 
-test('removeMachine: old lines stay, and the undo puts the machine back in its place', () => {
-  const { notebook } = makeNotebook();
-  const undo = notebook.removeMachine('m-leg');
-  assert.deepEqual(notebook.machines.map((m) => m.id), ['m-chest']);
-  assert.equal(notebook.lines.length, 2);
-  undo();
-  assert.deepEqual(notebook.machines.map((m) => m.id), ['m-leg', 'm-chest']);
-  assert.equal(notebook.removeMachine('nope'), null);
+test('withPictures: adds the machines with drawings to machines from before drawings, and keeps the rest of the data', () => {
+  const data = { version: 1, machines: [{ id: 'm-x', name: 'My own machine' }], plans: [{ id: 'p', name: 'Legs', machineIds: [] }], lines: [] };
+  const upgraded = Notebook.withPictures(data);
+  assert.equal(upgraded.machines.length, 1 + Pictures.CATALOG.length);
+  assert.equal(upgraded.plans, data.plans);
+  assert.deepEqual(upgraded.lines, data.lines);
+  assert.equal(upgraded.version, 1);
+  assert.equal(data.machines.length, 1); // the data given is left alone
+  const later = Notebook.withPictures(upgraded);
+  assert.deepEqual(later.machines, upgraded.machines);
 });
 
 /* ---- The whole notebook ---- */
@@ -253,13 +262,19 @@ test('exampleData: five days, every machine line points at a machine, every id i
   assert.equal(new Set(data.lines.map((l) => l.id)).size, data.lines.length);
 });
 
-test('exampleData: twelve machines, each with its own id and name, and no plans', () => {
+test('exampleData: 147 machines, each with its own id and name, and no plans', () => {
   const data = Notebook.exampleData();
-  assert.equal(data.machines.length, 12);
-  assert.equal(new Set(data.machines.map((m) => m.id)).size, 12);
-  assert.equal(new Set(data.machines.map((m) => m.name.toLowerCase())).size, 12);
+  assert.equal(data.machines.length, 147);
+  assert.equal(new Set(data.machines.map((m) => m.id)).size, 147);
+  assert.equal(new Set(data.machines.map((m) => m.name.toLowerCase())).size, 147);
   assert.ok(data.machines.some((m) => m.id === 'm-leg-press' && m.name === 'Leg press')); // the ids older notebooks use
   assert.deepEqual(data.plans, []);
+});
+
+test('exampleData: every machine of the list of drawings, with its drawing, and Dumbbells without one', () => {
+  const { machines } = Notebook.exampleData();
+  for (const [name, picture] of Pictures.CATALOG) assert.ok(machines.some((m) => m.name === name && m.picture === picture), name);
+  assert.deepEqual(machines.filter((m) => !m.picture), [{ id: 'm-dumbbells', name: 'Dumbbells' }]);
 });
 
 test('exampleData: machine ids are "m-" and the name, the ids older notebooks use, listed A to Z', () => {
@@ -270,7 +285,7 @@ test('exampleData: machine ids are "m-" and the name, the ids older notebooks us
   }
   assert.deepEqual(Notebook.sortMachines(machines), machines);
   assert.equal(machines[0].name, 'Abdominal');
-  assert.equal(machines.at(-1).name, 'Triceps press');
+  assert.equal(machines.at(-1).name, 'Wrist extension');
 });
 
 test('exampleData: five example days in date order, each a date, a ride, then machines', () => {
@@ -445,12 +460,13 @@ test('movePlanMachine: to a place in the order, never past the ends', () => {
   assert.equal(notebook.movePlanMachine('nope', 'm-leg', 0), false);
 });
 
-test('a machine removed in settings drops out of the plan, and comes back with the machine', () => {
+test('a machine that is gone (say, from an older backup) drops out of the plan, and comes back with the machine', () => {
   const { notebook, plan } = makePlanned();
-  const undo = notebook.removeMachine('m-leg');
+  const leg = notebook.machine('m-leg');
+  notebook.data.machines = notebook.machines.filter((m) => m !== leg);
   assert.deepEqual(planIds(notebook, plan), ['m-chest']);
   notebook.movePlanMachine(plan.id, 'm-chest', 0); // moving what is left does not lose the hidden one
-  undo();
+  notebook.machines.push(leg);
   assert.deepEqual(planIds(notebook, plan).sort(), ['m-chest', 'm-leg']);
 });
 
@@ -485,7 +501,7 @@ test('startDay: with a plan it writes the date with the name after it, and a pen
 
 test('startDay: leaves out machines that are gone; a plan that is gone is no plan', () => {
   const { notebook, plan } = makePlanned();
-  notebook.removeMachine('m-leg');
+  notebook.data.machines = notebook.machines.filter((m) => m.id !== 'm-leg');
   assert.deepEqual(notebook.startDay('2026-11-23', plan.id).planLines.map((l) => l.machineId), ['m-chest']);
   assert.deepEqual(notebook.startDay('2026-11-24', 'nope').planLines, []);
 });
@@ -590,12 +606,12 @@ test('moveLine: a written line on a plan day goes above the pencil lines', () =>
   assert.deepEqual(notebook.lines.slice(2).map((l) => l.type), ['date', 'text', 'plan']);
 });
 
-test('new ids start with their kind, whatever the clock says: m for a machine, l for a line', (t) => {
+test('new ids start with their kind, whatever the clock says: l for a line, p for a plan', (t) => {
   // Date.now() in base 36 starts with "m" until about 2029, which would hide a missing prefix.
   t.mock.method(Date, 'now', () => 0);
   const { notebook } = makeNotebook();
-  assert.match(notebook.addMachine('Hip thrust').id, /^m0/);
   assert.match(notebook.addLine({ type: 'text', text: 'Bike' }).id, /^l0/);
+  assert.match(notebook.addPlan('Arms').id, /^p0/);
 });
 
 /* ---- Every change is saved ---- */
@@ -625,13 +641,10 @@ function makeWatched() {
 
 const CHANGES = {
   removeDay: (n) => n.removeDay('d1'),
-  addMachine: (n) => n.addMachine('Hip thrust'),
-  renameMachine: (n) => n.renameMachine('m-leg', 'Leg press 45'),
-  removeMachine: (n) => n.removeMachine('m-chest'),
   addPlan: (n) => n.addPlan('Arms'),
   renamePlan: (n) => n.renamePlan('p-legs', 'Legs'),
   removePlan: (n) => n.removePlan('p-legs'),
-  addPlanMachine: (n) => n.addPlanMachine('p-legs', n.addMachine('Hip thrust').id),
+  addPlanMachine: (n) => n.addPlan('Arms') && n.addPlanMachine(n.plans.at(-1).id, 'm-leg'),
   removePlanMachine: (n) => n.removePlanMachine('p-legs', 'm-leg'),
   movePlanMachine: (n) => n.movePlanMachine('p-legs', 'm-chest', 0),
   movePlan: (n) => n.addPlan('Arms') && n.movePlan('p-legs', 1),

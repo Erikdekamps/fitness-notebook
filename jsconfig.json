@@ -13,6 +13,6 @@
     "maxNodeModuleJsDepth": 0,
     "skipLibCheck": true
   },
-  "include": ["tests/**/*.js", "*.js", "*.mjs"],
+  "include": ["tests/**/*.js", "tools/**/*.js", "*.js", "*.mjs"],
   "exclude": ["node_modules", "reports", ".stryker-tmp", "test-results"]
 }

@@ -337,13 +337,10 @@ test('writing: a changed line is replaced, and only a pencil plan line then coun
 
 /* ---- Other panels ---- */
 
-test('afterAdding: a written machine that was in the plan is refused; else again while machines are left', () => {
-  assert.equal(Decide.afterAdding('Fly', false, 3), 'refused');
-  assert.equal(Decide.afterAdding('Fly', true, 3), 'again');
-  assert.equal(Decide.afterAdding('', true, 1), 'again');
-  assert.equal(Decide.afterAdding('', true, 0), 'done');
-  assert.equal(Decide.afterAdding('', false, 0), 'done');
-  assert.equal(Decide.afterAdding('Fly', true, 0), 'done');
+test('nextStep: the next step of the move, and after the last the first again', () => {
+  assert.equal(Decide.nextStep(1, 3), 2);
+  assert.equal(Decide.nextStep(2, 3), 3);
+  assert.equal(Decide.nextStep(3, 3), 1);
 });
 
 test('sheetTyping: wheels fold away when there are none, or the field has text or the focus', () => {
