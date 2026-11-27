@@ -57,6 +57,20 @@ jobs:
           cp -r pictures _site/pictures
           cp -r design _site/design
 
+      # GitHub Pages lets browsers keep a file for 10 minutes, and a browser may keep the font and the
+      # drawings longer. A new deploy gives their addresses a new ?v= (the commit), so a browser fetches
+      # them again. index.html itself has no address to change: it can stay old up to those 10 minutes.
+      - name: New addresses for the font and the drawings
+        run: |
+          v="${GITHUB_SHA::12}"
+          sed -i \
+            -e "s|url(\"fonts/caveat-latin.woff2\")|url(\"fonts/caveat-latin.woff2?v=$v\")|" \
+            -e "s|/frame-\${frame}.svg\`|/frame-\${frame}.svg?v=$v\`|" \
+            _site/index.html
+          # Stop when a line moved and was not changed, instead of publishing without it.
+          grep -q "caveat-latin.woff2?v=$v" _site/index.html
+          grep -q "frame-\${frame}.svg?v=$v" _site/index.html
+
       - name: Upload the site
         uses: actions/upload-pages-artifact@v5
         with:
