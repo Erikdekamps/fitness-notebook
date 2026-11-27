@@ -14,7 +14,6 @@ npm ci                  # once, for the checks below
 npm run lint            # ESLint: index.html and the tests
 npm run types           # type check: the app in index.html, the tests and the tools
 npm run test:e2e        # browser tests: Chrome and Safari, desktop and phone, WCAG 2.2 AA
-npm run test:screenshots:update   # new screenshot baselines, after changing the look on purpose (on Linux)
 npm run test:crap       # CRAP score, 5 at most per function
 npm run test:mutation   # mutation testing, min 95%
 npm run test:all        # all of the above

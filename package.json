@@ -9,7 +9,6 @@
     "types": "node tests/types/extract.js && tsc -p tests/types/jsconfig.json && tsc -p jsconfig.json",
     "test": "node --test \"tests/unit/*.test.js\"",
     "test:e2e": "playwright test",
-    "test:screenshots:update": "playwright test tests/e2e/screenshots.spec.js --update-snapshots",
     "test:mutation": "stryker run && node tests/mutation/survivors.js --check",
     "test:crap": "node --test \"tests/crap/*.test.js\" && node tests/crap/crap.js",
     "test:all": "npm run lint && npm run types && npm test && npm run test:e2e && npm run test:crap && npm run test:mutation"
