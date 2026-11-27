@@ -16,7 +16,7 @@
 <style>
 /* ==========================================================================
    Fitness Notebook
-   Endless lined notebook paper for gym sessions, in one page plus its font file.
+   Endless lined notebook paper for gym sessions, in one page plus its font file and the machines' drawings.
    Everything is stored on this device (localStorage).
 
    CSS sections
@@ -382,6 +382,20 @@ button {
 .sheet-error { margin: 0; padding: 0 8px; color: var(--danger); font-size: 15px; line-height: 20px; }
 .sheet-cols { display: grid; gap: 6px; padding: 0 8px; }
 .sheet-labels { font-size: 13px; color: var(--muted); text-align: center; }
+
+.sheet-picture { /* the drawing of the machine on the wheel; the same height with or without one, so the panel never jumps */
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 112px;
+  margin-top: -4px;
+  color: var(--muted);
+  font-size: 15px;
+}
+
+.sheet-picture img { display: block; width: 100%; height: 100%; object-fit: contain; }
+@media (max-height: 700px) { .sheet-picture { height: 72px; } } /* a small phone keeps room for the paper above the panel */
+@media (max-height: 540px) { .sheet-picture { display: none; } } /* a phone on its side has no room for it */
 .sheet-labels .is-left { padding-left: 4px; text-align: left; }
 .wheels { position: relative; }
 
@@ -499,6 +513,22 @@ button {
 }
 body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
 
+#machineList .row-content { flex-wrap: nowrap; }
+
+.thumb { /* a small drawing at the end of a machine's line, standing on the ruled line, in pencil */
+  flex: none;
+  align-self: flex-start;
+  width: 64px;
+  height: 40px;
+  margin: -4px -6px 0 auto;
+  object-fit: contain;
+  object-position: right bottom;
+  filter: grayscale(1) brightness(1.35);
+}
+
+a.stat-link { text-decoration: none; } /* a credit that opens its source */
+.stat-link .out { flex: none; }
+
 .text-btn {
   display: block;
   height: var(--line);
@@ -532,6 +562,18 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
 .month-arrow { flex: none; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 12px; color: var(--pen); }
 .month-arrow:first-child { margin-left: -10px; }
 .month-arrow:last-child { margin-right: -10px; }
+
+.drawings { /* a machine's three drawings, how the move goes: they stand on a ruled line, and the lines stop behind them */
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  height: calc(var(--line) * 3);
+  margin: 0 calc(var(--rule-inset) - var(--text-right)) 0 calc(var(--rule-inset) - var(--text-left));
+  padding: 6px calc(var(--text-right) - var(--rule-inset)) 7px calc(var(--text-left) - var(--rule-inset));
+  background: linear-gradient(var(--paper) calc(100% - 8px), transparent calc(100% - 8px)); /* all but the bottom ruled line */
+}
+
+.drawings img { display: block; width: 100%; height: 100%; min-width: 0; object-fit: contain; object-position: center bottom; }
 
 .chart { position: relative; } /* the ruled lines are its grid; the view sets its height */
 .chart svg { position: absolute; top: 0; left: 0; }
@@ -619,6 +661,12 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
     <button id="importTextBtn" class="stat-link" type="button"><span>import from text</span><svg width="12" height="22" viewBox="0 0 12 22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2 3l8 8-8 8"/></svg></button>
     <input id="importFile" type="file" accept="application/json,.json" aria-label="Backup file to import" hidden>
     <div class="blank" aria-hidden="true"></div>
+    <h2 class="section-title">drawings</h2>
+    <a class="stat-link" href="https://github.com/bryllim/workout-guide" target="_blank" rel="noopener"><span>Workout Guide, by Bryl Lim</span><svg class="out" width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 13L13 5M6 5h7v7"/></svg></a>
+    <a class="stat-link" href="https://github.com/everkinetic/data" target="_blank" rel="noopener"><span>based on Everkinetic</span><svg class="out" width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 13L13 5M6 5h7v7"/></svg></a>
+    <a class="stat-link" href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener"><span>license CC BY-SA 4.0</span><svg class="out" width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 13L13 5M6 5h7v7"/></svg></a>
+    <p class="stat-line is-pencil is-small">cropped and colored for this notebook</p>
+    <div class="blank" aria-hidden="true"></div>
     <button id="removeExamples" class="text-btn" type="button" hidden>remove the example lines</button>
     <div class="filler" aria-hidden="true"></div>
   </div>
@@ -694,6 +742,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
     <h2 id="sheetTitle" class="visually-hidden">Log a line</h2>
     <div id="sheetInfo" class="sheet-info" hidden></div>
     <div class="sheet-pickers">
+      <div id="sheetPicture" class="sheet-picture" aria-hidden="true" hidden></div>
       <div id="sheetLabels" class="sheet-cols sheet-labels" aria-hidden="true"></div>
       <div class="wheels">
         <div class="wheels-band" aria-hidden="true"></div>
@@ -815,6 +864,143 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
   };
 
   FN.config = { STORAGE_KEY, PREFS_KEY, TIMER_KEY, DAY_NAMES, MONTH_NAMES, MONTH_SHORT, KG_STEP, KG_STEPS, KG_MAX, SETS, REPS, FIRST_TIME_VALUES, YEARS_BACK, REST_TIMES_S, DEFAULT_PREFS, WHEEL_ITEM_PX, DELETE_WIDTH_PX, RULE_INSET_PX, OPEN_OFFSET_PX, FULL_SWIPE, UNDO_MS, HOLD_MS, PREVIEW_ID, BLANK_ROW, svg, Icons };
+})(globalThis.FN = globalThis.FN || {});
+</script>
+
+<script data-module="pictures" data-testable>
+/**
+ * Drawings of the machines: three per machine, how the move goes, in pictures/<picture>/frame-1.svg to frame-3.svg.
+ * They come from Workout Guide by Bryl Lim, based on Everkinetic, under CC BY-SA 4.0: see pictures/README.md.
+ *
+ * A machine with a drawing says which one: { id, name, picture }. A new notebook starts with every machine
+ * in the list below. A notebook from before drawings gets them once, the first time it is opened (addTo).
+ */
+(function (FN) {
+  'use strict';
+  const { sameName, newId } = FN.util;
+
+  /**
+   * Every machine that has a drawing, A to Z: [name, picture]. Each name fits the machine wheel.
+   * @type {[string, string][]}
+   */
+  const CATALOG = [
+    ['Abdominal', 'crunch'], ['Arnold press', 'arnold-press'], ['Assisted chin-up', 'assisted-chin-up'],
+    ['Assisted pull-up', 'assisted-pull-up'], ['Barbell glute bridge', 'barbell-glute-bridge'], ['Barbell row', 'barbell-row'],
+    ['Barbell shrug', 'shrug'], ['Belt squat', 'belt-squat'], ['Bench press', 'bench-press'], ['Biceps curl', 'preacher-curl'],
+    ['Bulgarian split squat', 'bulgarian-split-squat'], ['Cable crunch', 'cable-crunch'], ['Cable curl', 'cable-curl'],
+    ['Cable fly', 'cable-fly'], ['Cable front raise', 'cable-front-raise'], ['Cable hip abduction', 'cable-standing-hip-abduction'],
+    ['Cable hip adduction', 'cable-standing-hip-adduction'], ['Cable kickback', 'cable-kickback'],
+    ['Cable lateral raise', 'cable-lateral-raise'], ['Cable Pallof hold', 'cable-pallof-hold'],
+    ['Cable pull-through', 'cable-pull-through'], ['Cable rear delt fly', 'cable-rear-delt-fly'], ['Cable woodchop', 'cable-woodchop'],
+    ["Captain's chair", 'captains-chair-knee-raise'], ['Chest press', 'machine-chest-press'],
+    ['Chest supported row', 'chest-supported-row'], ['Close-grip bench', 'close-grip-bench-press'],
+    ['Close-grip pulldown', 'close-grip-lat-pulldown'], ['Concentration curl', 'concentration-curl'],
+    ['Curtsy lunge', 'dumbbell-curtsy-lunge'], ['DB sumo deadlift', 'dumbbell-sumo-deadlift'], ['Deadlift', 'deadlift'],
+    ['Decline bench press', 'decline-bench-press'], ['Decline DB press', 'decline-dumbbell-press'],
+    ['Deficit reverse lunge', 'deficit-reverse-lunge'], ['Donkey calf raise', 'donkey-calf-raise'], ['Drag curl', 'drag-curl'],
+    ['Dumbbell bench press', 'dumbbell-bench-press'], ['Dumbbell curl', 'bicep-curl'], ['Dumbbell deadlift', 'dumbbell-romanian-deadlift'],
+    ['Dumbbell fly', 'dumbbell-fly'], ['Dumbbell glute bridge', 'dumbbell-glute-bridge'], ['Dumbbell hip thrust', 'dumbbell-hip-thrust'],
+    ['Dumbbell row', 'dumbbell-bent-over-row'], ['Dumbbell shrug', 'dumbbell-shrug'], ['Dumbbell side bend', 'dumbbell-side-bend'],
+    ['Dumbbell skull crusher', 'dumbbell-skull-crusher'], ['Elevated split squat', 'front-foot-elevated-split-squat'],
+    ['EZ-bar curl', 'ez-bar-curl'], ['Face pull', 'face-pull'], ['Fly', 'pec-deck'], ['Front raise', 'front-raise'],
+    ['Front squat', 'front-squat'], ['Glute kickback', 'machine-glute-kickback'], ['Goblet squat', 'goblet-squat'],
+    ['Good morning', 'good-morning'], ['Hack squat', 'hack-squat'], ['Hammer curl', 'hammer-curl'],
+    ['Heels-up goblet squat', 'heel-elevated-goblet-squat'], ['Hip abduction', 'hip-abduction-machine'],
+    ['Hip adduction', 'hip-adduction-machine'], ['Hip thrust', 'hip-thrust'], ['Incline bench press', 'incline-bench-press'],
+    ['Incline cable fly', 'incline-cable-fly'], ['Incline curl', 'incline-dumbbell-curl'],
+    ['Incline dumbbell press', 'incline-dumbbell-press'], ['Kettlebell deadlift', 'kettlebell-romanian-deadlift'],
+    ['Kettlebell swing', 'kettlebell-swing'], ['Kneeling Pallof press', 'half-kneeling-pallof-press'],
+    ['Landmine deadlift', 'landmine-romanian-deadlift'], ['Landmine press', 'landmine-press'], ['Landmine squat', 'landmine-squat'],
+    ['Lat pulldown', 'lat-pulldown'], ['Lateral lunge', 'dumbbell-lateral-lunge'], ['Lateral raise', 'lateral-raise'],
+    ['Leg curl', 'leg-curl'], ['Leg extension', 'leg-extension'], ['Leg press', 'leg-press'],
+    ['Leg press calf raise', 'leg-press-calf-raise'], ['Lying leg curl', 'lying-leg-curl'],
+    ['Machine lateral raise', 'machine-lateral-raise'], ['Machine row', 'machine-row'], ['Meadows row', 'meadows-row'],
+    ['One-arm cable row', 'single-arm-cable-row'], ['One-arm dumbbell row', 'one-arm-dumbbell-row'],
+    ['One-arm triceps', 'single-arm-dumbbell-tricep-extension'], ['Overhead press', 'overhead-press'],
+    ['Overhead triceps', 'overhead-tricep-extension'], ['Pallof press', 'pallof-press'], ['Pendlay row', 'pendlay-row'],
+    ['Plate front raise', 'plate-front-raise'], ['Push press', 'push-press'], ['Rack pull', 'rack-pull'],
+    ['Rear delt fly', 'rear-delt-fly'], ['Rear delt raise', 'bent-over-rear-delt-raise'], ['Reverse curl', 'reverse-curl'],
+    ['Reverse hyper', 'reverse-hyperextension'], ['Reverse lunge', 'reverse-lunge'], ['Romanian deadlift', 'romanian-deadlift'],
+    ['Rope hammer curl', 'rope-hammer-curl'], ['Rope pushdown', 'rope-tricep-pushdown'], ['Row rear deltoid', 'reverse-pec-deck'],
+    ['Russian twist', 'weighted-russian-twist'], ['Seated calf raise', 'seated-calf-raise'],
+    ['Seated dumbbell press', 'seated-dumbbell-press'], ['Seated leg curl', 'seated-leg-curl'], ['Seated row', 'seated-row'],
+    ['Shoulder press', 'machine-shoulder-press'], ['Single skull crusher', 'single-dumbbell-skullcrusher'],
+    ['Single-leg deadlift', 'single-leg-romanian-deadlift'], ['Skull crusher', 'skull-crusher'],
+    ['Smith bench press', 'smith-machine-bench-press'], ['Smith Bulgarian squat', 'smith-machine-bulgarian-split-squat'],
+    ['Smith deadlift', 'smith-machine-romanian-deadlift'], ['Smith hip thrust', 'smith-machine-hip-thrust'],
+    ['Smith reverse lunge', 'smith-machine-reverse-lunge'], ['Smith split squat', 'smith-machine-split-squat'],
+    ['Smith squat', 'smith-machine-squat'], ['Spider curl', 'spider-curl'], ['Split squat', 'split-squat'], ['Squat', 'squat'],
+    ['Standing calf raise', 'standing-calf-raise'], ['Standing DB press', 'standing-dumbbell-press'], ['Step-up', 'step-up'],
+    ['Straight-arm pulldown', 'straight-arm-pulldown'], ['Sumo deadlift', 'sumo-deadlift'], ['Sumo squat', 'dumbbell-sumo-squat'],
+    ['T-bar row', 't-bar-row'], ['Trap bar deadlift', 'trap-bar-deadlift'], ['Triceps extension', 'dumbbell-overhead-tricep-extension'],
+    ['Triceps kickback', 'tricep-kickback'], ['Triceps press', 'assisted-dip'], ['Triceps pushdown', 'tricep-pushdown'],
+    ['Upright row', 'upright-row'], ['Walking lunge', 'walking-lunge'], ['Weighted chin-up', 'weighted-chin-up'],
+    ['Weighted crunch', 'weighted-crunch'], ['Weighted dip', 'weighted-dip'], ['Weighted pull-up', 'weighted-pull-up'],
+    ['Weighted push-up', 'weighted-push-up'], ['Wide-grip pulldown', 'wide-grip-lat-pulldown'], ['Wrist curl', 'wrist-curl'],
+    ['Wrist extension', 'wrist-extension'],
+  ];
+  const FRAMES = [1, 2, 3];
+  const KNOWN = new Set(CATALOG.map(([, picture]) => picture));
+
+  const Pictures = {
+    CATALOG,
+    FRAMES,
+
+    /** Whether `picture` is one of the drawings. */
+    has(picture) {
+      return KNOWN.has(picture);
+    },
+
+    /** Where frame 1, 2 or 3 of a drawing is. */
+    src(picture, frame = 1) {
+      return `pictures/${picture}/frame-${frame}.svg`;
+    },
+
+    /** The drawing of the machine with this name in the list, or null. */
+    forName(name) {
+      const found = CATALOG.find(([own]) => sameName(own, name));
+      return found ? found[1] : null;
+    },
+
+    /** The id of a machine from the list: "m-" and its name, the ids the first machines have. */
+    idFor(name) {
+      return 'm-' + name.toLowerCase().replaceAll(' ', '-');
+    },
+
+    /** A machine with the drawing of its name, when the list has one. */
+    withPicture(machine) {
+      const picture = Pictures.forName(machine.name);
+      return picture ? { ...machine, picture } : machine;
+    },
+
+    /** Whether machines are from before drawings: there are some, and not one has a drawing. */
+    fromBefore(machines) {
+      return machines.length > 0 && !machines.some((m) => m.picture);
+    },
+
+    /**
+     * The machines with drawings, for machines from before drawings: every machine whose name is in the list
+     * gets its drawing, and each machine of the list that is not there yet is added. Any other list stays
+     * as it is, so a machine you remove later stays removed.
+     */
+    addTo(machines) {
+      if (!Pictures.fromBefore(machines)) return machines;
+      const own = machines.map(Pictures.withPicture);
+      return own.concat(Pictures.missing(own));
+    },
+
+    /** The machines of the list that `machines` has neither by name nor by drawing, as new machines. */
+    missing(machines) {
+      const ids = new Set(machines.map((m) => m.id));
+      const there = ([name, picture]) => machines.some((m) => m.picture === picture || sameName(m.name, name));
+      return CATALOG.filter((entry) => !there(entry)).map(([name, picture]) => {
+        const id = Pictures.idFor(name);
+        return { id: ids.has(id) ? newId('m') : id, name, picture };
+      });
+    },
+  };
+
+  FN.pictures = { Pictures };
 })(globalThis.FN = globalThis.FN || {});
 </script>
 
@@ -1059,6 +1245,12 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       return points.sort(byDateThenOrder).map(({ date: when, weight }) => ({ date: when, weight }));
     },
 
+    /** The machines that have been logged: some machine line points at them. In the order given. */
+    loggedMachines(machines, lines) {
+      const logged = new Set(lines.filter((l) => l.type === 'machine').map((l) => l.machineId));
+      return machines.filter((m) => logged.has(m.id));
+    },
+
     /** The positions in a history where the weight is new: the first time, and every time it changed. */
     changeIndexes(points) {
       const indexes = [];
@@ -1197,7 +1389,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
  *
  * File shape
  *   { "app": "fitness-notebook", "version": 1, "exportedAt": "<ISO time>", "unit": "kg",
- *     "machines": [{ id, name }],
+ *     "machines": [{ id, name, picture (optional: the name of its drawing) }],
  *     "plans": [{ id, name, machineIds: [machine id] }],          (may be missing in older files)
  *     "lines": [{ id, type: "date", date, plan (optional) } | { id, type: "text", text } |
  *               { id, type: "machine", machineId, name, weight, sets, reps } |
@@ -1211,6 +1403,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
   'use strict';
   const { cleanName, newId } = FN.util;
   const { Calendar } = FN.calendar;
+  const { Pictures } = FN.pictures;
 
   const isCount = (n) => Number.isFinite(n) && n >= 0;
   const isString = (s) => typeof s === 'string';
@@ -1244,10 +1437,15 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       return `fitness-notebook-${today}.json`;
     },
 
-    /** A machine with only the fields this app knows, or null when it cannot be used. */
+    /** A machine with only the fields this app knows, or null when it cannot be used. A drawing this app has not got is left out. */
     cleanMachine(machine) {
       if (!machine || typeof machine.id !== 'string' || typeof machine.name !== 'string' || !cleanName(machine.name)) return null;
-      return { id: machine.id, name: cleanName(machine.name) };
+      return { id: machine.id, name: cleanName(machine.name), ...Backup.pictureOf(machine) };
+    },
+
+    /** A machine's drawing, as the field to keep: nothing when this app has not got that drawing. */
+    pictureOf(machine) {
+      return Pictures.has(machine.picture) ? { picture: machine.picture } : {};
     },
 
     /** A plan with only the fields this app knows, or null when it cannot be used. */
@@ -1494,7 +1692,8 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
  * a change that can be undone returns its undo.
  *
  * Data shape
- *   { version: 1, machines: [{ id, name }], plans: [{ id, name, machineIds }], lines: [ ...see progress... ] }
+ *   { version: 1, machines: [{ id, name, picture }], plans: [{ id, name, machineIds }], lines: [ ...see progress... ] }
+ *   `picture` is the machine's drawing (see the pictures block); a machine without one has none.
  *   `example: true` marks the demo lines a new notebook starts with.
  *   A plan is a named list of machines, in the order you do them. It holds no kg or reps:
  *   those come from the last time you did the machine.
@@ -1502,6 +1701,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
 (function (FN) {
   'use strict';
   const { newId, cleanName, sameName, round2, clamp } = FN.util;
+  const { Pictures } = FN.pictures;
 
   class Notebook {
     /** data: { version, machines, plans, lines }. onSave(data) runs after every change. */
@@ -1677,13 +1877,16 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
 
     /* ---- Machines ---- */
 
-    /** Adds a machine. Re-adding one that was removed earlier picks its history back up. */
+    /**
+     * Adds a machine, with the drawing of its name when there is one.
+     * Re-adding one that was removed earlier picks its history back up.
+     */
     addMachine(name) {
       const clean = cleanName(name);
       const oldLine = [...this.lines]
         .reverse()
         .find((l) => l.type === 'machine' && sameName(l.name, clean) && !this.machine(l.machineId));
-      const machine = { id: oldLine ? oldLine.machineId : newId('m'), name: clean };
+      const machine = Pictures.withPicture({ id: oldLine ? oldLine.machineId : newId('m'), name: clean });
       this.machines.push(machine);
       this.save();
       return machine;
@@ -1845,6 +2048,16 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       return data;
     }
 
+    /** The notebook to start with: the saved one (`saved`, null when there is none), else the example one. */
+    static start(saved) {
+      return saved ? Notebook.withPictures(saved) : Notebook.exampleData();
+    }
+
+    /** Notebook data with the machines that have drawings, when its machines are from before drawings (Pictures.addTo). */
+    static withPictures(data) {
+      return { ...data, machines: Pictures.addTo(data.machines) };
+    }
+
     /** Whether two lines are a set on the same machine with the same kg and reps. */
     static sameSet(a, b) {
       return Notebook.isMachineLine(a) && Notebook.isMachineLine(b) && a.machineId === b.machineId && Notebook.sameNumbers(a, b);
@@ -1892,22 +2105,13 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
         .map((line) => (keepDates.has(line.id) ? { ...line, example: undefined } : line));
     }
 
-    /** The data a new notebook starts with: twelve machines, no plans and five example days. */
+    /**
+     * The data a new notebook starts with: every machine that has a drawing, and Dumbbells, which has none;
+     * no plans, and five example days. Each machine's id is "m-" and its name, the ids older notebooks use.
+     */
     static exampleData() {
-      const machines = [
-        { id: 'm-abdominal', name: 'Abdominal' },
-        { id: 'm-biceps-curl', name: 'Biceps curl' },
-        { id: 'm-chest-press', name: 'Chest press' },
-        { id: 'm-dumbbells', name: 'Dumbbells' },
-        { id: 'm-fly', name: 'Fly' },
-        { id: 'm-lat-pulldown', name: 'Lat pulldown' },
-        { id: 'm-leg-curl', name: 'Leg curl' },
-        { id: 'm-leg-press', name: 'Leg press' },
-        { id: 'm-row-rear-deltoid', name: 'Row rear deltoid' },
-        { id: 'm-seated-row', name: 'Seated row' },
-        { id: 'm-shoulder-press', name: 'Shoulder press' },
-        { id: 'm-triceps-press', name: 'Triceps press' },
-      ];
+      const drawn = Pictures.CATALOG.map(([name, picture]) => ({ id: Pictures.idFor(name), name, picture }));
+      const machines = Notebook.sortMachines(drawn.concat({ id: 'm-dumbbells', name: 'Dumbbells' }));
       const byName = new Map(machines.map((m) => [m.name, m]));
       /** @type {[string, string, [string, number, number, number][]][]} date, class, [machine, kg, sets, reps] */
       const sessions = [
@@ -2678,11 +2882,14 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
   const { byId } = FN.dom;
   const { Wheel } = FN.wheel;
   const { Decide } = FN.decide;
+  const { Pictures } = FN.pictures;
 
   class Sheet {
     constructor({ toast }) {
       this.toast = toast;
       this.el = byId('sheet');
+      this.pictureEl = byId('sheetPicture');
+      this.picture = null; // the drawing the panel shows, while it shows one
       this.backdrop = byId('backdrop');
       this.title = byId('sheetTitle');
       this.textField = byId('sheetText');
@@ -2725,6 +2932,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
     /**
      * Opens the sheet and returns its wheels.
      * config: { title, info: { heading, details: [..], note } (optional), text: { value, placeholder, label } (optional),
+     *           picture (optional: true makes room above the wheels for a machine's drawing, see showPicture),
      *           columns, center, labels: [{ text, left }], wheels: [{ label, align, items, index }],
      *           actionLabel, cancelLabel (optional), otherLabel + onOther() (optional: a second button with a job of its own),
      *           area: { placeholder, label } (optional: a big field to paste text in),
@@ -2777,8 +2985,23 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       this.fillText(cfg.text);
       this.fillArea(cfg.area);
       this.showError('');
+      this.fillPicture(!!cfg.picture);
       this.fillLabels(cfg);
       this.wheelsEl.replaceChildren();
+    }
+
+    /** The room for a drawing above the wheels, empty until showPicture. */
+    fillPicture(shown) {
+      this.pictureEl.hidden = !shown;
+      this.pictureEl.replaceChildren();
+      this.picture = null;
+    }
+
+    /** Shows a machine's drawing above the wheels (`picture`), or says it has none (null). */
+    showPicture(picture) {
+      if (picture === this.picture && this.pictureEl.firstChild) return;
+      this.picture = picture;
+      this.pictureEl.innerHTML = picture ? `<img src="${Pictures.src(picture)}" alt="">` : '<span>no picture</span>';
     }
 
     /** The big button, and the small one under it when the config names it. */
@@ -3527,6 +3750,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
         title: this.title(),
         ...this.nextButton(),
         text: this.textSpec(hasWheels),
+        picture: hasWheels,
         columns: 'minmax(0, 1fr) 64px 48px',
         labels: [{ text: 'Machine', left: true }, { text: 'kg' }, { text: 'reps' }],
         wheels: hasWheels ? this.wheelSpecs(machineIndex, start) : [],
@@ -3644,6 +3868,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
      */
     preview() {
       if (!this.wheels) return;
+      this.showPicture();
       const next = this.fields();
       const setLine = this.setLineFor(next);
       this.showOn(setLine);
@@ -3655,6 +3880,11 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       }
       if (setLine) this.keepLine(setLine);
       else this.previewNew(next);
+    }
+
+    /** The drawing of the machine on the wheel, above the wheels. */
+    showPicture() {
+      if (this.machines.length) this.sheet.showPicture(this.machines[this.wheels[0].index].picture || null);
     }
 
     /** The set is not there until it is logged: the line stays as it is, the button says which set comes. */
@@ -4150,7 +4380,10 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
 </script>
 
 <script data-module="settingsScreen">
-/** The settings screen: the plans (in your own order: hold one, then drag it), the machines list, the rest timer and the backup (export and import). */
+/**
+ * The settings screen: the plans (in your own order: hold one, then drag it), the machines list with their drawings,
+ * the rest timer, the backup (export and import), and who made the drawings.
+ */
 (function (FN) {
   'use strict';
   const { escapeHtml } = FN.util;
@@ -4163,6 +4396,8 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
   const { HoldSort } = FN.holdSort;
   const { REST_TIMES_S, KG_STEPS, Icons } = FN.config;
   const { indexOr, formatKg } = FN.util;
+  const { Pictures } = FN.pictures;
+  const { Notebook } = FN.notebook;
 
   /** A kg step as settings write it: "0.5 kg". */
   const kgText = (kg) => `${formatKg(kg)} kg`;
@@ -4417,7 +4652,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
         actionLabel: 'Replace my notebook',
         cancelLabel: 'Cancel',
         onAction: () => {
-          const undo = this.notebook.replaceAll(data);
+          const undo = this.notebook.replaceAll(Notebook.withPictures(data)); // a backup from before drawings gets them too
           this.app.refresh();
           this.toast.show('Notebook replaced', () => {
             undo();
@@ -4472,10 +4707,15 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
     const name = escapeHtml(machine.name);
     return (
       `<div class="row row--machine" role="listitem" tabindex="0" data-key="${escapeHtml(machine.id)}">` +
-      `<div class="row-content"><span class="name">${name}</span></div>` +
+      `<div class="row-content"><span class="name">${name}</span>${thumbHtml(machine.picture)}</div>` +
       `<button class="row-delete" type="button" tabindex="-1" aria-label="Remove ${name}"><span>Delete</span></button>` +
       '</div>'
     );
+  }
+
+  /** A small drawing at the end of a machine's line, when it has one. Only loaded when it scrolls into view. */
+  function thumbHtml(picture) {
+    return picture ? `<img class="thumb" src="${Pictures.src(picture)}" alt="" loading="lazy">` : '';
   }
 
   function planRowHtml(plan, count) {
@@ -4561,11 +4801,14 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       const showPicked = () => {
         if (!hasWheel) return;
         const typed = this.sheet.text();
+        const picked = options[wheel.index];
         this.addRow.className = 'bleed add-row';
-        this.addRow.innerHTML = `<div class="row-content is-pencil">${escapeHtml(typed || options[wheel.index].name)}</div>`;
+        this.addRow.innerHTML = `<div class="row-content is-pencil">${escapeHtml(typed || picked.name)}</div>`;
+        this.sheet.showPicture(picked.picture || null);
       };
       const [wheel] = this.sheet.open({
         title: `Add a machine to ${plan.name}`,
+        picture: hasWheel,
         columns: 'minmax(0, 1fr)',
         ...this.machinePicker(options, startIndex),
         actionLabel: `Add to ${plan.name}`,
@@ -4730,7 +4973,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
         statLineHtml('sessions', Calendar.countTrained(cells)) +
         (isThisMonth ? statLineHtml('weeks in a row', Calendar.weeksInARow(dates, today)) : '') + // a streak is about now
         BLANK_ROW +
-        machineLinksHtml(this.notebook.machinesAZ());
+        machineLinksHtml(Progress.loggedMachines(this.notebook.machinesAZ(), this.notebook.lines));
     }
 
     onClick(e) {
@@ -4790,8 +5033,9 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
     return `<div class="stat-line"><span>${label}</span>${tallyHtml(count)}<span class="mark">${count}</span></div>`;
   }
 
+  /** A link to the chart of each machine that has been logged. */
   function machineLinksHtml(machines) {
-    if (!machines.length) return '<div class="stat-line is-pencil">no machines yet</div>';
+    if (!machines.length) return '<div class="stat-line is-pencil">no machine logged yet</div>';
     return machines
       .map((m) => `<button class="stat-link" type="button" data-machine="${escapeHtml(m.id)}"><span>${escapeHtml(m.name)}</span>${CHEVRON}</button>`)
       .join('');
@@ -4802,7 +5046,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
 </script>
 
 <script data-module="machineScreen">
-/** The chart of one machine: its weight over time on the ruled lines, and when the weight changed. */
+/** The page of one machine: its drawings, its weight over time on the ruled lines, and when the weight changed. */
 (function (FN) {
   'use strict';
   const { MONTH_SHORT, BLANK_ROW } = FN.config;
@@ -4811,6 +5055,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
   const { Calendar } = FN.calendar;
   const { Progress } = FN.progress;
   const { ChartMath } = FN.chartMath;
+  const { Pictures } = FN.pictures;
 
   const MAX_CHART_ROWS = 5;   // ruled lines a chart may use as its grid
   const LINE_PX = 44;         // keep in sync with --line
@@ -4833,13 +5078,22 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       const name = machine ? machine.name : 'Machine';
       this.title.textContent = name;
       const points = Progress.machineHistory(this.notebook.lines, machineId);
-      this.body.innerHTML = points.length
-        ? chartHtml(name, points, this.body.clientWidth || 326) + changesHtml(points)
-        : '<div class="stat-line is-pencil">nothing logged yet</div>';
+      this.body.innerHTML =
+        drawingsHtml(name, machine) +
+        (points.length
+          ? chartHtml(name, points, this.body.clientWidth || 326) + changesHtml(points)
+          : '<div class="stat-line is-pencil">nothing logged yet</div>');
     }
   }
 
   /* ---- Markup ---- */
+
+  /** The three drawings of the machine, how the move goes, with a blank line under them. Nothing without a drawing. */
+  function drawingsHtml(name, machine) {
+    if (!machine || !machine.picture) return '';
+    const frames = Pictures.FRAMES.map((frame) => `<img src="${Pictures.src(machine.picture, frame)}" alt="">`).join('');
+    return `<div class="drawings" role="img" aria-label="${escapeHtml(name)}: how the move goes">${frames}</div>` + BLANK_ROW;
+  }
 
   function chartHtml(name, points, width) {
     const weights = points.map((p) => p.weight);
@@ -4917,7 +5171,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
     constructor() {
       this.toast = new Toast();
       this.sheet = new Sheet({ toast: this.toast });
-      this.notebook = new Notebook(Store.load() || Notebook.exampleData(), { onSave: (data) => Store.save(data) });
+      this.notebook = new Notebook(Notebook.start(Store.load()), { onSave: (data) => Store.save(data) });
       this.prefs = Prefs.load();
       this.timer = new TimerButton({ prefs: () => this.prefs });
 
@@ -5038,7 +5292,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
     /** Not while a panel is open or a name is being typed: that would pull the page from under it. */
     reloadNotebook() {
       if (this.sheet.isOpen() || isTyping()) return;
-      this.notebook.reload(Store.load() || Notebook.exampleData());
+      this.notebook.reload(Notebook.start(Store.load()));
       this.refresh();
     }
   }

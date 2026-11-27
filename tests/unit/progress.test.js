@@ -72,6 +72,13 @@ test('machineHistory: dated lines of one machine, oldest first', () => {
   assert.deepEqual(Progress.machineHistory(lines, 'nothing'), []);
 });
 
+test('loggedMachines: the machines a machine line points at, in the order given; a pencil plan line is not logged', () => {
+  const machines = [{ id: 'chest' }, { id: 'leg' }, { id: 'row' }, { id: 'fly' }];
+  const lines = [date('d', '2026-11-16'), lift('a', 'leg', 80), text('t', 'row'), { id: 'p', type: 'plan', machineId: 'fly', name: 'Fly' }, lift('b', 'chest', 35)];
+  assert.deepEqual(Progress.loggedMachines(machines, lines), [{ id: 'chest' }, { id: 'leg' }]);
+  assert.deepEqual(Progress.loggedMachines(machines, []), []);
+});
+
 test('changeIndexes and weightChanges: the first time, and every time the weight is new', () => {
   const points = [
     { date: '2026-09-05', weight: 65 }, { date: '2026-09-12', weight: 65 },

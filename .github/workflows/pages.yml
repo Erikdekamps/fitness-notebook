@@ -1,4 +1,4 @@
-# Publishes the app (index.html and its font) and the design screens to GitHub Pages
+# Publishes the app (index.html, its font and its drawings) and the design screens to GitHub Pages
 # every time main changes.
 #
 # Three jobs in a chain: test -> build -> deploy.
@@ -54,6 +54,7 @@ jobs:
           mkdir _site
           cp index.html _site/
           cp -r fonts _site/fonts
+          cp -r pictures _site/pictures
           cp -r design _site/design
 
       - name: Upload the site

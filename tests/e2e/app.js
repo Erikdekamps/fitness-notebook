@@ -22,6 +22,8 @@ export const stillness = (page) => page.waitForFunction(() => document.getAnimat
 export const actionButton = (page) => page.locator('#sheetAction');
 export const otherButton = (page) => page.locator('#sheetCancel');
 export const rows = (page) => page.locator('#lines .row');
+/** A machine's line in settings, by its whole name: other names can start the same (Leg press, Leg press calf raise). */
+export const machineRow = (page, name) => page.locator('#machineList .row').filter({ has: page.locator('.name').getByText(name, { exact: true }) });
 export const row = (page, text) => page.locator('#lines .row').filter({ hasText: text }).last();
 
 /** What each line of the last day says: the machine name, or the text. */
@@ -36,7 +38,10 @@ export function lastDay(page) {
 /** The numbers of a machine line, "kg × reps × sets". */
 export const numbers = (rowLocator) => rowLocator.locator('.nums');
 
-/** Turns a wheel (found by its label) to an item, with the arrow keys, like a keyboard user. */
+/**
+ * Turns a wheel (found by its label) to an item, with the keys, like a keyboard user:
+ * Page Down or Page Up while it is 5 items or more away (the machine wheel is long), then the arrows.
+ */
 export async function pick(page, label, value) {
   const wheel = page.getByRole('spinbutton', { name: label, exact: true });
   const items = await wheel.locator('.wheel-item').allTextContents();
@@ -46,7 +51,9 @@ export async function pick(page, label, value) {
   for (let i = 0; i < items.length; i++) {
     const now = Number(await wheel.getAttribute('aria-valuenow'));
     if (now === target) break;
-    await pressUntilItMoves(wheel, now < target ? 'ArrowDown' : 'ArrowUp', now);
+    const far = Math.abs(target - now) >= 5;
+    const key = now < target ? (far ? 'PageDown' : 'ArrowDown') : far ? 'PageUp' : 'ArrowUp';
+    await pressUntilItMoves(wheel, key, now);
   }
   await expect(wheel).toHaveAttribute('aria-valuetext', value);
   // A wheel settles 160 ms after it stops, and that can change the others (a machine loads its kg and reps):

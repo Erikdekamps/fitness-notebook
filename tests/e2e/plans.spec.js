@@ -140,18 +140,18 @@ test('add a machine to a plan by writing its name: a new one is made, one alread
   await page.getByRole('button', { name: 'tap here to add a machine' }).click();
   const field = page.getByRole('textbox', { name: 'New machine' });
 
-  await field.fill('Hip thrust');
-  await expect(page.locator('#planAddRow')).toHaveText('Hip thrust'); // in pencil while typing
+  await field.fill('Sled push');
+  await expect(page.locator('#planAddRow')).toHaveText('Sled push'); // in pencil while typing
   await actionButton(page).click();
-  await expect(page.locator('#planMachines .name')).toHaveText(['Leg press', 'Leg curl', 'Hip thrust']);
+  await expect(page.locator('#planMachines .name')).toHaveText(['Leg press', 'Leg curl', 'Sled push']);
 
   await field.fill('leg PRESS'); // in the plan already, in other letters
   await actionButton(page).click();
   await expect(page.getByText('That machine is in the plan already')).toBeVisible();
-  await expect(page.locator('#planMachines .name')).toHaveText(['Leg press', 'Leg curl', 'Hip thrust']);
+  await expect(page.locator('#planMachines .name')).toHaveText(['Leg press', 'Leg curl', 'Sled push']);
 
   await backTo(page, 'settings');
-  await expect(page.locator('#machineList .name').filter({ hasText: 'Hip thrust' })).toHaveCount(1); // a machine like any other
+  await expect(page.locator('#machineList .name').filter({ hasText: 'Sled push' })).toHaveCount(1); // a machine like any other
 });
 
 test('take a machine out of a plan, and Undo puts it back', async ({ page }) => {

@@ -2,7 +2,7 @@
 
 Screenshots of the app, one per screen, in the order you meet them. Every screen is 390 × 844 (iPhone 13), taken at 2×.
 
-They are pictures of the real `index.html`, so they show what is built. Screens 07 to 10 and 13 to 18 were taken when a new notebook had six machines and settings had no plans part; it now starts with twelve machines, so those show a shorter list than you see today. The numbers and dates are examples: "today" is 23/11. Screens 15, 16 and 18 use a made-up year of training.
+They are pictures of the real `index.html`, so they show what is built. Screens 07 to 10 and 13 to 18 were taken when a new notebook had six machines and settings had no plans part. Screens 01 to 31 were taken before the machines had drawings: a new notebook then had twelve machines, and the panel no drawing. It now starts with 144 machines, 143 of them with a drawing (screens 32 to 36), so the older screens show shorter lists than you see today. The numbers and dates are examples: "today" is 23/11. Screens 15, 16 and 18 use a made-up year of training.
 
 | Group | Screen | What it shows |
 | --- | --- | --- |
@@ -37,9 +37,15 @@ They are pictures of the real `index.html`, so they show what is built. Screens 
 | Settings | [29-settings-import-text-wrong.png](29-settings-import-text-wrong.png) | Text that is not a backup: the panel says so and keeps the text |
 | Kg wheel | [30-settings-kg-step.png](30-settings-kg-step.png) | Settings, "steps of": the kg wheel goes by 2.5 kg, or by 0.5 kg for small dumbbells. One setting for every machine |
 | Kg wheel | [31-add-line-half-kg.png](31-add-line-half-kg.png) | With steps of 0.5 kg: 12, 12.5, 13 on the kg wheel |
+| Drawings | [32-add-line-picture.png](32-add-line-picture.png) | Above the wheels, the drawing of the machine on the wheel. Turn the wheel and it changes with it |
+| Drawings | [33-add-line-no-picture.png](33-add-line-no-picture.png) | A machine without a drawing, such as Dumbbells or one you wrote yourself: "no picture". The panel keeps its height |
+| Drawings | [34-statistics-machine-drawings.png](34-statistics-machine-drawings.png) | A machine's page: its three drawings, how the move goes, standing on a ruled line. The lines stop behind them |
+| Drawings | [35-settings-machines-drawings.png](35-settings-machines-drawings.png) | Settings: each machine line ends in a small drawing, in pencil |
+| Drawings | [36-settings-drawings-credits.png](36-settings-drawings-credits.png) | Settings, at the bottom: who made the drawings, what they are based on, their license, and what was changed |
 
 ## Look
 
 - Paper `#e8d3bc`, ruled lines `#5a5048`, one line every 44 px, stopping 20 px short of both edges.
 - Pen `#1d3a8a`, pencil `#4d535c`, handwriting font Caveat at 27 px.
 - Pen is for what has been logged. Pencil is for hints, the running timer, and a line that is still being picked.
+- Drawings are in pen on a page and in the panel, and in pencil at the end of a line in a list. They come from Workout Guide (see `pictures/README.md`).

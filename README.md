@@ -1,6 +1,6 @@
 # Fitness Notebook
 
-A fitness log that looks and feels like a paper notebook. The whole app is `index.html` plus its font in `fonts/`. Your notebook is saved in the browser.
+A fitness log that looks and feels like a paper notebook. The whole app is `index.html` plus its font in `fonts/` and the drawings of the machines in `pictures/`. Your notebook is saved in the browser.
 
 ## Use it
 
@@ -21,3 +21,11 @@ npm run test:all        # all of the above
 ```
 
 Logic lives in `<script data-testable>` blocks of `index.html`; only those are unit and mutation tested. What a screen decides (which key does what, what a button says) is in the `decide` block, so it is tested there too; the page blocks only draw. Known harmless mutants are listed in `tests/mutation/known-survivors.json`.
+
+## Drawings
+
+The drawings of the machines are from [Workout Guide](https://github.com/bryllim/workout-guide) by Bryl Lim, based on [Everkinetic](https://github.com/everkinetic/data), under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). They are cropped and colored for the notebook; [pictures/README.md](pictures/README.md) says what changed. Settings credits them too, at the bottom.
+
+```sh
+node tools/import-pictures.js /path/to/workout-guide   # makes pictures/ again from a copy of Workout Guide
+```

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { load } from './load.js';
 
 const { Notebook } = load('notebook');
+const { Pictures } = load('pictures');
 
 const date = (id, iso) => ({ id, type: 'date', date: iso });
 const text = (id, words) => ({ id, type: 'text', text: words });
@@ -168,6 +169,36 @@ test('addMachine: cleans the name; re-adding a removed machine picks its history
   assert.equal(notebook.addMachine('leg press').id, 'm-leg');
 });
 
+test('addMachine: a name from the list of drawings gets its drawing, any other name none', () => {
+  const { notebook } = makeNotebook();
+  assert.deepEqual(notebook.addMachine(' hack   SQUAT ').picture, 'hack-squat');
+  assert.ok(!('picture' in notebook.addMachine('My own machine')));
+  assert.equal(notebook.machines.at(-2).picture, 'hack-squat'); // saved with it
+});
+
+test('start: the saved notebook, with the machines that have drawings; with nothing saved, the example one', () => {
+  const example = Notebook.start(null);
+  assert.deepEqual(example.machines, Notebook.exampleData().machines);
+  assert.ok(example.lines.length > 0 && example.lines.every((l) => l.example));
+  const saved = { version: 1, machines: [{ id: 'm-leg', name: 'Leg press' }], plans: [], lines: [date('d1', '2026-11-16')] };
+  const started = Notebook.start(saved);
+  assert.equal(started.machines.length, Pictures.CATALOG.length);
+  assert.deepEqual(started.machines[0], { id: 'm-leg', name: 'Leg press', picture: 'leg-press' });
+  assert.equal(started.lines, saved.lines);
+});
+
+test('withPictures: adds the machines with drawings to machines from before drawings, and keeps the rest of the data', () => {
+  const data = { version: 1, machines: [{ id: 'm-x', name: 'My own machine' }], plans: [{ id: 'p', name: 'Legs', machineIds: [] }], lines: [] };
+  const upgraded = Notebook.withPictures(data);
+  assert.equal(upgraded.machines.length, 1 + Pictures.CATALOG.length);
+  assert.equal(upgraded.plans, data.plans);
+  assert.equal(upgraded.lines, data.lines);
+  assert.equal(upgraded.version, 1);
+  assert.equal(data.machines.length, 1); // the data given is left alone
+  const later = Notebook.withPictures(upgraded);
+  assert.deepEqual(later.machines, upgraded.machines);
+});
+
 test('addMachine: a new name gets an id of its own, never that of a removed machine with another name', () => {
   const { notebook } = makeNotebook();
   notebook.removeMachine('m-leg'); // its line stays, pointing at a machine that is gone
@@ -253,13 +284,19 @@ test('exampleData: five days, every machine line points at a machine, every id i
   assert.equal(new Set(data.lines.map((l) => l.id)).size, data.lines.length);
 });
 
-test('exampleData: twelve machines, each with its own id and name, and no plans', () => {
+test('exampleData: 144 machines, each with its own id and name, and no plans', () => {
   const data = Notebook.exampleData();
-  assert.equal(data.machines.length, 12);
-  assert.equal(new Set(data.machines.map((m) => m.id)).size, 12);
-  assert.equal(new Set(data.machines.map((m) => m.name.toLowerCase())).size, 12);
+  assert.equal(data.machines.length, 144);
+  assert.equal(new Set(data.machines.map((m) => m.id)).size, 144);
+  assert.equal(new Set(data.machines.map((m) => m.name.toLowerCase())).size, 144);
   assert.ok(data.machines.some((m) => m.id === 'm-leg-press' && m.name === 'Leg press')); // the ids older notebooks use
   assert.deepEqual(data.plans, []);
+});
+
+test('exampleData: every machine of the list of drawings, with its drawing, and Dumbbells without one', () => {
+  const { machines } = Notebook.exampleData();
+  for (const [name, picture] of Pictures.CATALOG) assert.ok(machines.some((m) => m.name === name && m.picture === picture), name);
+  assert.deepEqual(machines.filter((m) => !m.picture), [{ id: 'm-dumbbells', name: 'Dumbbells' }]);
 });
 
 test('exampleData: machine ids are "m-" and the name, the ids older notebooks use, listed A to Z', () => {
@@ -270,7 +307,7 @@ test('exampleData: machine ids are "m-" and the name, the ids older notebooks us
   }
   assert.deepEqual(Notebook.sortMachines(machines), machines);
   assert.equal(machines[0].name, 'Abdominal');
-  assert.equal(machines.at(-1).name, 'Triceps press');
+  assert.equal(machines.at(-1).name, 'Wrist extension');
 });
 
 test('exampleData: five example days in date order, each a date, a ride, then machines', () => {

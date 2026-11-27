@@ -24,10 +24,10 @@ test('statistics: this month, then one machine, then back', async ({ page }) => 
   await expect(page.locator('#notebook')).toBeVisible();
 });
 
-test('settings lists the twelve starting machines, A to Z', async ({ page }) => {
+test('settings lists the 144 starting machines, A to Z', async ({ page }) => {
   await openSettings(page);
   const names = await page.locator('#machineList .row').allTextContents();
-  expect(names).toHaveLength(12);
+  expect(names).toHaveLength(144);
   const clean = names.map((n) => n.replace(/Delete$/, '').trim());
   expect(clean).toEqual([...clean].sort((a, b) => a.localeCompare(b)));
 });

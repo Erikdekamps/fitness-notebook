@@ -34,7 +34,7 @@ export default [
   },
   {
     // Code inside page.evaluate() and addInitScript() runs in the browser.
-    files: ['tests/e2e/**/*.js'],
+    files: ['tests/e2e/**/*.js', 'tools/**/*.js'],
     languageOptions: { globals: { ...globals.node, ...globals.browser } },
   },
 ];
