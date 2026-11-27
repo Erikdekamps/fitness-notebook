@@ -31,6 +31,22 @@ test('the machines: the 147 a notebook starts with, A to Z', async ({ page }) =>
   expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b)));
 });
 
+test('the title line stays at the top while a screen scrolls', async ({ page }) => {
+  await openMachines(page);
+  const title = page.locator('#machines .title-row');
+  const before = await title.boundingBox();
+  await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+  await expect.poll(() => page.evaluate(() => window.scrollY)).toBeGreaterThan(1000);
+  await expect(title).toBeInViewport();
+  expect((await title.boundingBox()).y).toBe(before.y);
+  // The title covers what scrolls under it: at its middle, the top thing is the title or a part of it.
+  const covered = await title.evaluate((row) => {
+    const box = row.getBoundingClientRect();
+    return row.contains(document.elementFromPoint(box.right - 60, box.top + box.height / 2));
+  });
+  expect(covered).toBe(true);
+});
+
 test('settings: remove the example lines, and Undo puts them back', async ({ page }) => {
   await openSettings(page);
   await page.getByRole('button', { name: 'remove the example lines' }).click();
