@@ -169,27 +169,27 @@ test('start: the saved notebook, with the machines that have drawings; with noth
 test('withPictures: a machine with a drawing takes its name, in the list of machines and in every line of it', () => {
   const data = {
     version: 1,
-    machines: [{ id: 'm-leg-press', name: 'Seated leg press' }, { id: 'm-h1', name: 'Squat (barbell)' }, { id: 'm-own', name: 'Rotary torso' }],
+    machines: [{ id: 'm-leg-press', name: 'Seated leg press' }, { id: 'm-h1', name: 'Squat (barbell)' }, { id: 'm-own', name: 'Ab coaster' }],
     plans: [{ id: 'p', name: 'Legs', machineIds: ['m-leg-press', 'm-h1'] }],
     lines: [
       date('d1', '2026-11-16'),
       { id: 'l1', type: 'machine', machineId: 'm-leg-press', name: 'Leg press', weight: 80, sets: 3, reps: 12 },
       { id: 'l2', type: 'machine', machineId: 'm-leg-press', name: 'Seated leg press', weight: 85, sets: 3, reps: 12 },
       { id: 'l3', type: 'plan', machineId: 'm-h1', name: 'Squat (barbell)' },
-      { id: 'l4', type: 'machine', machineId: 'm-own', name: 'Rotary torso', weight: 30, sets: 3, reps: 12 },
+      { id: 'l4', type: 'machine', machineId: 'm-own', name: 'Ab coaster', weight: 30, sets: 3, reps: 12 },
       text('t1', 'Seated leg press'),
     ],
   };
   const named = Notebook.withPictures(data);
-  assert.deepEqual(named.machines.slice(0, 3).map((m) => m.name), ['Leg press', 'Squat', 'Rotary torso']);
-  assert.deepEqual(named.lines.map((l) => l.name || l.text || l.date), ['2026-11-16', 'Leg press', 'Leg press', 'Squat', 'Rotary torso', 'Seated leg press']);
+  assert.deepEqual(named.machines.slice(0, 3).map((m) => m.name), ['Leg press', 'Squat', 'Ab coaster']);
+  assert.deepEqual(named.lines.map((l) => l.name || l.text || l.date), ['2026-11-16', 'Leg press', 'Leg press', 'Squat', 'Ab coaster', 'Seated leg press']);
   assert.equal(named.lines[1], data.lines[1]); // a line that has the name already is left as it is
   assert.deepEqual(named.plans, data.plans); // plans hold ids, so they show the new names by themselves
   assert.equal(data.lines[2].name, 'Seated leg press'); // the data given is left alone
 });
 
 test('linesNamed: only lines of a machine with a drawing take its name; other lines stay as they are', () => {
-  const machines = [{ id: 'm-a', name: 'Leg press', picture: 'leg-press' }, { id: 'm-b', name: 'Rotary torso' }];
+  const machines = [{ id: 'm-a', name: 'Leg press', picture: 'leg-press' }, { id: 'm-b', name: 'Ab coaster' }];
   const lines = [
     { id: 'l1', type: 'machine', machineId: 'm-a', name: 'Old name', weight: 80, sets: 3, reps: 12 },
     { id: 'l2', type: 'machine', machineId: 'm-b', name: 'Torso', weight: 30, sets: 3, reps: 12 },
@@ -262,11 +262,11 @@ test('exampleData: five days, every machine line points at a machine, every id i
   assert.equal(new Set(data.lines.map((l) => l.id)).size, data.lines.length);
 });
 
-test('exampleData: 147 machines, each with its own id and name, and no plans', () => {
+test('exampleData: 148 machines, each with its own id and name, and no plans', () => {
   const data = Notebook.exampleData();
-  assert.equal(data.machines.length, 147);
-  assert.equal(new Set(data.machines.map((m) => m.id)).size, 147);
-  assert.equal(new Set(data.machines.map((m) => m.name.toLowerCase())).size, 147);
+  assert.equal(data.machines.length, 148);
+  assert.equal(new Set(data.machines.map((m) => m.id)).size, 148);
+  assert.equal(new Set(data.machines.map((m) => m.name.toLowerCase())).size, 148);
   assert.ok(data.machines.some((m) => m.id === 'm-leg-press' && m.name === 'Leg press')); // the ids older notebooks use
   assert.deepEqual(data.plans, []);
 });

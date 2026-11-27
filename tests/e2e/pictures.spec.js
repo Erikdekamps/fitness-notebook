@@ -181,6 +181,18 @@ test('a plan: each machine with its drawing; tap one to open its page', async ({
   await expect(page.locator('#planTitle')).toHaveText('Leg day');
 });
 
+test('a machine you made before its drawing came gets it, in the list and the notebook', async ({ page }) => {
+  await startWith(page, {
+    machines: [{ id: 'm-leg-press', name: 'Leg press', picture: 'leg-press' }, { id: 'm-own', name: 'Rotary torso' }],
+    lines: [{ id: 'd', type: 'date', date: '2026-11-20' }, { id: 'l', type: 'machine', machineId: 'm-own', name: 'Rotary torso', weight: 30, sets: 3, reps: 12 }],
+  });
+  await openApp(page);
+  await expect(page.locator('#lines .row .name')).toHaveText(['Rotary torso']);
+  await openMachines(page);
+  expect(await machineNames(page)).toEqual(['Leg press', 'Rotary torso']);
+  await expect(machineRow(page, 'Rotary torso').locator('img.thumb')).toHaveAttribute('src', 'pictures/rotary-torso/frame-1.svg');
+});
+
 test.describe('a notebook from before drawings', () => {
   const OLD = {
     machines: [{ id: 'm-leg-press', name: 'Leg press' }, ...SLED],
@@ -192,13 +204,13 @@ test.describe('a notebook from before drawings', () => {
     await openApp(page);
     await openMachines(page);
     const names = await machineNames(page);
-    expect(names).toHaveLength(147); // its 2, and 145 more: Leg press was there already
+    expect(names).toHaveLength(148); // its 2, and 146 more: Leg press was there already
     expect(names.filter((n) => n === 'Leg press')).toHaveLength(1);
     await expect(machineRow(page, 'Leg press').locator('img.thumb')).toHaveAttribute('src', 'pictures/leg-press/frame-1.svg');
     await expect(machineRow(page, 'Sled push').locator('img')).toHaveCount(0);
     await page.reload();
     await openMachines(page);
-    await expect(page.locator('#machineList [data-machine]')).toHaveCount(147);
+    await expect(page.locator('#machineList [data-machine]')).toHaveCount(148);
   });
 
   test('a machine renamed, or named the way another app names it, takes the name of its drawing, in the notebook too', async ({ page }) => {
@@ -225,7 +237,7 @@ test.describe('a notebook from before drawings', () => {
     await actionButton(page).click(); // Replace my notebook
     await backTo(page, 'notebook');
     await openMachines(page);
-    expect(await machineNames(page)).toHaveLength(147);
+    expect(await machineNames(page)).toHaveLength(148);
     await expect(machineRow(page, 'Leg press').locator('img.thumb')).toHaveAttribute('src', 'pictures/leg-press/frame-1.svg');
   });
 });

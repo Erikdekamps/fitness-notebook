@@ -16,10 +16,10 @@ test('a line written in the panel is no machine', async ({ page }) => {
 });
 
 test('settings says how many machines there are; tap it to see them', async ({ page }) => {
-  await expect(page.getByRole('button', { name: /^machines/ })).toHaveText('machines147');
+  await expect(page.getByRole('button', { name: /^machines/ })).toHaveText('machines148');
   await page.getByRole('button', { name: /^machines/ }).click();
   await expect(page.locator('#machinesTitle')).toHaveText('Machines');
-  await expect(page.locator('#machineList [data-machine]')).toHaveCount(147);
+  await expect(page.locator('#machineList [data-machine]')).toHaveCount(148);
   await backTo(page, 'settings');
   await expect(page.locator('#settings')).toBeVisible();
 });

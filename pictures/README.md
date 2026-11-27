@@ -28,6 +28,17 @@ Taken from Workout Guide as it was on 27 August 2026, commit `aac599224bb9780305
 Nothing else: every line of every drawing is the same. `tools/import-pictures.js` makes this folder
 from a copy of Workout Guide.
 
+## Rotary torso
+
+Workout Guide has no rotary torso, so `rotary-torso/` is put together from two of its drawings, by
+`tools/draw-rotary-torso.js`:
+
+- below the waist: the person on the hip adduction machine (`hip-adduction-machine/frame-1.svg`)
+- above the waist: the person of the Russian twist, who turns (`weighted-russian-twist/`, frame 1, 2 and 3)
+- a chest pad drawn over the hands, the pad the arms hold on a rotary torso
+
+The lines that are used are not changed: only moved, made a little smaller, and cut off at the waist.
+
 ## License
 
 These drawings, changed as above, are shared under the same license: CC BY-SA 4.0.

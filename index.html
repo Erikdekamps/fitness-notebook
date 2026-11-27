@@ -955,7 +955,7 @@ a.stat-link { text-decoration: none; } /* a credit that opens its source */
     ['Rack pull', 'rack-pull'], ['Rear delt fly', 'rear-delt-fly'], ['Rear delt raise', 'bent-over-rear-delt-raise'],
     ['Reverse curl', 'reverse-curl'], ['Reverse hyper', 'reverse-hyperextension'], ['Reverse lunge', 'reverse-lunge'],
     ['Romanian deadlift', 'romanian-deadlift'], ['Rope hammer curl', 'rope-hammer-curl'], ['Rope pushdown', 'rope-tricep-pushdown'],
-    ['Row rear deltoid', 'reverse-pec-deck'], ['Russian twist', 'weighted-russian-twist'], ['Seated calf raise', 'seated-calf-raise'],
+    ['Rotary torso', 'rotary-torso'], ['Row rear deltoid', 'reverse-pec-deck'], ['Russian twist', 'weighted-russian-twist'], ['Seated calf raise', 'seated-calf-raise'],
     ['Seated dumbbell press', 'seated-dumbbell-press'], ['Seated leg curl', 'seated-leg-curl'], ['Seated row', 'seated-row'],
     ['Shoulder press', 'machine-shoulder-press'], ['Single skull crusher', 'single-dumbbell-skullcrusher'],
     ['Single-leg deadlift', 'single-leg-romanian-deadlift'], ['Skull crusher', 'skull-crusher'],
@@ -1045,7 +1045,7 @@ a.stat-link { text-decoration: none; } /* a credit that opens its source */
     'reverse-hyperextension': 'glutes; hamstrings, lower back; a machine', 'reverse-lunge': 'quads; glutes, hamstrings; dumbbells',
     'romanian-deadlift': 'hamstrings; glutes, lower back; a barbell', 'rope-hammer-curl': 'biceps; forearms; a cable',
     'rope-tricep-pushdown': 'triceps; shoulders; a cable', 'reverse-pec-deck': 'back of the shoulders; upper back; a machine',
-    'weighted-russian-twist': 'core; shoulders; dumbbells', 'seated-calf-raise': 'calves; ; a machine',
+    'weighted-russian-twist': 'core; shoulders; dumbbells', 'rotary-torso': 'sides of the belly; core; a machine', 'seated-calf-raise': 'calves; ; a machine',
     'seated-dumbbell-press': 'shoulders; triceps; dumbbells', 'seated-leg-curl': 'hamstrings; calves; a machine',
     'seated-row': 'back; biceps, back of the shoulders; a cable', 'machine-shoulder-press': 'shoulders; triceps; a machine',
     'single-dumbbell-skullcrusher': 'triceps; shoulders; dumbbells', 'single-leg-romanian-deadlift': 'hamstrings; glutes, core; dumbbells',
@@ -1159,6 +1159,20 @@ a.stat-link { text-decoration: none; } /* a credit that opens its source */
       if (!Pictures.fromBefore(machines)) return machines;
       const own = machines.map(Pictures.withPicture);
       return own.concat(Pictures.missing(own));
+    },
+
+    /**
+     * Machines with the drawings that came after them: a machine without a drawing gets the drawing of its name
+     * ("Rotary torso" got one later), when no other machine has that drawing yet.
+     */
+    withNewDrawings(machines) {
+      const taken = new Set(machines.map((m) => m.picture));
+      return machines.map((machine) => {
+        const picture = machine.picture ? null : Pictures.forName(machine.name);
+        if (!picture || taken.has(picture)) return machine;
+        taken.add(picture);
+        return { ...machine, picture };
+      });
     },
 
     /** The machines of the list that `machines` has neither by name nor by drawing, as new machines. */
@@ -2185,10 +2199,11 @@ a.stat-link { text-decoration: none; } /* a credit that opens its source */
 
     /**
      * Notebook data with the machines that have drawings: added once to machines from before drawings (Pictures.addTo),
-     * each machine with a drawing named after it (Pictures.named), and the lines of those machines with that name too.
+     * a drawing that came later given to the machine of its name (Pictures.withNewDrawings), each machine with a drawing
+     * named after it (Pictures.named), and the lines of those machines with that name too.
      */
     static withPictures(data) {
-      const machines = Pictures.named(Pictures.addTo(data.machines));
+      const machines = Pictures.named(Pictures.withNewDrawings(Pictures.addTo(data.machines)));
       return { ...data, machines, lines: Notebook.linesNamed(data.lines, machines) };
     }
 

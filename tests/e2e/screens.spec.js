@@ -24,10 +24,10 @@ test('statistics: this month, then one machine, then back', async ({ page }) => 
   await expect(page.locator('#notebook')).toBeVisible();
 });
 
-test('the machines: the 147 a notebook starts with, A to Z', async ({ page }) => {
+test('the machines: the 148 a notebook starts with, A to Z', async ({ page }) => {
   await openMachines(page);
   const names = await machineNames(page);
-  expect(names).toHaveLength(147);
+  expect(names).toHaveLength(148);
   expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b)));
 });
 

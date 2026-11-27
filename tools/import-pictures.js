@@ -10,6 +10,9 @@
  *   node tools/import-pictures.js /tmp/workout-guide
  *
  * It measures the drawings in Chromium, with Playwright. CHROMIUM=/path/to/chrome picks another Chromium.
+ *
+ * Drawings Workout Guide does not have (OWN) are left as they are: tools/draw-rotary-torso.js makes the rotary torso,
+ * from two drawings this writes. Run it after this.
  */
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -18,6 +21,7 @@ import { chromium } from '@playwright/test';
 import { load } from '../tests/unit/load.js';
 
 const PEN = '#1d3a8a'; // --pen in index.html
+const OWN = ['rotary-torso']; // made here, not in Workout Guide
 const MARGIN = 0.03; // room around the drawing, as a share of its longest side
 const OUT = fileURLToPath(new URL('../pictures/', import.meta.url));
 
@@ -55,7 +59,7 @@ try {
   for (const picture of readdirSync(OUT)) {
     if (!picture.includes('.') && !Pictures.has(picture)) rmSync(join(OUT, picture), { recursive: true });
   }
-  for (const picture of Pictures.DRAWINGS) {
+  for (const picture of Pictures.DRAWINGS.filter((p) => !OWN.includes(p))) {
     const frames = Pictures.FRAMES.map((n) => readFileSync(join(assets, picture, `frame-${n}.svg`), 'utf8'));
     const boxes = await page.evaluate((svgs) => svgs.map((svg) => {
       document.body.innerHTML = svg;
@@ -66,7 +70,7 @@ try {
     mkdirSync(join(OUT, picture), { recursive: true });
     frames.forEach((svg, i) => writeFileSync(join(OUT, picture, `frame-${i + 1}.svg`), changed(svg, box)));
   }
-  console.log(`${Pictures.DRAWINGS.length} drawings written to pictures/`);
+  console.log(`${Pictures.DRAWINGS.length - OWN.length} drawings written to pictures/; now run tools/draw-rotary-torso.js`);
 } finally {
   await browser.close();
 }
