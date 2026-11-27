@@ -462,7 +462,33 @@ button {
 
 /* 9. Settings -------------------------------------------------------------- */
 .section-title { height: var(--line); font-weight: 700; }
-.title-row { display: flex; align-items: center; gap: 2px; height: var(--line); font-weight: 700; }
+.title-row { /* stays at the top while the page scrolls, just under the top margin; lines slide under it */
+  position: sticky;
+  z-index: 8;
+  top: calc(var(--safe-top) + var(--line));
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  height: var(--line);
+  margin: 0 calc(-1 * var(--text-right)) 0 calc(-1 * var(--text-left));
+  padding: 0 var(--text-right) 0 var(--text-left);
+  background:
+    linear-gradient(to bottom, transparent 36px, var(--rule) 36px, var(--rule) 37px, transparent 37px)
+      var(--rule-inset) 0 / calc(100% - 2 * var(--rule-inset)) 100% no-repeat,
+    var(--paper);
+  font-weight: 700;
+}
+
+.title-row::after { /* soft edge where lines slide under */
+  content: "";
+  position: absolute;
+  top: 100%;
+  right: 0;
+  left: 0;
+  height: 10px;
+  background: linear-gradient(var(--paper), rgba(232, 211, 188, 0));
+  pointer-events: none;
+}
 
 .back-btn {
   display: grid;
