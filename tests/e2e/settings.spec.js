@@ -1,69 +1,35 @@
 /** Settings: the machines list (add, rename, remove) and plan names. */
 import { test, expect, RULES } from './fixtures.js';
-import { HOLD_MS, actionButton, addLine, backTo, holdAndDrag, machineRow, openApp, openSettings, pick, row, startDate } from './app.js';
-
-const machineNames = (page) => page.locator('#machineList .row .name').allTextContents();
+import { HOLD_MS, actionButton, addLine, backTo, holdAndDrag, machineNames, openApp, openMachines, openSettings, pick, startDate } from './app.js';
 
 test.beforeEach(async ({ page }) => {
   await openApp(page);
   await openSettings(page);
 });
 
-test('add machines: write a name, Enter, and the field stays for the next one', async ({ page }) => {
-  await page.getByRole('button', { name: 'tap here to add a machine' }).click();
-  const field = page.locator('#addMachineRow input');
-  await field.fill('Sled push');
-  await field.press('Enter');
-  await expect(field).toHaveValue('');
-  await field.fill('Calf raise');
-  await field.press('Enter');
-  await field.press('Escape');
-  const names = await machineNames(page);
-  expect(names).toContain('Sled push');
-  expect(names).toContain('Calf raise');
-  expect(names).toHaveLength(146);
-});
-
-test('rename a machine: the wheel uses the new name, old lines keep what was written', async ({ page }) => {
-  await machineRow(page, 'Leg press').click();
-  const field = page.getByRole('textbox', { name: 'Machine name' });
-  await expect(field).toHaveValue('Leg press');
-  await field.fill('Leg press 45°');
-  await field.press('Enter');
-  expect(await machineNames(page)).toContain('Leg press 45°');
-
-  await backTo(page, 'notebook');
-  await expect(row(page, 'Leg press')).toBeVisible();
-  await page.getByRole('button', { name: 'tap to add a line' }).click();
-  await pick(page, 'Machine', 'Leg press 45°');
-});
-
-test('a name that is taken is not accepted; Escape keeps the old name', RULES, async ({ page }) => {
-  await machineRow(page, 'Leg press').click();
-  const field = page.getByRole('textbox', { name: 'Machine name' });
-  await field.fill('leg curl'); // the same as "Leg curl", in other letters
-  await field.press('Enter');
-  await expect(field).toBeVisible(); // still open: it was not taken
-  await field.press('Escape');
-  await expect(field).toBeHidden();
-  expect(await machineNames(page)).toContain('Leg press');
-});
-
-test('remove a machine, and Undo puts it back', async ({ page }) => {
-  const target = machineRow(page, 'Fly');
-  await target.focus();
-  await page.keyboard.press('Delete');
-  await expect.poll(() => machineNames(page)).not.toContain('Fly');
-  await page.getByRole('button', { name: 'Undo' }).click();
-  await expect.poll(() => machineNames(page)).toContain('Fly');
-});
-
-test('a new machine written in the panel shows up in settings', async ({ page }) => {
+test('a line written in the panel is no machine', async ({ page }) => {
   await backTo(page, 'notebook');
   await startDate(page);
   await addLine(page, { text: 'Bike 15 min' });
-  await openSettings(page);
-  expect(await machineNames(page)).not.toContain('Bike 15 min'); // a text line is not a machine
+  await openMachines(page);
+  expect(await machineNames(page)).not.toContain('Bike 15 min');
+});
+
+test('settings says how many machines there are; tap it to see them', async ({ page }) => {
+  await expect(page.getByRole('button', { name: /^machines/ })).toHaveText('machines147');
+  await page.getByRole('button', { name: /^machines/ }).click();
+  await expect(page.locator('#machinesTitle')).toHaveText('Machines');
+  await expect(page.locator('#machineList [data-machine]')).toHaveCount(147);
+  await backTo(page, 'settings');
+  await expect(page.locator('#settings')).toBeVisible();
+});
+
+test('machines are not added, renamed or removed in settings', async ({ page }) => {
+  await expect(page.getByRole('button', { name: 'tap here to add a machine' })).toHaveCount(0);
+  await page.getByRole('button', { name: /^machines/ }).click();
+  await expect(page.getByRole('button', { name: 'tap here to add a machine' })).toHaveCount(0);
+  await expect(page.locator('#machineList .row-delete')).toHaveCount(0);
+  await expect(page.getByRole('textbox')).toHaveCount(0);
 });
 
 test('rename a plan by tapping its name', async ({ page }) => {
@@ -197,23 +163,4 @@ test('remove a plan, and Undo puts it back', async ({ page }) => {
   await expect.poll(() => planNames(page)).toEqual(['Pull']);
   await page.getByRole('button', { name: 'Undo' }).click();
   await expect.poll(() => planNames(page)).toEqual(['Push', 'Pull']);
-});
-
-test('a tap somewhere else while writing a machine keeps what was written', async ({ page }) => {
-  await page.getByRole('button', { name: 'tap here to add a machine' }).click();
-  const field = page.locator('#addMachineRow input');
-  await field.fill('Sled push');
-  await page.getByRole('heading', { name: 'machines' }).click();
-  await expect(field).toHaveCount(0);
-  expect(await machineNames(page)).toContain('Sled push');
-});
-
-test('a tap in the field while renaming a machine keeps the field open', async ({ page }) => {
-  await machineRow(page, 'Leg press').click();
-  const field = page.getByRole('textbox', { name: 'Machine name' });
-  await field.fill('Leg press 2');
-  await field.click();
-  await expect(field).toHaveValue('Leg press 2');
-  await field.press('Enter');
-  expect(await machineNames(page)).toContain('Leg press 2');
 });

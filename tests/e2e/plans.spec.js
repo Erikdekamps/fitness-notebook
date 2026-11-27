@@ -134,24 +134,15 @@ test('in a plan day, other reps show in pencil right under the line, and become 
   await expect(page.locator('#lines .row--machine .nums').last()).toHaveText('80 × 10 × 1');
 });
 
-test('add a machine to a plan by writing its name: a new one is made, one already in the plan is refused', async ({ page }) => {
+test('the panel to add a machine to a plan has the machines, and no field to write a new one', async ({ page }) => {
   await openSettings(page);
   await page.locator('#planList .row').filter({ hasText: 'Leg day' }).click();
   await page.getByRole('button', { name: 'tap here to add a machine' }).click();
-  const field = page.getByRole('textbox', { name: 'New machine' });
-
-  await field.fill('Sled push');
-  await expect(page.locator('#planAddRow')).toHaveText('Sled push'); // in pencil while typing
+  await expect(page.getByRole('spinbutton', { name: 'Machine', exact: true })).toBeVisible();
+  await expect(page.getByRole('textbox', { name: 'New machine' })).toBeHidden();
+  await pick(page, 'Machine', 'Hip thrust');
   await actionButton(page).click();
-  await expect(page.locator('#planMachines .name')).toHaveText(['Leg press', 'Leg curl', 'Sled push']);
-
-  await field.fill('leg PRESS'); // in the plan already, in other letters
-  await actionButton(page).click();
-  await expect(page.getByText('That machine is in the plan already')).toBeVisible();
-  await expect(page.locator('#planMachines .name')).toHaveText(['Leg press', 'Leg curl', 'Sled push']);
-
-  await backTo(page, 'settings');
-  await expect(page.locator('#machineList .name').filter({ hasText: 'Sled push' })).toHaveCount(1); // a machine like any other
+  await expect(page.locator('#planMachines .name')).toHaveText(['Leg press', 'Leg curl', 'Hip thrust']);
 });
 
 test('take a machine out of a plan, and Undo puts it back', async ({ page }) => {
@@ -162,6 +153,19 @@ test('take a machine out of a plan, and Undo puts it back', async ({ page }) => 
   await expect(page.locator('#planMachines .name')).toHaveText(['Leg curl']);
   await page.getByRole('button', { name: 'Undo' }).click();
   await expect(page.locator('#planMachines .name')).toHaveText(['Leg press', 'Leg curl']);
+});
+
+test('renaming a plan: a tap in the field keeps it open, a tap somewhere else saves the name', async ({ page }) => {
+  await openSettings(page);
+  await page.locator('#planList .row').filter({ hasText: 'Leg day' }).click();
+  await page.getByRole('button', { name: 'Leg day: tap to change the name' }).click();
+  const field = page.getByRole('textbox', { name: 'Name of the plan' });
+  await field.fill('Legs');
+  await field.click();
+  await expect(field).toBeVisible();
+  await page.getByRole('heading', { name: 'machines, in order' }).click();
+  await expect(field).toHaveCount(0);
+  await expect(page.locator('#planTitle')).toHaveText('Legs');
 });
 
 test('rename a plan on its own screen: the same name changes nothing, a taken name is refused', async ({ page }) => {

@@ -1,6 +1,6 @@
 /** Every screen opens, shows what it should, and the way back works. */
 import { test, expect } from './fixtures.js';
-import { backTo, openApp, openSettings, rows } from './app.js';
+import { backTo, machineNames, openApp, openMachines, openSettings, rows } from './app.js';
 
 test.beforeEach(async ({ page }) => {
   await openApp(page);
@@ -24,12 +24,11 @@ test('statistics: this month, then one machine, then back', async ({ page }) => 
   await expect(page.locator('#notebook')).toBeVisible();
 });
 
-test('settings lists the 144 starting machines, A to Z', async ({ page }) => {
-  await openSettings(page);
-  const names = await page.locator('#machineList .row').allTextContents();
-  expect(names).toHaveLength(144);
-  const clean = names.map((n) => n.replace(/Delete$/, '').trim());
-  expect(clean).toEqual([...clean].sort((a, b) => a.localeCompare(b)));
+test('the machines: the 147 a notebook starts with, A to Z', async ({ page }) => {
+  await openMachines(page);
+  const names = await machineNames(page);
+  expect(names).toHaveLength(147);
+  expect(names).toEqual([...names].sort((a, b) => a.localeCompare(b)));
 });
 
 test('settings: remove the example lines, and Undo puts them back', async ({ page }) => {

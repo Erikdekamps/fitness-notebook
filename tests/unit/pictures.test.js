@@ -12,14 +12,14 @@ const ownMachine = { id: 'm-own', name: 'My own machine' };
 
 /* ---- The list ---- */
 
-test('the list: 143 machines A to Z, every name and every drawing once', () => {
+test('the list: 146 machines A to Z, every name and every drawing once', () => {
   const names = Pictures.CATALOG.map(([name]) => name);
   const pictures = Pictures.CATALOG.map(([, picture]) => picture);
-  assert.equal(Pictures.CATALOG.length, 143);
+  assert.equal(Pictures.CATALOG.length, 146);
   assert.deepEqual(Notebook.sortMachines(names.map((name) => ({ name }))).map((m) => m.name), names);
-  assert.equal(new Set(names.map((n) => n.toLowerCase())).size, 143);
-  assert.equal(new Set(pictures).size, 143);
-  assert.equal(new Set(names.map(Pictures.idFor)).size, 143);
+  assert.equal(new Set(names.map((n) => n.toLowerCase())).size, 146);
+  assert.equal(new Set(pictures).size, 146);
+  assert.equal(new Set(names.map(Pictures.idFor)).size, 146);
 });
 
 test('the list: names are clean, and short enough for the machine wheel', () => {
@@ -33,7 +33,7 @@ test('the list: names are clean, and short enough for the machine wheel', () => 
 test('DRAWINGS: every drawing of the list and of the other names, once, A to Z', () => {
   const all = Pictures.CATALOG.concat(Pictures.OTHER_NAMES).map(([, picture]) => picture);
   assert.deepEqual(Pictures.DRAWINGS, [...new Set(all)].sort());
-  assert.equal(Pictures.DRAWINGS.length, 146); // the list's 143, and pull-up, push-up and back-extension
+  assert.equal(Pictures.DRAWINGS.length, 146); // every other name is for a drawing of the list
 });
 
 test('every drawing has its three frames in pictures/, and pictures/ has no others', () => {
@@ -65,7 +65,7 @@ test('FRAMES: 1, 2 and 3', () => {
 
 test('has: only the drawings of the list', () => {
   assert.equal(Pictures.has('leg-press'), true);
-  assert.equal(Pictures.has('push-up'), true); // a drawing of another name only
+  assert.equal(Pictures.has('push-up'), true);
   assert.equal(Pictures.has('burpee'), false); // in Workout Guide, but not used here
   assert.equal(Pictures.has(undefined), false);
   assert.equal(Pictures.has(''), false);
@@ -92,7 +92,7 @@ test('forName: the other names too, such as another app writes them', () => {
 test('forId: the drawing of the machine of the list with that id; else null', () => {
   assert.equal(Pictures.forId('m-leg-press'), 'leg-press');
   assert.equal(Pictures.forId('m-abdominal'), 'crunch');
-  assert.equal(Pictures.forId('m-pull-up'), null); // an other name has no id of its own
+  assert.equal(Pictures.forId('m-squat-(barbell)'), null); // an other name has no id of its own
   assert.equal(Pictures.forId('mx7f2k'), null);
 });
 
@@ -123,18 +123,18 @@ test('fromBefore: some machines, and not one with a drawing', () => {
 
 test('addTo: machines from before drawings get theirs, and the machines of the list they lack', () => {
   const machines = Pictures.addTo([legPress, ownMachine]);
-  assert.equal(machines.length, 2 + 142);
+  assert.equal(machines.length, 2 + 145);
   assert.deepEqual(machines.slice(0, 2), [{ ...legPress, picture: 'leg-press' }, ownMachine]);
   assert.ok(machines.slice(2).every((m) => Pictures.has(m.picture) && m.id === Pictures.idFor(m.name)));
   assert.equal(machines.filter((m) => m.picture === 'leg-press').length, 1);
-  assert.ok(!machines.some((m) => m.picture === 'pull-up')); // an other name is never added by itself
+  assert.ok(!machines.some((m) => m.name === 'Pull up')); // an other name is never added by itself
 });
 
 test('addTo: machines named the way another app names them get their drawing, and no second machine for it', () => {
   const machines = Pictures.addTo([{ id: 'm-h1', name: 'Squat (barbell)' }, { id: 'm-leg-press', name: 'Seated leg press' }]);
   assert.deepEqual(machines.slice(0, 2).map((m) => m.picture), ['squat', 'leg-press']);
   assert.ok(!machines.some((m) => m.name === 'Squat' || m.name === 'Leg press'));
-  assert.equal(machines.length, 143);
+  assert.equal(machines.length, 146);
 });
 
 test('addTo: a list with a drawing in it, or an empty list, stays as it is', () => {
@@ -148,7 +148,7 @@ test('missing: a machine of the list is there when a machine has its name, or it
   const renamed = { id: 'm-1', name: 'Leg press 45°', picture: 'leg-press' };
   const named = { id: 'm-2', name: 'SQUAT' };
   const missing = Pictures.missing([renamed, named]);
-  assert.equal(missing.length, 141);
+  assert.equal(missing.length, 144);
   assert.ok(!missing.some((m) => m.picture === 'leg-press' || m.picture === 'squat'));
   assert.deepEqual(missing[0], { id: 'm-abdominal', name: 'Abdominal', picture: 'crunch' });
 });
@@ -160,4 +160,50 @@ test('missing: a machine of the list gets a new id when its usual one is taken b
   assert.notEqual(abdominal.id, 'm-abdominal');
   assert.match(abdominal.id, /^m0/);
   assert.equal(missing.find((m) => m.name === 'Leg press').id, 'm-leg-press');
+});
+
+/* ---- The name and what it works ---- */
+
+test('nameOf: the name of a drawing in the list; null for none', () => {
+  assert.equal(Pictures.nameOf('leg-press'), 'Leg press');
+  assert.equal(Pictures.nameOf('pull-up'), 'Pull-up');
+  assert.equal(Pictures.nameOf('crunch'), 'Abdominal');
+  assert.equal(Pictures.nameOf(undefined), null);
+  assert.equal(Pictures.nameOf('burpee'), null);
+});
+
+test('aboutOf: what a drawing works, and with what, in plain words; null for none', () => {
+  assert.deepEqual(Pictures.aboutOf('leg-press'), { mostly: 'quads', also: 'glutes, hamstrings', with: 'a machine' });
+  assert.deepEqual(Pictures.aboutOf('leg-extension'), { mostly: 'quads', also: '', with: 'a machine' });
+  assert.deepEqual(Pictures.aboutOf('reverse-pec-deck'), { mostly: 'back of the shoulders', also: 'upper back', with: 'a machine' });
+  assert.equal(Pictures.aboutOf('crunch').with, 'a machine'); // the drawing of the Abdominal machine
+  assert.equal(Pictures.aboutOf('burpee'), null);
+  assert.equal(Pictures.aboutOf(undefined), null);
+  assert.equal(Pictures.aboutOf('toString'), null); // only drawings, nothing every object has
+});
+
+test('aboutOf: every drawing says what it works mostly and with what, in small letters', () => {
+  for (const picture of Pictures.DRAWINGS) {
+    const about = Pictures.aboutOf(picture);
+    assert.match(about.mostly, /^[a-z][a-z ]+$/, picture);
+    assert.match(about.also, /^([a-z][a-z ]+(, [a-z][a-z ]+)*)?$/, picture);
+    assert.match(about.with, /^(a |dumbbells|your own weight)/, picture);
+  }
+});
+
+test('named: a machine with a drawing takes its name; one without, or whose name is taken, keeps its own', () => {
+  const machines = [
+    { id: 'a', name: 'Squat (barbell)', picture: 'squat' },
+    { id: 'b', name: 'Seated Leg curl', picture: 'seated-leg-curl' },
+    { id: 'c', name: 'Pull up', picture: 'pull-up' },
+    { id: 'd', name: 'pull-up', picture: 'pull-up' },
+    { id: 'e', name: 'Rotary torso' },
+    { id: 'f', name: 'Leg press', picture: 'leg-press' },
+  ];
+  const named = Pictures.named(machines);
+  assert.deepEqual(named.map((m) => m.name), ['Squat', 'Seated leg curl', 'Pull up', 'Pull-up', 'Rotary torso', 'Leg press']);
+  assert.deepEqual(named[0], { id: 'a', name: 'Squat', picture: 'squat' });
+  assert.equal(named[4], machines[4]);
+  assert.equal(named[5], machines[5]); // a machine that has its name already is left as it is
+  assert.equal(machines[0].name, 'Squat (barbell)'); // the list given is left alone
 });

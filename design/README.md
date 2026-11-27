@@ -2,7 +2,7 @@
 
 Screenshots of the app, one per screen, in the order you meet them. Every screen is 390 × 844 (iPhone 13), taken at 2×.
 
-They are pictures of the real `index.html`, so they show what is built. Screens 07 to 10 and 13 to 18 were taken when a new notebook had six machines and settings had no plans part. Screens 01 to 31 were taken before the machines had drawings: a new notebook then had twelve machines, and the panel no drawing. It now starts with 144 machines, 143 of them with a drawing (screens 32 to 36), so the older screens show shorter lists than you see today. The numbers and dates are examples: "today" is 23/11. Screens 15, 16 and 18 use a made-up year of training.
+They are pictures of the real `index.html`, so they show what is built. Screens 07 to 10 and 13 to 18 were taken when a new notebook had six machines and settings had no plans part. Screens 01 to 31 were taken before the machines had drawings: a new notebook then had twelve machines, settings listed them, and you could add, rename and remove one there. Now a notebook starts with 147 machines, 146 of them with a drawing; settings has one line that opens the list, and each machine has its own page (screens 32 to 39). The numbers and dates are examples: "today" is 23/11. Screens 15, 16 and 18 use a made-up year of training.
 
 | Group | Screen | What it shows |
 | --- | --- | --- |
@@ -38,10 +38,13 @@ They are pictures of the real `index.html`, so they show what is built. Screens 
 | Kg wheel | [30-settings-kg-step.png](30-settings-kg-step.png) | Settings, "steps of": the kg wheel goes by 2.5 kg, or by 0.5 kg for small dumbbells. One setting for every machine |
 | Kg wheel | [31-add-line-half-kg.png](31-add-line-half-kg.png) | With steps of 0.5 kg: 12, 12.5, 13 on the kg wheel |
 | Drawings | [32-add-line-picture.png](32-add-line-picture.png) | Above the wheels, the drawing of the machine on the wheel. Turn the wheel and it changes with it |
-| Drawings | [33-add-line-no-picture.png](33-add-line-no-picture.png) | A machine without a drawing, such as Dumbbells or one you wrote yourself: "no picture". The panel keeps its height |
-| Drawings | [34-statistics-machine-drawings.png](34-statistics-machine-drawings.png) | A machine's page: its three drawings, how the move goes, standing on a ruled line. The lines stop behind them |
-| Drawings | [35-settings-machines-drawings.png](35-settings-machines-drawings.png) | Settings: each machine line ends in a small drawing, in pencil |
-| Drawings | [36-settings-drawings-credits.png](36-settings-drawings-credits.png) | Settings, at the bottom: who made the drawings, what they are based on, their license, and what was changed |
+| Drawings | [33-add-line-no-picture.png](33-add-line-no-picture.png) | A machine without a drawing, such as Dumbbells: "no picture". The panel keeps its height |
+| Machines | [34-settings-machines.png](34-settings-machines.png) | Settings: one line says how many machines there are; tap it to see them. Machines are not added, renamed or removed |
+| Machines | [35-machines.png](35-machines.png) | Every machine A to Z, each with a small drawing in pencil. Tap one to open its page |
+| Machines | [36-machine-page.png](36-machine-page.png) | One machine: its drawing, big, and the steps of the move under it (tap the drawing, or a number); then what it works |
+| Machines | [37-machine-page-step-2.png](37-machine-page-step-2.png) | Further down: what it works, and with what; then your weights on it (also the page statistics opens) |
+| Plans | [38-plan-drawings.png](38-plan-drawings.png) | A plan: each machine with its drawing. Tap one to open its page |
+| Drawings | [39-settings-drawings-credits.png](39-settings-drawings-credits.png) | Settings, at the bottom: who made the drawings, what they are based on, their license, and what was changed |
 
 ## Look
 

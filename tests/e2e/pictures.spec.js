@@ -1,8 +1,21 @@
-/** The drawings of the machines: in the panel above the wheels, on a machine's page, in settings; and who made them. */
+/**
+ * The drawings of the machines, and the machines' own pages: the panel above the wheels, the list of machines,
+ * one machine's page, plans; names that follow the drawings; and who made the drawings.
+ */
 import { test, expect } from './fixtures.js';
-import { actionButton, backTo, machineRow, openApp, openSettings, pick, startDate, startWith } from './app.js';
+import { actionButton, backTo, machineNames, machineRow, openApp, openMachines, openSettings, pick, startDate, startWith } from './app.js';
 
 const sheetPicture = (page) => page.locator('#sheetPicture');
+const bigDrawing = (page) => page.locator('#machineStatsBody .big-drawing img');
+const SLED = [{ id: 'm-sled', name: 'Sled push' }];
+const SLED_LINES = [{ id: 'd', type: 'date', date: '2026-11-20' }, { id: 'l', type: 'machine', machineId: 'm-sled', name: 'Sled push', weight: 40, sets: 3, reps: 10 }];
+
+/** Opens the page of a machine from the list of machines. */
+async function openMachine(page, name) {
+  await openMachines(page);
+  await machineRow(page, name).click();
+  await expect(page.locator('#machineStatsTitle')).toHaveText(name);
+}
 
 /** Whether an image has loaded: the browser knows its size. */
 const loaded = (img) => img.evaluate((el) => el.complete && el.naturalWidth > 0);
@@ -52,46 +65,10 @@ test.describe('the panel', () => {
   });
 });
 
-test.describe('a machine\'s page', () => {
-  test('three drawings of the move, then the chart', async ({ page }) => {
-    await openApp(page);
-    await page.getByRole('button', { name: 'Statistics' }).click();
-    await page.locator('#statsBody').getByRole('button', { name: 'Leg press', exact: true }).click();
-    const drawings = page.getByRole('img', { name: 'Leg press: how the move goes' });
-    await expect(drawings).toBeVisible();
-    const frames = drawings.locator('img');
-    await expect(frames).toHaveCount(3);
-    for (const n of [1, 2, 3]) {
-      await expect(frames.nth(n - 1)).toHaveAttribute('src', `pictures/leg-press/frame-${n}.svg`);
-      await expect.poll(() => loaded(frames.nth(n - 1))).toBe(true);
-    }
-    const [drawn, chart] = await Promise.all([drawings.boundingBox(), page.locator('#machineStatsBody .chart').boundingBox()]);
-    expect(drawn.y + drawn.height).toBeLessThan(chart.y);
-  });
-
-  test('a machine without a drawing has none', async ({ page }) => {
-    await startWith(page, {
-      machines: [{ id: 'm-sled', name: 'Sled push' }],
-      lines: [{ id: 'd', type: 'date', date: '2026-11-20' }, { id: 'l', type: 'machine', machineId: 'm-sled', name: 'Sled push', weight: 40, sets: 3, reps: 10 }],
-    });
-    await openApp(page);
-    await page.getByRole('button', { name: 'Statistics' }).click();
-    await page.locator('#statsBody').getByRole('button', { name: 'Sled push', exact: true }).click();
-    await expect(page.locator('#machineStatsBody .chart')).toBeVisible();
-    await expect(page.locator('#machineStatsBody .drawings')).toHaveCount(0);
-  });
-});
-
-test('statistics lists only the machines that have been logged', async ({ page }) => {
-  await openApp(page);
-  await page.getByRole('button', { name: 'Statistics' }).click();
-  await expect(page.locator('#statsBody [data-machine]')).toHaveText(['Chest press', 'Lat pulldown', 'Leg press', 'Seated row', 'Shoulder press']);
-});
-
-test.describe('settings', () => {
+test.describe('the list of machines', () => {
   test.beforeEach(async ({ page }) => {
     await openApp(page);
-    await openSettings(page);
+    await openMachines(page);
   });
 
   test('a machine with a drawing ends in a small one; a machine without ends in none', async ({ page }) => {
@@ -103,72 +80,139 @@ test.describe('settings', () => {
     await expect(machineRow(page, 'Dumbbells').locator('img')).toHaveCount(0);
   });
 
-  test('a machine written with a name from the list gets its drawing', async ({ page }) => {
-    await machineRow(page, 'Belt squat').focus();
-    await page.keyboard.press('Delete');
-    await expect(machineRow(page, 'Belt squat')).toHaveCount(0);
-    await page.getByRole('button', { name: 'tap here to add a machine' }).click();
-    const field = page.locator('#addMachineRow input');
-    await field.fill('belt SQUAT');
-    await field.press('Enter');
-    await field.press('Escape');
-    await expect(machineRow(page, 'belt SQUAT').locator('img.thumb')).toHaveAttribute('src', 'pictures/belt-squat/frame-1.svg');
+  test('tap a machine to open its page; back goes to the list', async ({ page }) => {
+    await machineRow(page, 'Hack squat').click();
+    await expect(page.locator('#machineStatsTitle')).toHaveText('Hack squat');
+    await page.locator('section:not([hidden]) .back-btn').click();
+    await expect(page.locator('#machines')).toBeVisible();
+  });
+});
+
+test.describe('a machine\'s page', () => {
+  test('a big drawing: tap it for the next step of the move, or tap the number of a step', async ({ page }) => {
+    await openApp(page);
+    await openMachine(page, 'Leg press');
+    await expect(bigDrawing(page)).toHaveAttribute('src', 'pictures/leg-press/frame-1.svg');
+    await expect.poll(() => loaded(bigDrawing(page))).toBe(true);
+    const step = (n) => page.getByRole('group', { name: 'Steps of the move' }).getByRole('button', { name: String(n), exact: true });
+    await expect(step(1)).toHaveAttribute('aria-pressed', 'true');
+
+    await page.getByRole('button', { name: 'Leg press: the next step of the move' }).click();
+    await expect(bigDrawing(page)).toHaveAttribute('src', 'pictures/leg-press/frame-2.svg');
+    await expect(step(2)).toHaveAttribute('aria-pressed', 'true');
+    await expect(step(1)).toHaveAttribute('aria-pressed', 'false');
+
+    await step(3).click();
+    await expect(bigDrawing(page)).toHaveAttribute('src', 'pictures/leg-press/frame-3.svg');
+    await page.getByRole('button', { name: 'Leg press: the next step of the move' }).click();
+    await expect(bigDrawing(page)).toHaveAttribute('src', 'pictures/leg-press/frame-1.svg');
   });
 
-  test('the drawings are credited: who made them, what they are based on, their license, and what was changed', async ({ page }) => {
-    const credits = [
-      ['Workout Guide, by Bryl Lim', 'https://github.com/bryllim/workout-guide'],
-      ['based on Everkinetic', 'https://github.com/everkinetic/data'],
-      ['license CC BY-SA 4.0', 'https://creativecommons.org/licenses/by-sa/4.0/'],
-    ];
-    await expect(page.getByRole('heading', { name: 'drawings' })).toBeVisible();
-    for (const [name, href] of credits) {
-      const link = page.getByRole('link', { name });
-      await expect(link).toHaveAttribute('href', href);
-      await expect(link).toHaveAttribute('target', '_blank');
-      await expect(link).toHaveAttribute('rel', 'noopener');
-    }
-    await expect(page.getByText('cropped and colored for this notebook')).toBeVisible();
+  test('what it works, and with what; then your weights', async ({ page }) => {
+    await openApp(page);
+    await openMachine(page, 'Leg press');
+    const info = page.locator('#machineStatsBody .info');
+    await expect(info).toHaveText(['mostlyquads', 'alsoglutes, hamstrings', 'witha machine']);
+    await expect(page.locator('#machineStatsBody h2')).toHaveText(['what it works', 'your weights']);
+    await expect(page.locator('#machineStatsBody .chart')).toBeVisible();
+    const [about, chart] = await Promise.all([info.last().boundingBox(), page.locator('#machineStatsBody .chart').boundingBox()]);
+    expect(about.y).toBeLessThan(chart.y);
   });
+
+  test('a machine that works nothing else says only what it works mostly', async ({ page }) => {
+    await openApp(page);
+    await openMachine(page, 'Leg extension');
+    await expect(page.locator('#machineStatsBody .info')).toHaveText(['mostlyquads', 'witha machine']);
+    await expect(page.locator('#machineStatsBody')).toContainText('nothing logged yet');
+  });
+
+  test('a machine without a drawing: no drawing, nothing about what it works, only your weights', async ({ page }) => {
+    await startWith(page, { machines: SLED, lines: SLED_LINES });
+    await openApp(page);
+    await openMachine(page, 'Sled push');
+    await expect(page.locator('#machineStatsBody .big-drawing')).toHaveCount(0);
+    await expect(page.locator('#machineStatsBody .info')).toHaveCount(0);
+    await expect(page.locator('#machineStatsBody h2')).toHaveText(['your weights']);
+    await expect(page.locator('#machineStatsBody .chart')).toBeVisible();
+  });
+});
+
+test('statistics lists only the machines that have been logged, and opens the same page', async ({ page }) => {
+  await openApp(page);
+  await page.getByRole('button', { name: 'Statistics' }).click();
+  await expect(page.locator('#statsBody [data-machine]')).toHaveText(['Chest press', 'Lat pulldown', 'Leg press', 'Seated row', 'Shoulder press']);
+  await page.locator('#statsBody').getByRole('button', { name: 'Chest press', exact: true }).click();
+  await expect(bigDrawing(page)).toHaveAttribute('src', 'pictures/machine-chest-press/frame-1.svg');
+});
+
+test('settings credits the drawings: who made them, what they are based on, their license, and what was changed', async ({ page }) => {
+  await openApp(page);
+  await openSettings(page);
+  const credits = [
+    ['Workout Guide, by Bryl Lim', 'https://github.com/bryllim/workout-guide'],
+    ['based on Everkinetic', 'https://github.com/everkinetic/data'],
+    ['license CC BY-SA 4.0', 'https://creativecommons.org/licenses/by-sa/4.0/'],
+  ];
+  await expect(page.getByRole('heading', { name: 'drawings' })).toBeVisible();
+  for (const [name, href] of credits) {
+    const link = page.getByRole('link', { name });
+    await expect(link).toHaveAttribute('href', href);
+    await expect(link).toHaveAttribute('target', '_blank');
+    await expect(link).toHaveAttribute('rel', 'noopener');
+  }
+  await expect(page.getByText('cropped and colored for this notebook')).toBeVisible();
+});
+
+test('a plan: each machine with its drawing; tap one to open its page', async ({ page }) => {
+  await startWith(page, {
+    machines: [{ id: 'm-leg-press', name: 'Leg press', picture: 'leg-press' }, ...SLED],
+    plans: [{ id: 'p', name: 'Leg day', machineIds: ['m-leg-press', 'm-sled'] }],
+    lines: SLED_LINES,
+  });
+  await openApp(page);
+  await openSettings(page);
+  await page.locator('#planList .row').filter({ hasText: 'Leg day' }).click();
+  const rows = page.locator('#planMachines .row');
+  await expect(rows.first().locator('img.thumb')).toHaveAttribute('src', 'pictures/leg-press/frame-1.svg');
+  await expect(rows.last().locator('img')).toHaveCount(0);
+  await rows.first().locator('.name').click();
+  await expect(page.locator('#machineStatsTitle')).toHaveText('Leg press');
+  await page.locator('section:not([hidden]) .back-btn').click();
+  await expect(page.locator('#planTitle')).toHaveText('Leg day');
 });
 
 test.describe('a notebook from before drawings', () => {
   const OLD = {
-    machines: [{ id: 'm-leg-press', name: 'Leg press' }, { id: 'm-sled', name: 'Sled push' }],
+    machines: [{ id: 'm-leg-press', name: 'Leg press' }, ...SLED],
     lines: [{ id: 'd', type: 'date', date: '2026-11-20' }, { id: 'l', type: 'machine', machineId: 'm-leg-press', name: 'Leg press', weight: 80, sets: 3, reps: 12 }],
   };
-  const machineNames = (page) => page.locator('#machineList .row .name').allTextContents();
 
-  test('gets the machines with drawings once: its own keep their place, and one you remove stays removed', async ({ page }) => {
+  test('gets the machines with drawings once, and keeps its own', async ({ page }) => {
     await startWith(page, OLD);
     await openApp(page);
-    await openSettings(page);
+    await openMachines(page);
     const names = await machineNames(page);
-    expect(names).toHaveLength(144); // its 2 and 142 more: Leg press was there already
+    expect(names).toHaveLength(147); // its 2, and 145 more: Leg press was there already
     expect(names.filter((n) => n === 'Leg press')).toHaveLength(1);
     await expect(machineRow(page, 'Leg press').locator('img.thumb')).toHaveAttribute('src', 'pictures/leg-press/frame-1.svg');
     await expect(machineRow(page, 'Sled push').locator('img')).toHaveCount(0);
-
-    await machineRow(page, 'Hack squat').focus();
-    await page.keyboard.press('Delete');
-    await expect(machineRow(page, 'Hack squat')).toHaveCount(0);
     await page.reload();
-    await openSettings(page);
-    await expect(page.locator('#machineList .row')).toHaveCount(143);
-    await expect(machineRow(page, 'Hack squat')).toHaveCount(0);
+    await openMachines(page);
+    await expect(page.locator('#machineList [data-machine]')).toHaveCount(147);
   });
 
-  test('a renamed starting machine keeps its drawing, a name from another app gets one, and neither gets a second machine', async ({ page }) => {
+  test('a machine renamed, or named the way another app names it, takes the name of its drawing, in the notebook too', async ({ page }) => {
     await startWith(page, {
       machines: [{ id: 'm-leg-press', name: 'Seated leg press' }, { id: 'm-h1', name: 'Squat (barbell)' }],
-      lines: [{ id: 'd', type: 'date', date: '2026-11-20' }],
+      lines: [{ id: 'd', type: 'date', date: '2026-11-20' }, { id: 'l', type: 'machine', machineId: 'm-leg-press', name: 'Seated leg press', weight: 80, sets: 3, reps: 12 }],
     });
     await openApp(page);
-    await openSettings(page);
-    await expect(machineRow(page, 'Seated leg press').locator('img.thumb')).toHaveAttribute('src', 'pictures/leg-press/frame-1.svg');
-    await expect(machineRow(page, 'Squat (barbell)').locator('img.thumb')).toHaveAttribute('src', 'pictures/squat/frame-1.svg');
-    await expect(machineRow(page, 'Leg press')).toHaveCount(0);
-    await expect(machineRow(page, 'Squat')).toHaveCount(0);
+    await expect(page.locator('#lines .row .name')).toHaveText(['Leg press']);
+    await openMachines(page);
+    await expect(machineRow(page, 'Leg press').locator('img.thumb')).toHaveAttribute('src', 'pictures/leg-press/frame-1.svg');
+    await expect(machineRow(page, 'Squat').locator('img.thumb')).toHaveAttribute('src', 'pictures/squat/frame-1.svg');
+    expect(await machineNames(page)).not.toContain('Seated leg press');
+    expect(await machineNames(page)).not.toContain('Squat (barbell)');
   });
 
   test('a backup from before drawings gets them when it is imported', async ({ page }) => {
@@ -180,8 +224,8 @@ test.describe('a notebook from before drawings', () => {
     await actionButton(page).click(); // Check the text
     await actionButton(page).click(); // Replace my notebook
     await backTo(page, 'notebook');
-    await openSettings(page);
-    expect(await machineNames(page)).toHaveLength(144);
+    await openMachines(page);
+    expect(await machineNames(page)).toHaveLength(147);
     await expect(machineRow(page, 'Leg press').locator('img.thumb')).toHaveAttribute('src', 'pictures/leg-press/frame-1.svg');
   });
 });

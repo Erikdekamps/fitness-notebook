@@ -15,6 +15,9 @@ Copyright (c) 2026 Bryl Lim, except the drawings that are based on Everkinetic's
 `ATTRIBUTION.md` and `packages/workout-guide/manifest.json` say which ones, where each comes from and
 what was changed there.
 
+What each machine works, and with what (on its page), comes from Workout Guide's list of exercises
+(`packages/workout-guide/manifest.json`), in plainer words: "back of the shoulders" for rear delts.
+
 Taken from Workout Guide as it was on 27 August 2026, commit `aac599224bb9780305239607ef98540b7e0ce389`.
 
 ## What we changed

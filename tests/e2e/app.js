@@ -22,8 +22,11 @@ export const stillness = (page) => page.waitForFunction(() => document.getAnimat
 export const actionButton = (page) => page.locator('#sheetAction');
 export const otherButton = (page) => page.locator('#sheetCancel');
 export const rows = (page) => page.locator('#lines .row');
-/** A machine's line in settings, by its whole name: other names can start the same (Leg press, Leg press calf raise). */
-export const machineRow = (page, name) => page.locator('#machineList .row').filter({ has: page.locator('.name').getByText(name, { exact: true }) });
+/** A machine in the list of machines, by its whole name: other names can start the same (Leg press, Leg press calf raise). */
+export const machineRow = (page, name) => page.locator('#machineList').getByRole('button', { name, exact: true });
+
+/** The names in the list of machines, top to bottom. */
+export const machineNames = (page) => page.locator('#machineList [data-machine] > span').allTextContents();
 export const row = (page, text) => page.locator('#lines .row').filter({ hasText: text }).last();
 
 /** What each line of the last day says: the machine name, or the text. */
@@ -170,6 +173,13 @@ export const holdAndDrag = (page, from, to, { touch, ...options }) =>
 export async function openSettings(page) {
   await page.getByRole('button', { name: 'Settings' }).click();
   await expect(page.locator('#settings')).toBeVisible();
+}
+
+/** Settings, then the list of machines. */
+export async function openMachines(page) {
+  await openSettings(page);
+  await page.getByRole('button', { name: /^machines/ }).click();
+  await expect(page.locator('#machines')).toBeVisible();
 }
 
 export async function backTo(page, screen) {
