@@ -25,8 +25,7 @@ Taken from Workout Guide as it was on 27 August 2026, commit `aac599224bb9780305
 - Cut to what is drawn: one box around all three frames of a drawing, so it keeps its place from frame to frame.
 - Colored pen blue (`#1d3a8a`, the notebook's ink) instead of white.
 
-Nothing else: every line of every drawing is the same. `tools/import-pictures.js` makes this folder
-from a copy of Workout Guide.
+Nothing else: every line of every drawing is the same.
 
 ## Rotary torso
 

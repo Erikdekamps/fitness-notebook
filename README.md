@@ -23,8 +23,4 @@ Logic lives in `<script data-testable>` blocks of `index.html`; only those are u
 
 ## Drawings
 
-The machines are a fixed list, each with its own page: its drawing, what it works, and your weights on it. The drawings are from [Workout Guide](https://github.com/bryllim/workout-guide) by Bryl Lim, based on [Everkinetic](https://github.com/everkinetic/data), under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). They are cropped and colored for the notebook; [pictures/README.md](pictures/README.md) says what changed. Settings credits them too, at the bottom.
-
-```sh
-node tools/import-pictures.js /path/to/workout-guide   # makes pictures/ again from a copy of Workout Guide
-```
+The machines are a fixed list, each with its own page: its drawing, what it works, and your weights on it. The drawings are from [Workout Guide](https://github.com/bryllim/workout-guide) by Bryl Lim, based on [Everkinetic](https://github.com/everkinetic/data), under [CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/). They are cropped and colored for the notebook; [pictures/README.md](pictures/README.md) says what changed. Rotary torso is the one drawing made here. Settings credits them too, at the bottom.
