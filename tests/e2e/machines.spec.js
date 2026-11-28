@@ -1,6 +1,6 @@
 /**
  * The machines: the list of machines, one machine's page, plans; names that follow the list; where what each
- * machine works comes from; and no drawings anywhere.
+ * machine works comes from (credited in README.md, not in the app); and no drawings anywhere.
  */
 import { test, expect } from './fixtures.js';
 import { actionButton, backTo, machineNames, machineRow, openApp, openMachines, openSettings, pick, startWith } from './app.js';
@@ -86,22 +86,11 @@ test('statistics lists only the machines that have been logged, and opens the sa
   await expect(page.locator('#machineStatsBody .info')).toHaveText(['mostlychest', 'alsotriceps, shoulders', 'witha machine']);
 });
 
-test('settings credits where what each machine works comes from: who made it, its license, and what was changed', async ({ page }) => {
+test('settings has no credits: no links out of the app', async ({ page }) => {
   await openApp(page);
   await openSettings(page);
-  const credits = [
-    ['Workout Guide, by Bryl Lim', 'https://github.com/bryllim/workout-guide'],
-    ['license CC BY-SA 4.0', 'https://creativecommons.org/licenses/by-sa/4.0/'],
-  ];
-  await expect(page.getByRole('heading', { name: 'what each machine works' })).toBeVisible();
-  await expect(page.locator('#settings').getByRole('link')).toHaveCount(credits.length);
-  for (const [name, href] of credits) {
-    const link = page.getByRole('link', { name });
-    await expect(link).toHaveAttribute('href', href);
-    await expect(link).toHaveAttribute('target', '_blank');
-    await expect(link).toHaveAttribute('rel', 'noopener');
-  }
-  await expect(page.getByText('in plainer words for this notebook')).toBeVisible();
+  await expect(page.locator('#settings').getByRole('link')).toHaveCount(0);
+  await expect(page.getByText('Workout Guide')).toHaveCount(0);
 });
 
 test('a plan: tap a machine to open its page', async ({ page }) => {

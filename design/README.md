@@ -39,7 +39,6 @@ They are pictures of the real `index.html`, so they show what is built. A new no
 | Kg wheel | [31-add-line-half-kg.png](31-add-line-half-kg.png) | With steps of 0.5 kg: 12, 12.5, 13 on the kg wheel |
 | Machines | [32-machines.png](32-machines.png) | Every machine, A to Z. Tap one to open its page. Machines are not added, renamed or removed |
 | Machines | [33-machine-page.png](33-machine-page.png) | One machine: what it works mostly, what else, and with what; then your weights on it, here nothing yet |
-| Settings | [34-settings-credits.png](34-settings-credits.png) | Settings, at the bottom: where what each machine works comes from, its license, and what was changed |
 
 ## Look
 

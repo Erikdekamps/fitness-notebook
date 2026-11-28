@@ -513,9 +513,6 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
 .machine-link > span { flex: 1 1 auto; min-width: 0; line-height: var(--line); overflow-wrap: anywhere; }
 .machine-link > svg { flex: none; margin-top: 11px; }
 
-a.stat-link { text-decoration: none; } /* a credit that opens its source */
-.stat-link .out { flex: none; }
-
 .text-btn {
   display: block;
   height: var(--line);
@@ -637,11 +634,6 @@ a.stat-link { text-decoration: none; } /* a credit that opens its source */
     <button id="importBtn" class="stat-link" type="button"><span>import from a file</span><svg width="12" height="22" viewBox="0 0 12 22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2 3l8 8-8 8"/></svg></button>
     <button id="importTextBtn" class="stat-link" type="button"><span>import from text</span><svg width="12" height="22" viewBox="0 0 12 22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2 3l8 8-8 8"/></svg></button>
     <input id="importFile" type="file" accept="application/json,.json" aria-label="Backup file to import" hidden>
-    <div class="blank" aria-hidden="true"></div>
-    <h2 class="section-title">what each machine works</h2>
-    <a class="stat-link" href="https://github.com/bryllim/workout-guide" target="_blank" rel="noopener"><span>Workout Guide, by Bryl Lim</span><svg class="out" width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 13L13 5M6 5h7v7"/></svg></a>
-    <a class="stat-link" href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener"><span>license CC BY-SA 4.0</span><svg class="out" width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 13L13 5M6 5h7v7"/></svg></a>
-    <p class="stat-line is-pencil is-small">in plainer words for this notebook</p>
     <div class="blank" aria-hidden="true"></div>
     <button id="removeExamples" class="text-btn" type="button" hidden>remove the example lines</button>
     <div class="filler" aria-hidden="true"></div>
@@ -4278,7 +4270,7 @@ a.stat-link { text-decoration: none; } /* a credit that opens its source */
 <script data-module="settingsScreen">
 /**
  * The settings screen: the plans (in your own order: hold one, then drag it), the way to the machines,
- * the rest timer, the backup (export and import), and where what each machine works comes from.
+ * the rest timer, and the backup (export and import).
  */
 (function (FN) {
   'use strict';
