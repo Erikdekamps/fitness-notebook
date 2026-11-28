@@ -1,6 +1,6 @@
-/** The picker wheels: besides the arrow keys, tap an item, or drag the wheel with the mouse. */
+/** The picker wheels: besides the arrow keys, tap an item, or drag the wheel with the mouse or a finger. */
 import { test, expect } from './fixtures.js';
-import { openApp, sheet, stillness } from './app.js';
+import { finger, openApp, sheet, stillness } from './app.js';
 
 const reps = (page) => page.getByRole('spinbutton', { name: 'Reps', exact: true });
 const item = (page, text) => reps(page).locator('.wheel-item').filter({ hasText: new RegExp(`^${text}$`) });
@@ -42,5 +42,33 @@ test.describe('with a mouse', () => {
     const box = await reps(page).boundingBox();
     await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2); // the middle item: the picked one
     await expect(reps(page)).toHaveAttribute('aria-valuetext', '12');
+  });
+});
+
+test.describe('with a finger', () => {
+  test.skip(({ isMobile, browserName }) => !isMobile || browserName !== 'chromium', 'only Chromium gets real touch events, which scroll the wheel');
+
+  test('drag a wheel up to turn it; the line in pencil follows', async ({ page }) => {
+    const box = await reps(page).boundingBox();
+    const x = box.x + box.width / 2;
+    const y = box.y + box.height / 2;
+    const touch = await finger(page);
+    await touch.down(x, y);
+    for (let i = 1; i <= 12; i++) {
+      await touch.move(x, y - i * 6); // 72 px: two items of 36 px
+      await page.waitForTimeout(16);
+    }
+    await page.waitForTimeout(200); // hold still before letting go, so the wheel does not fly on
+    await touch.up();
+    await expect(reps(page)).toHaveAttribute('aria-valuetext', '14');
+    await expect(page.locator('#rowNext .nums')).toHaveText('20 × 14 × 1');
+  });
+
+  test('tap an item to pick it', async ({ page }) => {
+    const box = await item(page, '13').boundingBox();
+    const touch = await finger(page);
+    await touch.down(box.x + box.width / 2, box.y + box.height / 2);
+    await touch.up();
+    await expect(reps(page)).toHaveAttribute('aria-valuetext', '13');
   });
 });

@@ -44,19 +44,35 @@ test('while a line is open, the next touch elsewhere only closes it', async ({ p
   await expect(sheet(page)).not.toHaveClass(/is-open/); // that tap only closed the open line
 });
 
+test('a mouse wheel on the dark area above a panel does not scroll the paper', async ({ page, isMobile }) => {
+  test.skip(isMobile, 'a phone has no mouse wheel: the finger test below is for the phone');
+  await page.getByRole('button', { name: 'tap to add a line' }).click();
+  await expect(sheet(page)).toHaveClass(/is-open/);
+  await stillness(page);
+  const before = await page.evaluate(() => window.scrollY);
+  await page.mouse.move(40, 120);
+  await page.mouse.wheel(0, -400);
+  await page.waitForTimeout(300); // a scroll would have started by now
+  expect(await page.evaluate(() => window.scrollY)).toBe(before);
+});
+
 test.describe('phone', () => {
   test.skip(({ isMobile, browserName }) => !isMobile || browserName !== 'chromium', 'only Chromium gets real touch events, which scroll the page');
 
-  test('the paper stays still while a finger drags on the panel', async ({ page }) => {
+  test('the paper stays still while a finger drags on the panel, or on the dark area above it', async ({ page }) => {
     await page.getByRole('button', { name: 'tap to add a line' }).click();
     await expect(page.locator('#sheet')).toHaveClass(/is-open/);
     await stillness(page);
     const before = await page.evaluate(() => window.scrollY);
     const box = await page.locator('#sheetAction').boundingBox();
-    const touch = await finger(page);
-    await touch.down(box.x + box.width / 2, box.y + box.height / 2);
-    for (let i = 1; i <= 8; i++) await touch.move(box.x + box.width / 2, box.y + box.height / 2 - i * 20);
-    await touch.up();
-    expect(await page.evaluate(() => window.scrollY)).toBe(before);
+    // On the big button the finger drags up; on the dark area it drags down, as if to pull the paper back.
+    for (const [x, y, dy] of [[box.x + box.width / 2, box.y + box.height / 2, -20], [40, 120, 20]]) {
+      const touch = await finger(page);
+      await touch.down(x, y);
+      for (let i = 1; i <= 8; i++) await touch.move(x, y + i * dy);
+      await touch.up();
+      expect(await page.evaluate(() => window.scrollY)).toBe(before);
+    }
+    await expect(page.locator('#sheet')).toHaveClass(/is-open/); // a drag is not a tap: the panel stays
   });
 });

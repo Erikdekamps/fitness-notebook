@@ -1,6 +1,6 @@
-/** Notebooks that are not the example one: a year of training, and one without any machines. */
+/** Notebooks that are not the example one: a year of training, one without any machines, and one with a date still to come. */
 import { test, expect, RULES } from './fixtures.js';
-import { actionButton, lastDay, openApp, sheet, startWith } from './app.js';
+import { actionButton, expectWheel, lastDay, openApp, sheet, startWith } from './app.js';
 
 const LEG_PRESS = { id: 'm-leg-press', name: 'Leg press' };
 
@@ -64,4 +64,15 @@ test('statistics: the arrows go to the month before, and back to this one', asyn
   await expect(page.locator('#statsBody')).toContainText('oktober');
   await page.getByRole('button', { name: 'Month after' }).click();
   await expect(page.locator('#statsBody')).toContainText('november');
+});
+
+test('a date still to come, from a phone with its clock wrong: changing it turns it back to today', async ({ page }) => {
+  await startWith(page, { lines: [{ id: 'd1', type: 'date', date: '2027-01-05' }, { id: 't1', type: 'text', text: 'Walk 30 min' }] });
+  await openApp(page);
+  await page.locator('#lines .row--date').click();
+  await expectWheel(page, 'Year', '2026');
+  await expectWheel(page, 'Month', '11');
+  await expectWheel(page, 'Day', '23');
+  await actionButton(page).click();
+  await expect(page.locator('#lines .row--date')).toHaveText(/^23\/11/);
 });
