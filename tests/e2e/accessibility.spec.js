@@ -4,7 +4,7 @@
  */
 import AxeBuilder from '@axe-core/playwright';
 import { test, expect, RULES } from './fixtures.js';
-import { backTo, openApp, openMachines, openSettings, pick, row, startDate, stillness } from './app.js';
+import { backTo, bringBack, openApp, openMachines, openSettings, pick, row, startDate, stillness } from './app.js';
 
 const WCAG = ['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22a', 'wcag22aa'];
 
@@ -55,7 +55,7 @@ test('settings', async ({ page }) => {
 });
 
 test('a plan', async ({ page }) => {
-  await openSettings(page);
+  await openMachines(page);
   await page.getByRole('button', { name: 'tap here to add a plan' }).click();
   await page.getByRole('textbox', { name: 'Name of the plan' }).fill('Leg day');
   await page.locator('#sheetAction').click();
@@ -105,9 +105,12 @@ test('the rest timer', async ({ page }) => {
   await expectAccessible(page);
 });
 
-test('the panel to import from text', async ({ page }) => {
+test('the panel to bring a copy back, and the one to paste its text in', async ({ page }) => {
   await openSettings(page);
-  await page.getByRole('button', { name: 'import from text' }).click();
+  await page.getByRole('button', { name: 'bring a copy back' }).click();
+  await expectAccessible(page);
+  await page.keyboard.press('Escape');
+  await bringBack(page, 'text');
   await expectAccessible(page);
 });
 

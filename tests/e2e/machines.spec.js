@@ -3,7 +3,7 @@
  * machine works comes from (credited in README.md, not in the app); and no drawings anywhere.
  */
 import { test, expect } from './fixtures.js';
-import { actionButton, backTo, machineNames, machineRow, openApp, openMachines, openSettings, pick, startWith } from './app.js';
+import { actionButton, backTo, bringBack, machineNames, machineRow, openApp, openMachines, openSettings, pick, startWith } from './app.js';
 
 const SLED = [{ id: 'm-sled', name: 'Sled push' }];
 const SLED_LINES = [{ id: 'd', type: 'date', date: '2026-11-20' }, { id: 'l', type: 'machine', machineId: 'm-sled', name: 'Sled push', weight: 40, sets: 3, reps: 10 }];
@@ -100,7 +100,7 @@ test('a plan: tap a machine to open its page', async ({ page }) => {
     lines: SLED_LINES,
   });
   await openApp(page);
-  await openSettings(page);
+  await openMachines(page);
   await page.locator('#planList .row').filter({ hasText: 'Leg day' }).click();
   await expect(page.locator('#planMachines .name')).toHaveText(['Leg press', 'Sled push']);
   await page.locator('#planMachines .row').first().locator('.name').click();
@@ -144,9 +144,8 @@ test.describe('a notebook from before the list', () => {
 
   test('a backup from before the list gets them when it is imported', async ({ page }) => {
     await openApp(page);
-    await openSettings(page);
     const backup = { app: 'fitness-notebook', version: 1, ...OLD };
-    await page.getByRole('button', { name: 'import from text' }).click();
+    await bringBack(page, 'text');
     await page.getByRole('textbox', { name: 'Text of a backup' }).fill(JSON.stringify(backup));
     await actionButton(page).click(); // Check the text
     await actionButton(page).click(); // Replace my notebook

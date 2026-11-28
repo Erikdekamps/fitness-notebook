@@ -1,6 +1,6 @@
 /** The rest timer: it starts after each set, counts down and goes away at 0:00. Time is fast-forwarded. */
 import { test, expect, RULES } from './fixtures.js';
-import { actionButton, addLine, backTo, openApp, openSettings, pick, startDate } from './app.js';
+import { addLine, backTo, openApp, openSettings, startDate } from './app.js';
 
 const timer = (page) => page.locator('#timerBtn');
 
@@ -41,9 +41,9 @@ test('the timer keeps going after a reload', async ({ page }) => {
 
 test('settings: another rest time, or no timer at all', async ({ page }) => {
   await openSettings(page);
-  await page.getByRole('button', { name: /rest time/ }).click();
-  await pick(page, 'Rest time', '2:00');
-  await actionButton(page).click();
+  const more = page.getByRole('button', { name: '15 seconds more' });
+  await more.click();
+  await more.click();
   await expect(page.locator('#restTimeValue')).toHaveText('2:00');
   await backTo(page, 'notebook');
   await addLine(page, { machine: 'Fly', kg: '20', reps: '10' });
@@ -51,9 +51,9 @@ test('settings: another rest time, or no timer at all', async ({ page }) => {
   await timer(page).click();
 
   await openSettings(page);
-  await page.getByRole('switch', { name: /timer after each set/ }).click();
-  await expect(page.getByRole('switch', { name: /timer after each set/ })).toHaveAttribute('aria-checked', 'false');
-  await expect(page.getByRole('button', { name: /rest time/ })).toBeHidden();
+  await page.getByRole('switch', { name: 'after each set' }).click();
+  await expect(page.getByRole('switch', { name: 'after each set' })).toHaveAttribute('aria-checked', 'false');
+  await expect(more).toBeHidden(); // no rest time to set while the timer is off
   await backTo(page, 'notebook');
   await addLine(page, { machine: 'Fly', kg: '20', reps: '10' });
   await expect(timer(page)).toBeHidden();

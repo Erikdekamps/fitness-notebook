@@ -1,7 +1,7 @@
 /** The notebook is kept in the browser, and moves between browsers as a backup: a file, or pasted text. */
 import { readFileSync } from 'node:fs';
 import { test, expect, RULES } from './fixtures.js';
-import { EXAMPLE_LAST_DAY, actionButton, addLine, backTo, lastDay, openApp, openSettings, otherButton, sheet, startDate } from './app.js';
+import { EXAMPLE_LAST_DAY, actionButton, addLine, backTo, bringBack, lastDay, openApp, openSettings, otherButton, sheet, startDate } from './app.js';
 
 const MY_DAY = ['Bike 15 min', 'Fly'];
 
@@ -16,7 +16,7 @@ async function writeMyDay(page) {
 /** Exports from settings and returns the saved file's path. */
 async function exportBackup(page, testInfo) {
   await openSettings(page);
-  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'export to a file' }).click()]);
+  const [download] = await Promise.all([page.waitForEvent('download'), page.getByRole('button', { name: 'save a copy' }).click()]);
   expect(download.suggestedFilename()).toBe('fitness-notebook-2026-11-23.json');
   const path = testInfo.outputPath(download.suggestedFilename());
   await download.saveAs(path);
@@ -30,7 +30,7 @@ test('the notebook is still there after a reload', async ({ page }) => {
   await expect.poll(() => lastDay(page)).toEqual(MY_DAY);
 });
 
-test('export to a file, import it in another browser: the same notebook', async ({ page, browser, watched }, testInfo) => {
+test('save a copy to a file, bring it back in another browser: the same notebook', async ({ page, browser, watched }, testInfo) => {
   await openApp(page);
   await writeMyDay(page);
   const file = await exportBackup(page, testInfo);
@@ -50,10 +50,10 @@ test('export to a file, import it in another browser: the same notebook', async 
   await expect.poll(() => lastDay(other)).toEqual(MY_DAY);
 });
 
-test('import from a file: the button opens the file picker; a file that is not a backup is refused', async ({ page }) => {
+test('bring a copy back from a file: the file picker opens; a file that is not a backup is refused', async ({ page }) => {
   await openApp(page);
   await openSettings(page);
-  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.getByRole('button', { name: 'import from a file' }).click()]);
+  const chooser = await bringBack(page, 'file');
   await chooser.setFiles({ name: 'notes.json', mimeType: 'application/json', buffer: Buffer.from('{ "notes": ["leg day"] }') });
   await expect(page.getByText('That is not a Fitness Notebook backup')).toBeVisible();
   await expect(sheet(page)).not.toHaveClass(/is-open/);
@@ -77,7 +77,7 @@ test('Cancel on the import panels changes nothing', async ({ page }, testInfo) =
   await expect(sheet(page)).not.toHaveClass(/is-open/);
 
   // The panel to paste a backup in: Cancel, with a backup in it.
-  await page.getByRole('button', { name: 'import from text' }).click();
+  await bringBack(page, 'text');
   await page.getByRole('textbox', { name: 'Text of a backup' }).fill(readFileSync(file, 'utf8'));
   await expect(otherButton(page)).toHaveText('Cancel');
   await otherButton(page).click();
@@ -102,15 +102,14 @@ test('Undo after an import brings the old notebook back', async ({ page }, testI
   await expect.poll(() => lastDay(page)).toEqual(EXAMPLE_LAST_DAY);
 });
 
-test('import from pasted text', RULES, async ({ page }, testInfo) => {
+test('bring a copy back from pasted text', RULES, async ({ page }, testInfo) => {
   await openApp(page);
   await writeMyDay(page);
   const text = readFileSync(await exportBackup(page, testInfo), 'utf8');
   await page.evaluate(() => localStorage.clear());
   await openApp(page);
 
-  await openSettings(page);
-  await page.getByRole('button', { name: 'import from text' }).click();
+  await bringBack(page, 'text');
   await page.getByRole('textbox', { name: 'Text of a backup' }).fill(text);
   await actionButton(page).click(); // Check the text
   await expect(actionButton(page)).toHaveText('Replace my notebook');
@@ -121,8 +120,7 @@ test('import from pasted text', RULES, async ({ page }, testInfo) => {
 
 test('text that is not a backup: the panel says so, keeps the text and changes nothing', RULES, async ({ page }) => {
   await openApp(page);
-  await openSettings(page);
-  await page.getByRole('button', { name: 'import from text' }).click();
+  await bringBack(page, 'text');
   const area = page.getByRole('textbox', { name: 'Text of a backup' });
   await area.fill('my shopping list');
   await actionButton(page).click();
@@ -145,21 +143,19 @@ test('two tabs: a change in one shows up in the other', async ({ page, newTab })
   // Settings too: the timer turned off in one tab is off in the other.
   await openSettings(other);
   await openSettings(page);
-  await page.getByRole('switch', { name: /timer after each set/ }).click();
-  await expect(other.getByRole('switch', { name: /timer after each set/ })).toHaveAttribute('aria-checked', 'false');
+  await page.getByRole('switch', { name: 'after each set' }).click();
+  await expect(other.getByRole('switch', { name: 'after each set' })).toHaveAttribute('aria-checked', 'false');
 });
 
 /* ---- Pasting without the keyboard ---- */
 
-/** Opens the "import from text" panel. */
+/** Opens the panel to paste the text of a backup in. */
 async function openImportText(page) {
   await openApp(page);
-  await openSettings(page);
-  await page.getByRole('button', { name: 'import from text' }).click();
-  await expect(sheet(page)).toHaveClass(/is-open/);
+  await bringBack(page, 'text');
 }
 
-test('import from text has a Paste from clipboard button, so no keyboard is needed', async ({ page }) => {
+test('the panel to paste a copy in has a Paste from clipboard button, so no keyboard is needed', async ({ page }) => {
   await openImportText(page);
   await expect(page.getByRole('button', { name: 'Paste from clipboard' })).toBeVisible();
 });

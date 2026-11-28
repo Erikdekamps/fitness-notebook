@@ -1,10 +1,10 @@
 /** Making a plan in settings, then a day from it: the machines in pencil, logged one after the other. */
 import { test, expect } from './fixtures.js';
-import { actionButton, addLine, backTo, holdAndDrag, lastDay, numbers, openApp, openSettings, otherButton, pick, row, sheet, startDate } from './app.js';
+import { actionButton, addLine, backTo, holdAndDrag, lastDay, numbers, openApp, openMachines, otherButton, pick, row, sheet, startDate } from './app.js';
 
 /** Makes "Leg day" with Leg press and Leg curl, and goes back to the notebook. */
 async function makeLegDay(page) {
-  await openSettings(page);
+  await openMachines(page);
   await page.getByRole('button', { name: 'tap here to add a plan' }).click();
   await page.getByRole('textbox', { name: 'Name of the plan' }).fill('Leg day');
   await actionButton(page).click();
@@ -19,7 +19,7 @@ async function makeLegDay(page) {
   await page.keyboard.press('Escape');
   await expect(page.locator('#planMachines .name')).toHaveText(['Leg press', 'Leg curl']);
 
-  await backTo(page, 'settings');
+  await backTo(page, 'machines');
   await expect(page.locator('#planList')).toContainText('Leg day');
   await backTo(page, 'notebook');
 }
@@ -32,7 +32,7 @@ test.beforeEach(async ({ page }) => {
 const planMachine = (page, name) => page.locator('#planMachines .row').filter({ hasText: name });
 
 test('a plan keeps its machines in the order you put them; Alt with arrow up moves the focused one', async ({ page }) => {
-  await openSettings(page);
+  await openMachines(page);
   await page.locator('#planList .row').filter({ hasText: 'Leg day' }).click();
   await planMachine(page, 'Leg curl').focus();
   await page.keyboard.press('Alt+ArrowUp');
@@ -41,7 +41,7 @@ test('a plan keeps its machines in the order you put them; Alt with arrow up mov
 });
 
 test('hold a machine in a plan, then drag it to another place; there is no handle to drag', async ({ page, isMobile }) => {
-  await openSettings(page);
+  await openMachines(page);
   await page.locator('#planList .row').filter({ hasText: 'Leg day' }).click();
   await expect(page.locator('#planMachines button')).toHaveCount(2); // only each row's Delete, out of sight
   await holdAndDrag(page, planMachine(page, 'Leg curl'), planMachine(page, 'Leg press'), { touch: isMobile });
@@ -126,7 +126,7 @@ test('in a plan day, other reps show in pencil right under the line, and become 
 });
 
 test('the panel to add a machine to a plan has the machines, and no field to write a new one', async ({ page }) => {
-  await openSettings(page);
+  await openMachines(page);
   await page.locator('#planList .row').filter({ hasText: 'Leg day' }).click();
   await page.getByRole('button', { name: 'tap here to add a machine' }).click();
   await expect(page.getByRole('spinbutton', { name: 'Machine', exact: true })).toBeVisible();
@@ -137,7 +137,7 @@ test('the panel to add a machine to a plan has the machines, and no field to wri
 });
 
 test('take a machine out of a plan, and Undo puts it back', async ({ page }) => {
-  await openSettings(page);
+  await openMachines(page);
   await page.locator('#planList .row').filter({ hasText: 'Leg day' }).click();
   await page.locator('#planMachines .row').filter({ hasText: 'Leg press' }).focus();
   await page.keyboard.press('Delete');
@@ -147,7 +147,7 @@ test('take a machine out of a plan, and Undo puts it back', async ({ page }) => 
 });
 
 test('renaming a plan: a tap in the field keeps it open, a tap somewhere else saves the name', async ({ page }) => {
-  await openSettings(page);
+  await openMachines(page);
   await page.locator('#planList .row').filter({ hasText: 'Leg day' }).click();
   await page.getByRole('button', { name: 'Leg day: tap to change the name' }).click();
   const field = page.getByRole('textbox', { name: 'Name of the plan' });
@@ -160,7 +160,7 @@ test('renaming a plan: a tap in the field keeps it open, a tap somewhere else sa
 });
 
 test('rename a plan on its own screen: the same name changes nothing, a taken name is refused', async ({ page }) => {
-  await openSettings(page);
+  await openMachines(page);
   await page.getByRole('button', { name: 'tap here to add a plan' }).click();
   await page.getByRole('textbox', { name: 'Name of the plan' }).fill('Arms');
   await actionButton(page).click();
