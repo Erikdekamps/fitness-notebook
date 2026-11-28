@@ -220,8 +220,6 @@ button {
   appearance: none;
 }
 
-.line-input::placeholder { color: var(--pencil); opacity: 1; }
-
 .is-shaking { animation: shake .32s; }
 @keyframes shake {
   20%, 60% { transform: translateX(-6px); }
@@ -2601,14 +2599,14 @@ a.stat-link { text-decoration: none; } /* a credit that opens its source */
 /**
  * A handwriting-styled text field that sits on a ruled line.
  * Enter submits, Escape cancels, tapping anywhere else submits and closes.
- * onSubmit(text, el) returns 'close' (default), 'clear' (stay open for another) or 'keep' (stay, keep the text).
+ * onSubmit(text, el) returns 'close' or 'keep' (stay open, keep the text).
  */
 (function (FN) {
   'use strict';
   const { Decide } = FN.decide;
 
   class LineInput {
-    constructor({ value = '', placeholder = '', label, onSubmit, onClose }) {
+    constructor({ value = '', label, onSubmit, onClose }) {
       this.onSubmit = onSubmit;
       this.onClose = onClose;
       this.closed = false;
@@ -2617,9 +2615,8 @@ a.stat-link { text-decoration: none; } /* a credit that opens its source */
       el.type = 'text';
       el.className = 'line-input';
       el.value = value;
-      el.placeholder = placeholder;
       el.autocomplete = 'off';
-      el.setAttribute('aria-label', label || placeholder);
+      el.setAttribute('aria-label', label);
       el.setAttribute('enterkeyhint', 'done');
       el.setAttribute('autocapitalize', 'sentences');
       this.el = el;
@@ -2653,11 +2650,9 @@ a.stat-link { text-decoration: none; } /* a credit that opens its source */
       else this.close();
     }
 
-    /** Hands the text to onSubmit, which says what happens next: 'clear' the field, 'keep' it, or 'close' (the default). */
+    /** Hands the text to onSubmit, which says what happens next: 'keep' the field open, or 'close' it. */
     submit() {
-      const result = this.onSubmit(this.el.value.trim(), this.el) || 'close';
-      if (result === 'clear') this.el.value = '';
-      else if (result === 'close') this.close();
+      if (this.onSubmit(this.el.value.trim(), this.el) === 'close') this.close();
     }
 
     close() {
@@ -3261,10 +3256,10 @@ a.stat-link { text-decoration: none; } /* a credit that opens its source */
       };
     }
 
-    /** The row a press starts a swipe on, or null: not on a row being removed, a field, Delete or a handle. */
+    /** The row a press starts a swipe on, or null: not on a row being removed, nor on Delete. */
     swipeableRow(e) {
       const row = e.target.closest('.row');
-      if (!row || row.classList.contains('is-removing') || e.target.closest('input, .row-delete')) return null;
+      if (!row || row.classList.contains('is-removing') || e.target.closest('.row-delete')) return null;
       return row;
     }
 
@@ -3331,7 +3326,7 @@ a.stat-link { text-decoration: none; } /* a credit that opens its source */
       else this.tap(e.target);
     }
 
-    /** A tap on a row opens it, or closes it when it was slid open; not on a field, a handle or a row being removed. */
+    /** A tap on a row opens it, or closes it when it was slid open; not on a row being removed. */
     tap(target) {
       const row = this.tappableRow(target);
       if (!row) return;
@@ -3339,9 +3334,8 @@ a.stat-link { text-decoration: none; } /* a credit that opens its source */
       else this.onTap(row, target);
     }
 
-    /** The row a tap is for, or null: not a tap in a field or on a handle, nor on a row that is going away. */
+    /** The row a tap is for, or null: not a row that is going away. */
     tappableRow(target) {
-      if (target.closest('input')) return null;
       const row = target.closest('.row');
       return row && !row.classList.contains('is-removing') ? row : null;
     }
@@ -3380,7 +3374,7 @@ a.stat-link { text-decoration: none; } /* a credit that opens its source */
   const { Decide } = FN.decide;
 
   class HoldSort {
-    constructor(container, { swipeRows, group, onMove, render, isBusy = () => false }) {
+    constructor(container, { swipeRows, group, onMove, render, isBusy }) {
       this.container = container;
       this.swipeRows = swipeRows;
       this.group = group;

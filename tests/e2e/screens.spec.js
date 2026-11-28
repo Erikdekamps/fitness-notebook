@@ -11,6 +11,16 @@ test('the notebook opens on the example days, at the bottom', async ({ page }) =
   await expect(page.getByRole('button', { name: 'tap to add a line' })).toBeInViewport();
 });
 
+test('scrolled up into older days, the arrow goes back to today', async ({ page }) => {
+  const arrow = page.getByRole('button', { name: 'Back to today' });
+  await expect(arrow).toBeHidden(); // at the bottom already
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await expect(arrow).toBeVisible();
+  await arrow.click();
+  await expect(page.getByRole('button', { name: 'tap to add a line' })).toBeInViewport();
+  await expect(arrow).toBeHidden();
+});
+
 test('statistics: this month, then one machine, then back', async ({ page }) => {
   await page.getByRole('button', { name: 'Statistics' }).click();
   await expect(page.locator('#stats')).toBeVisible();

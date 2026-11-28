@@ -1,6 +1,9 @@
 /** Writing the notebook: a new date, sets on a machine, a line of your own, changing and removing lines. */
 import { test, expect, RULES } from './fixtures.js';
-import { actionButton, addLine, lastDay, numbers, openApp, pick, row, sheet, startDate, swipe } from './app.js';
+import { actionButton, addLine, expectWheel, lastDay, numbers, openApp, pick, row, sheet, startDate, swipe } from './app.js';
+
+/** A tap on the dark area above an open panel. */
+const tapOutside = (page) => page.locator('#backdrop').click({ position: { x: 20, y: 20 } });
 
 test.beforeEach(async ({ page }) => {
   await openApp(page);
@@ -73,12 +76,29 @@ test('change a line: other reps, then Save', async ({ page }) => {
   await expect(numbers(row(page, 'Seated row'))).toHaveText('40 × 10 × 3');
 });
 
-test('tapping outside the panel changes nothing', async ({ page }) => {
+test('tapping outside the panel changes nothing; nor does Escape', async ({ page }) => {
+  await row(page, 'Seated row').click();
+  await pick(page, 'Reps', '10');
+  await tapOutside(page);
+  await expect(sheet(page)).not.toHaveClass(/is-open/);
+  await expect(numbers(row(page, 'Seated row'))).toHaveText('40 × 12 × 3');
+
   await row(page, 'Seated row').click();
   await pick(page, 'Reps', '10');
   await page.keyboard.press('Escape');
   await expect(sheet(page)).not.toHaveClass(/is-open/);
   await expect(numbers(row(page, 'Seated row'))).toHaveText('40 × 12 × 3');
+});
+
+test('change the machine of a line: its kg, reps and sets stay, under the new name', async ({ page }) => {
+  await row(page, 'Seated row').click();
+  await pick(page, 'Machine', 'Lat pulldown');
+  await expectWheel(page, 'Weight in kg', '40'); // not the kg of the last time on Lat pulldown (45)
+  await expectWheel(page, 'Reps', '12');
+  await expect(actionButton(page)).toHaveText('Save');
+  await actionButton(page).click();
+  expect(await lastDay(page)).toEqual(['Biking Basics New Zealand #15', 'Leg press', 'Shoulder press', 'Lat pulldown']);
+  await expect(numbers(row(page, 'Lat pulldown'))).toHaveText('40 × 12 × 3');
 });
 
 test('remove a line, and Undo brings it back in its place', async ({ page }) => {
@@ -88,6 +108,18 @@ test('remove a line, and Undo brings it back in its place', async ({ page }) => 
   await expect.poll(() => lastDay(page)).toEqual(before.filter((n) => n !== 'Leg press'));
   await page.getByRole('button', { name: 'Undo' }).click();
   await expect.poll(() => lastDay(page)).toEqual(before);
+});
+
+test('the message with Undo goes away by itself after 5 seconds; the line stays removed', async ({ page }) => {
+  await row(page, 'Leg press').focus();
+  await page.keyboard.press('Delete');
+  const undo = page.getByRole('button', { name: 'Undo' });
+  await expect(undo).toBeVisible();
+  await page.clock.fastForward(4000);
+  await expect(undo).toBeVisible();
+  await page.clock.fastForward(1500);
+  await expect(undo).toBeHidden();
+  expect(await lastDay(page)).not.toContain('Leg press');
 });
 
 test('swipe a line far to the left to remove it', async ({ page, isMobile }) => {
@@ -121,4 +153,26 @@ test('change a date: tap it, pick another day, then Save', async ({ page }) => {
   await pick(page, 'Day', '22');
   await actionButton(page).click();
   await expect(page.locator('#lines .row--date').last()).toHaveText(/22\/11/);
+});
+
+test('a new date: tap outside the panel, and no date is written', async ({ page }) => {
+  const dates = await page.locator('#lines .row--date').count();
+  await page.getByRole('button', { name: 'Start a new date' }).click();
+  await expect(page.locator('#rowDate')).toContainText('23/11'); // in pencil while it is picked
+  await tapOutside(page);
+  await expect(sheet(page)).not.toHaveClass(/is-open/);
+  await expect(page.locator('#rowDate')).not.toContainText('23/11');
+  await expect(page.locator('#lines .row--date')).toHaveCount(dates);
+});
+
+test('a date that does not exist, or is still to come, turns back to one that can be', async ({ page }) => {
+  await page.getByRole('button', { name: 'Start a new date' }).click();
+  await pick(page, 'Month', '9');
+  await page.getByRole('spinbutton', { name: 'Day', exact: true }).press('End'); // 31 September does not exist
+  await expectWheel(page, 'Day', '30');
+  await expect(page.locator('#rowDate')).toContainText('30/09');
+  await page.getByRole('spinbutton', { name: 'Month', exact: true }).press('End'); // December is still to come
+  await expectWheel(page, 'Month', '11');
+  await expectWheel(page, 'Day', '23');
+  await expect(page.locator('#rowDate')).toContainText('23/11');
 });

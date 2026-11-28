@@ -1,7 +1,7 @@
 /** The notebook is kept in the browser, and moves between browsers as a backup: a file, or pasted text. */
 import { readFileSync } from 'node:fs';
 import { test, expect, RULES } from './fixtures.js';
-import { EXAMPLE_LAST_DAY, actionButton, addLine, backTo, lastDay, openApp, openSettings, sheet, startDate } from './app.js';
+import { EXAMPLE_LAST_DAY, actionButton, addLine, backTo, lastDay, openApp, openSettings, otherButton, sheet, startDate } from './app.js';
 
 const MY_DAY = ['Bike 15 min', 'Fly'];
 
@@ -48,6 +48,43 @@ test('export to a file, import it in another browser: the same notebook', async 
   await actionButton(other).click();
   await backTo(other, 'notebook');
   await expect.poll(() => lastDay(other)).toEqual(MY_DAY);
+});
+
+test('import from a file: the button opens the file picker; a file that is not a backup is refused', async ({ page }) => {
+  await openApp(page);
+  await openSettings(page);
+  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.getByRole('button', { name: 'import from a file' }).click()]);
+  await chooser.setFiles({ name: 'notes.json', mimeType: 'application/json', buffer: Buffer.from('{ "notes": ["leg day"] }') });
+  await expect(page.getByText('That is not a Fitness Notebook backup')).toBeVisible();
+  await expect(sheet(page)).not.toHaveClass(/is-open/);
+  await backTo(page, 'notebook');
+  expect(await lastDay(page)).toEqual(EXAMPLE_LAST_DAY);
+});
+
+test('Cancel on the import panels changes nothing', async ({ page }, testInfo) => {
+  await openApp(page);
+  await writeMyDay(page);
+  const file = await exportBackup(page, testInfo);
+  await page.evaluate(() => localStorage.clear());
+  await openApp(page); // the example notebook again
+  await openSettings(page);
+
+  // The question after a file: Cancel.
+  await page.locator('#importFile').setInputFiles(file);
+  await expect(actionButton(page)).toHaveText('Replace my notebook');
+  await expect(otherButton(page)).toHaveText('Cancel');
+  await otherButton(page).click();
+  await expect(sheet(page)).not.toHaveClass(/is-open/);
+
+  // The panel to paste a backup in: Cancel, with a backup in it.
+  await page.getByRole('button', { name: 'import from text' }).click();
+  await page.getByRole('textbox', { name: 'Text of a backup' }).fill(readFileSync(file, 'utf8'));
+  await expect(otherButton(page)).toHaveText('Cancel');
+  await otherButton(page).click();
+  await expect(sheet(page)).not.toHaveClass(/is-open/);
+
+  await backTo(page, 'notebook');
+  expect(await lastDay(page)).toEqual(EXAMPLE_LAST_DAY);
 });
 
 test('Undo after an import brings the old notebook back', async ({ page }, testInfo) => {
