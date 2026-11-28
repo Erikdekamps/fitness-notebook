@@ -11,8 +11,7 @@
  *
  * It measures the drawings in Chromium, with Playwright. CHROMIUM=/path/to/chrome picks another Chromium.
  *
- * Drawings Workout Guide does not have (OWN) are left as they are: tools/draw-rotary-torso.js makes the rotary torso,
- * from two drawings this writes. Run it after this.
+ * Drawings Workout Guide does not have (OWN) are left as they are: tools/draw-rotary-torso.js draws the rotary torso.
  */
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -70,7 +69,7 @@ try {
     mkdirSync(join(OUT, picture), { recursive: true });
     frames.forEach((svg, i) => writeFileSync(join(OUT, picture, `frame-${i + 1}.svg`), changed(svg, box)));
   }
-  console.log(`${Pictures.DRAWINGS.length - OWN.length} drawings written to pictures/; now run tools/draw-rotary-torso.js`);
+  console.log(`${Pictures.DRAWINGS.length - OWN.length} drawings written to pictures/`);
 } finally {
   await browser.close();
 }

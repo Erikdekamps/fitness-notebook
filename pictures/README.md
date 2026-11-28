@@ -30,14 +30,13 @@ from a copy of Workout Guide.
 
 ## Rotary torso
 
-Workout Guide has no rotary torso, so `rotary-torso/` is put together from two of its drawings, by
-`tools/draw-rotary-torso.js`:
+Workout Guide has no rotary torso, so `rotary-torso/` is drawn for this notebook by
+`tools/draw-rotary-torso.js`, in pen blue like the others. It is not from Workout Guide or Everkinetic, and
+shares the license of the rest of the app.
 
-- below the waist: the person on the hip adduction machine (`hip-adduction-machine/frame-1.svg`)
-- above the waist: the person of the Russian twist, who turns (`weighted-russian-twist/`, frame 1, 2 and 3)
-- a chest pad drawn over the hands, the pad the arms hold on a rotary torso
-
-The lines that are used are not changed: only moved, made a little smaller, and cut off at the waist.
+It is the kneeling rotary torso: you kneel on a knee pad that swivels, with your chest against a pad and your
+hands on the handles at its sides. The chest stays still; the knee pad, the knees and the hips turn to one side
+(frame 1), to the middle (2) and to the other side (3).
 
 ## License
 
