@@ -30,9 +30,8 @@ from a copy of Workout Guide.
 
 ## Rotary torso
 
-Workout Guide has no rotary torso, so `rotary-torso/` is drawn for this notebook by
-`tools/draw-rotary-torso.js`, in pen blue like the others. It is not from Workout Guide or Everkinetic, and
-shares the license of the rest of the app.
+Workout Guide has no rotary torso, so `rotary-torso/` is drawn for this notebook, in pen blue like the
+others. It is not from Workout Guide or Everkinetic, and shares the license of the rest of the app.
 
 It is the kneeling rotary torso: you kneel on a knee pad that swivels, with your chest against a pad and your
 hands on the handles at its sides. The chest stays still; the knee pad, the knees and the hips turn to one side

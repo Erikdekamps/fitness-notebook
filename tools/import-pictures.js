@@ -11,7 +11,7 @@
  *
  * It measures the drawings in Chromium, with Playwright. CHROMIUM=/path/to/chrome picks another Chromium.
  *
- * Drawings Workout Guide does not have (OWN) are left as they are: tools/draw-rotary-torso.js draws the rotary torso.
+ * Drawings Workout Guide does not have (OWN) are left as they are: the rotary torso is drawn here.
  */
 import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
