@@ -337,12 +337,6 @@ test('writing: a changed line is replaced, and only a pencil plan line then coun
 
 /* ---- Other panels ---- */
 
-test('nextStep: the next step of the move, and after the last the first again', () => {
-  assert.equal(Decide.nextStep(1, 3), 2);
-  assert.equal(Decide.nextStep(2, 3), 3);
-  assert.equal(Decide.nextStep(3, 3), 1);
-});
-
 test('sheetTyping: wheels fold away when there are none, or the field has text or the focus', () => {
   const base = { open: true, wheels: 3, fieldShown: true, text: '', focused: false };
   assert.equal(Decide.sheetTyping(base), false);

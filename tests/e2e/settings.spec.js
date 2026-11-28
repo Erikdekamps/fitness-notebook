@@ -1,4 +1,4 @@
-/** Settings: the machines list (add, rename, remove) and plan names. */
+/** Settings: the machines (not added, renamed or removed), plans and their names, the kg wheel. */
 import { test, expect, RULES } from './fixtures.js';
 import { HOLD_MS, actionButton, addLine, backTo, holdAndDrag, machineNames, openApp, openMachines, openSettings, pick, startDate } from './app.js';
 

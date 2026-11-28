@@ -1,4 +1,4 @@
-# Publishes the app (index.html, its font and its drawings) and the design screens to GitHub Pages
+# Publishes the app (index.html and its font) and the design screens to GitHub Pages
 # every time main changes.
 #
 # Three jobs in a chain: test -> build -> deploy.
@@ -54,25 +54,17 @@ jobs:
           mkdir _site
           cp index.html _site/
           cp -r fonts _site/fonts
-          cp -r pictures _site/pictures
           cp -r design _site/design
 
-      # GitHub Pages lets browsers keep a file for 10 minutes, and a browser may keep the font and the
-      # drawings longer. Their addresses get ?v= and a hash of their content, so a browser fetches them
-      # again only when they changed. The drawings share one hash, of every file in pictures/: the app
-      # builds their addresses from one pattern. index.html itself has no address to change: it can
-      # stay old up to those 10 minutes.
-      - name: Addresses that change with the content of the font and the drawings
+      # GitHub Pages lets browsers keep a file for 10 minutes, and a browser may keep the font longer.
+      # Its address gets ?v= and a hash of its content, so a browser fetches it again only when it changed.
+      # index.html itself has no address to change: it can stay old up to those 10 minutes.
+      - name: An address that changes with the content of the font
         run: |
           font=$(sha256sum fonts/caveat-latin.woff2 | cut -c1-12)
-          pictures=$(find pictures -type f -name '*.svg' | sort | xargs sha256sum | sha256sum | cut -c1-12)
-          sed -i \
-            -e "s|url(\"fonts/caveat-latin.woff2\")|url(\"fonts/caveat-latin.woff2?v=$font\")|" \
-            -e "s|/frame-\${frame}.svg\`|/frame-\${frame}.svg?v=$pictures\`|" \
-            _site/index.html
-          # Stop when a line moved and was not changed, instead of publishing without it.
+          sed -i "s|url(\"fonts/caveat-latin.woff2\")|url(\"fonts/caveat-latin.woff2?v=$font\")|" _site/index.html
+          # Stop when the line moved and was not changed, instead of publishing without it.
           grep -q "caveat-latin.woff2?v=$font" _site/index.html
-          grep -q "frame-\${frame}.svg?v=$pictures" _site/index.html
 
       - name: Upload the site
         uses: actions/upload-pages-artifact@v5
