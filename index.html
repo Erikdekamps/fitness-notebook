@@ -51,7 +51,8 @@
   --danger: #b3261e;
   --danger-armed: #8c1d18;
 
-  --line: 44px;            /* one ruled line */
+  --line: 44px;            /* one ruled line: at least 44 px, room for a finger */
+  --hand: 27px;            /* the handwriting */
   --text-left: 32px;       /* where the handwriting starts */
   --text-right: 32px;
   --rule-inset: 20px;      /* ruled lines stop a little short of both edges */
@@ -65,6 +66,10 @@
   --safe-bottom: env(safe-area-inset-bottom, 0px);
   --ease: cubic-bezier(.2, .8, .2, 1);
 }
+
+/* The text size from settings: small text keeps the lines, large text gets wider ones. */
+:root[data-text="small"] { --hand: 23px; }
+:root[data-text="large"] { --hand: 32px; --line: 52px; }
 
 /* 3. Base ------------------------------------------------------------------ */
 *, *::before, *::after { box-sizing: border-box; }
@@ -80,7 +85,7 @@ body {
   background: var(--paper);
   color: var(--pen);
   font-family: var(--font-hand);
-  font-size: 27px;
+  font-size: var(--hand);
   font-weight: 500;
   line-height: var(--line);
   -webkit-tap-highlight-color: transparent;
@@ -137,7 +142,7 @@ button {
   right: var(--rule-inset);
   bottom: 0;
   left: var(--rule-inset);
-  background-image: linear-gradient(to bottom, transparent 36px, var(--rule) 36px, var(--rule) 37px, transparent 37px);
+  background-image: linear-gradient(to bottom, transparent calc(var(--line) - 8px), var(--rule) calc(var(--line) - 8px), var(--rule) calc(var(--line) - 7px), transparent calc(var(--line) - 7px));
   background-size: 100% var(--line);
   pointer-events: none;
 }
@@ -262,23 +267,34 @@ button {
   pointer-events: none;
 }
 
-.cog, .today {
+.tabs { /* notebook, plans and machines, statistics, settings: on every screen with a tab, at the top right */
+  position: fixed;
+  z-index: 10;
+  top: var(--safe-top);
+  right: max(8px, calc((100vw - var(--page-max)) / 2 + 8px));
+  display: flex;
+}
+
+.tab { position: relative; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; color: var(--pencil); }
+.tab[aria-current="page"] { color: var(--pen); }
+.tab[aria-current="page"]::after { /* the open tab is underlined */
+  content: "";
+  position: absolute;
+  right: 10px;
+  bottom: 4px;
+  left: 10px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--pen);
+}
+
+.today {
   position: fixed;
   z-index: 10;
   display: grid;
   place-items: center;
   border-radius: 50%;
 }
-
-.cog {
-  top: var(--safe-top);
-  right: max(8px, calc((100vw - var(--page-max)) / 2 + 8px));
-  width: 44px;
-  height: 44px;
-  color: var(--pencil);
-}
-
-.stats-btn { right: max(52px, calc((100vw - var(--page-max)) / 2 + 52px)); }
 
 .timer-btn {
   position: fixed;
@@ -457,7 +473,7 @@ button {
   margin: 0 calc(-1 * var(--text-right)) 0 calc(-1 * var(--text-left));
   padding: 0 var(--text-right) 0 var(--text-left);
   background:
-    linear-gradient(to bottom, transparent 36px, var(--rule) 36px, var(--rule) 37px, transparent 37px)
+    linear-gradient(to bottom, transparent calc(var(--line) - 8px), var(--rule) calc(var(--line) - 8px), var(--rule) calc(var(--line) - 7px), transparent calc(var(--line) - 7px))
       var(--rule-inset) 0 / calc(100% - 2 * var(--rule-inset)) 100% no-repeat,
     var(--paper);
   font-weight: 700;
@@ -513,6 +529,19 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
 .machine-link > span { flex: 1 1 auto; min-width: 0; line-height: var(--line); overflow-wrap: anywhere; }
 .machine-link > svg { flex: none; margin-top: 11px; }
 
+.setting { display: flex; align-items: center; justify-content: space-between; gap: 12px; height: var(--line); } /* a setting changed in place */
+.choices { display: flex; align-items: center; gap: 6px; }
+.choice { height: 40px; padding: 0 12px; border: 2px solid transparent; border-radius: 50%; color: var(--pencil); line-height: 36px; }
+.choice[aria-checked="true"] { border-color: var(--pen); color: var(--pen); transform: rotate(-4deg); } /* circled in pen */
+.stepper { display: flex; align-items: center; margin-right: -12px; }
+.stepper-value { min-width: 52px; text-align: center; font-variant-numeric: tabular-nums; }
+.step-btn { display: grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; }
+.step-btn:disabled { color: var(--pencil); opacity: .45; cursor: default; }
+#timerOnBtn[aria-checked="false"] .tick { display: none; }
+.tick-box { flex: none; }
+.section-with-count { display: flex; align-items: baseline; justify-content: space-between; }
+.section-count { color: var(--pencil); font-size: 22px; font-weight: 500; }
+
 .text-btn {
   display: block;
   height: var(--line);
@@ -553,8 +582,8 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
 
 .chart { position: relative; } /* the ruled lines are its grid; the view sets its height */
 .chart svg { position: absolute; top: 0; left: 0; }
-.axis { position: absolute; left: 0; color: var(--pencil); font-size: 20px; line-height: 36px; }
-.x-labels { position: relative; height: var(--line); color: var(--pencil); font-size: 20px; line-height: 36px; white-space: nowrap; }
+.axis { position: absolute; left: 0; color: var(--pencil); font-size: 20px; line-height: calc(var(--line) - 8px); }
+.x-labels { position: relative; height: var(--line); color: var(--pencil); font-size: 20px; line-height: calc(var(--line) - 8px); white-space: nowrap; }
 .x-labels span { position: absolute; top: 0; transform: translateX(-50%); }
 
 /* 11. Undo toast ----------------------------------------------------------- */
@@ -609,30 +638,33 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
 
 <section id="settings" aria-labelledby="settingsTitle" hidden>
   <div class="page">
-    <div class="title-row">
-      <button class="back-btn" type="button" data-back="notebook" aria-label="Back to the notebook">
-        <svg width="14" height="24" viewBox="0 0 14 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M11 3l-8 9 8 9"/></svg>
-      </button>
-      <h1 id="settingsTitle">Settings</h1>
-    </div>
+    <div class="title-row"><h1 id="settingsTitle">Settings</h1></div>
     <div class="blank" aria-hidden="true"></div>
-    <h2 class="section-title">plans</h2>
-    <div id="planList" class="bleed" role="list" aria-label="Plans"></div>
-    <div id="addPlanRow" class="bleed add-row add-row--pencil"><button class="pencil-btn" type="button">tap here to add a plan</button></div>
-    <div class="blank" aria-hidden="true"></div>
-    <button id="machinesBtn" class="stat-link" type="button"><span>machines</span><span class="stat-value"><span id="machinesCount"></span><svg width="12" height="22" viewBox="0 0 12 22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2 3l8 8-8 8"/></svg></span></button>
+    <h2 class="section-title">text</h2>
+    <div class="setting" role="radiogroup" aria-label="Text size"><span>size</span><span class="choices">
+      <button class="choice" type="button" role="radio" aria-checked="false" data-text-size="small" aria-label="Small"><span class="aa" style="font-size: 22px">Aa</span></button>
+      <button class="choice" type="button" role="radio" aria-checked="true" data-text-size="normal" aria-label="Normal"><span class="aa">Aa</span></button>
+      <button class="choice" type="button" role="radio" aria-checked="false" data-text-size="large" aria-label="Large"><span class="aa" style="font-size: 33px">Aa</span></button>
+    </span></div>
     <div class="blank" aria-hidden="true"></div>
     <h2 class="section-title">kg wheel</h2>
-    <button id="kgStepBtn" class="stat-link" type="button"><span>steps of</span><span class="stat-value"><span id="kgStepValue">2.5 kg</span><svg width="12" height="22" viewBox="0 0 12 22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2 3l8 8-8 8"/></svg></span></button>
+    <div class="setting" role="radiogroup" aria-label="Steps on the kg wheel"><span>steps of</span><span class="choices">
+      <button class="choice" type="button" role="radio" aria-checked="false" data-kg-step="0.5" aria-label="0.5 kg">0.5</button>
+      <button class="choice" type="button" role="radio" aria-checked="true" data-kg-step="2.5" aria-label="2.5 kg">2.5</button>
+      <span aria-hidden="true">kg</span>
+    </span></div>
     <div class="blank" aria-hidden="true"></div>
     <h2 class="section-title">rest timer</h2>
-    <button id="timerOnBtn" class="stat-link" type="button" role="switch" aria-checked="true"><span>timer after each set</span><span id="timerOnValue" class="stat-value">on</span></button>
-    <button id="restTimeBtn" class="stat-link" type="button"><span>rest time</span><span class="stat-value"><span id="restTimeValue">1:30</span><svg width="12" height="22" viewBox="0 0 12 22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2 3l8 8-8 8"/></svg></span></button>
+    <button id="timerOnBtn" class="stat-link" type="button" role="switch" aria-checked="true"><span>after each set</span><svg class="tick-box" width="28" height="28" viewBox="0 0 28 28" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M4 5.5c6-1 13-1.2 20-.5.8 6 .6 12-.2 18-6.4.7-13 .8-19.6.2C3.5 17 3.6 11 4 5.5z"/><path class="tick" d="M8 14.5l4.5 4.5L22 8"/></svg></button>
+    <div id="restTimeRow" class="setting"><span>rest time</span><span class="stepper">
+      <button id="restLessBtn" class="step-btn" type="button" aria-label="15 seconds less"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M3 9h12"/></svg></button>
+      <span id="restTimeValue" class="stepper-value" aria-live="polite">1:30</span>
+      <button id="restMoreBtn" class="step-btn" type="button" aria-label="15 seconds more"><svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" aria-hidden="true" focusable="false"><path d="M3 9h12M9 3v12"/></svg></button>
+    </span></div>
     <div class="blank" aria-hidden="true"></div>
     <h2 class="section-title">backup</h2>
-    <button id="exportBtn" class="stat-link" type="button"><span>export to a file</span><svg width="12" height="22" viewBox="0 0 12 22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2 3l8 8-8 8"/></svg></button>
-    <button id="importBtn" class="stat-link" type="button"><span>import from a file</span><svg width="12" height="22" viewBox="0 0 12 22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2 3l8 8-8 8"/></svg></button>
-    <button id="importTextBtn" class="stat-link" type="button"><span>import from text</span><svg width="12" height="22" viewBox="0 0 12 22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2 3l8 8-8 8"/></svg></button>
+    <button id="exportBtn" class="stat-link" type="button"><span>save a copy</span><svg width="12" height="22" viewBox="0 0 12 22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2 3l8 8-8 8"/></svg></button>
+    <button id="importBtn" class="stat-link" type="button"><span>bring a copy back</span><svg width="12" height="22" viewBox="0 0 12 22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2 3l8 8-8 8"/></svg></button>
     <input id="importFile" type="file" accept="application/json,.json" aria-label="Backup file to import" hidden>
     <div class="blank" aria-hidden="true"></div>
     <button id="removeExamples" class="text-btn" type="button" hidden>remove the example lines</button>
@@ -643,7 +675,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
 <section id="plan" aria-labelledby="planTitle" hidden>
   <div class="page">
     <div class="title-row">
-      <button class="back-btn" type="button" data-back="settings" aria-label="Back to settings">
+      <button class="back-btn" type="button" data-back="machines" aria-label="Back to plans and machines">
         <svg width="14" height="24" viewBox="0 0 14 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M11 3l-8 9 8 9"/></svg>
       </button>
       <h1 id="planTitle"></h1>
@@ -658,13 +690,13 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
 
 <section id="machines" aria-labelledby="machinesTitle" hidden>
   <div class="page">
-    <div class="title-row">
-      <button class="back-btn" type="button" data-back="settings" aria-label="Back to settings">
-        <svg width="14" height="24" viewBox="0 0 14 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M11 3l-8 9 8 9"/></svg>
-      </button>
-      <h1 id="machinesTitle">Machines</h1>
-    </div>
+    <div class="title-row"><h1 id="machinesTitle">Plans &amp; machines</h1></div>
     <div class="blank" aria-hidden="true"></div>
+    <h2 class="section-title">plans</h2>
+    <div id="planList" class="bleed" role="list" aria-label="Plans"></div>
+    <div id="addPlanRow" class="bleed add-row add-row--pencil"><button class="pencil-btn" type="button">tap here to add a plan</button></div>
+    <div class="blank" aria-hidden="true"></div>
+    <h2 class="section-title section-with-count"><span>machines</span><span id="machinesCount" class="section-count"></span></h2>
     <div id="machineList"></div>
     <div class="filler" aria-hidden="true"></div>
   </div>
@@ -672,12 +704,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
 
 <section id="stats" aria-labelledby="statsTitle" hidden>
   <div class="page">
-    <div class="title-row">
-      <button class="back-btn" type="button" data-back="notebook" aria-label="Back to the notebook">
-        <svg width="14" height="24" viewBox="0 0 14 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M11 3l-8 9 8 9"/></svg>
-      </button>
-      <h1 id="statsTitle">Statistics</h1>
-    </div>
+    <div class="title-row"><h1 id="statsTitle">Statistics</h1></div>
     <div class="blank" aria-hidden="true"></div>
     <div id="statsBody"></div>
     <div class="filler" aria-hidden="true"></div>
@@ -700,13 +727,20 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
 
 <div class="topbar" aria-hidden="true"></div>
 
-<button id="statsBtn" class="cog stats-btn" type="button" aria-label="Statistics">
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 20h18M6 16v-4M12 16V6M18 16V9"/></svg>
-</button>
-
-<button id="cogBtn" class="cog" type="button" aria-label="Settings">
-  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10.12 4.64L10.48 1.91A10.2 10.2 0 0 1 13.52 1.91L13.88 4.64A7.6 7.6 0 0 1 15.88 5.46L18.05 3.79A10.2 10.2 0 0 1 20.21 5.95L18.54 8.12A7.6 7.6 0 0 1 19.36 10.12L22.09 10.48A10.2 10.2 0 0 1 22.09 13.52L19.36 13.88A7.6 7.6 0 0 1 18.54 15.88L20.21 18.05A10.2 10.2 0 0 1 18.05 20.21L15.88 18.54A7.6 7.6 0 0 1 13.88 19.36L13.52 22.09A10.2 10.2 0 0 1 10.48 22.09L10.12 19.36A7.6 7.6 0 0 1 8.12 18.54L5.95 20.21A10.2 10.2 0 0 1 3.79 18.05L5.46 15.88A7.6 7.6 0 0 1 4.64 13.88L1.91 13.52A10.2 10.2 0 0 1 1.91 10.48L4.64 10.12A7.6 7.6 0 0 1 5.46 8.12L3.79 5.95A10.2 10.2 0 0 1 5.95 3.79L8.12 5.46A7.6 7.6 0 0 1 10.12 4.64Z"/><circle cx="12" cy="12" r="3"/></svg>
-</button>
+<nav id="tabs" class="tabs" aria-label="Pages">
+  <button class="tab" type="button" data-tab="notebook" aria-label="Notebook">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 5.5c3-1 6-1 9 1 3-2 6-2 9-1v13c-3-1-6-1-9 1-3-2-6-2-9-1z"/><path d="M12 6.5v13"/></svg>
+  </button>
+  <button class="tab" type="button" data-tab="machines" aria-label="Plans and machines">
+    <svg width="26" height="24" viewBox="0 0 26 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M7 6v12M19 6v12M3.5 9v6M22.5 9v6M7 12h12"/></svg>
+  </button>
+  <button class="tab" type="button" data-tab="stats" aria-label="Statistics">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M3 20h18M6 16v-4M12 16V6M18 16V9"/></svg>
+  </button>
+  <button class="tab" type="button" data-tab="settings" aria-label="Settings">
+    <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M10.12 4.64L10.48 1.91A10.2 10.2 0 0 1 13.52 1.91L13.88 4.64A7.6 7.6 0 0 1 15.88 5.46L18.05 3.79A10.2 10.2 0 0 1 20.21 5.95L18.54 8.12A7.6 7.6 0 0 1 19.36 10.12L22.09 10.48A10.2 10.2 0 0 1 22.09 13.52L19.36 13.88A7.6 7.6 0 0 1 18.54 15.88L20.21 18.05A10.2 10.2 0 0 1 18.05 20.21L15.88 18.54A7.6 7.6 0 0 1 13.88 19.36L13.52 22.09A10.2 10.2 0 0 1 10.48 22.09L10.12 19.36A7.6 7.6 0 0 1 8.12 18.54L5.95 20.21A10.2 10.2 0 0 1 3.79 18.05L5.46 15.88A7.6 7.6 0 0 1 4.64 13.88L1.91 13.52A10.2 10.2 0 0 1 1.91 10.48L4.64 10.12A7.6 7.6 0 0 1 5.46 8.12L3.79 5.95A10.2 10.2 0 0 1 5.95 3.79L8.12 5.46A7.6 7.6 0 0 1 10.12 4.64Z"/><circle cx="12" cy="12" r="3"/></svg>
+  </button>
+</nav>
 
 <button id="timerBtn" class="timer-btn" type="button" hidden>
   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true" focusable="false"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2.5M9 2h6"/></svg>
@@ -821,7 +855,9 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
   const YEARS_BACK = 5;
   const REST_STEP_S = 15;       // every notch on the rest time wheel
   const REST_TIMES_S = range(1, 40).map((n) => n * REST_STEP_S); // 0:15 to 10:00
-  const DEFAULT_PREFS = { timerOn: true, restSeconds: 90, kgStep: KG_STEP };
+  const TEXT_SIZES = ['small', 'normal', 'large']; // the size of the handwriting, set in settings
+  const DEFAULT_PREFS = { timerOn: true, restSeconds: 90, kgStep: KG_STEP, textSize: 'normal' };
+  const TABS = ['notebook', 'machines', 'stats', 'settings']; // the screens with a tab of their own, in the order of the tabs
 
   const WHEEL_ITEM_PX = 36;     // keep in sync with --wheel-item
   const DELETE_WIDTH_PX = 96;   // width of the revealed Delete button
@@ -843,7 +879,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
     chevron: svg(12, 22, 2.5, '<path d="M2 3l8 8-8 8"/>'),
   };
 
-  FN.config = { STORAGE_KEY, PREFS_KEY, TIMER_KEY, DAY_NAMES, MONTH_NAMES, MONTH_SHORT, KG_STEP, KG_STEPS, KG_MAX, SETS, REPS, FIRST_TIME_VALUES, YEARS_BACK, REST_TIMES_S, DEFAULT_PREFS, WHEEL_ITEM_PX, DELETE_WIDTH_PX, RULE_INSET_PX, OPEN_OFFSET_PX, FULL_SWIPE, UNDO_MS, HOLD_MS, PREVIEW_ID, BLANK_ROW, svg, Icons };
+  FN.config = { STORAGE_KEY, PREFS_KEY, TIMER_KEY, DAY_NAMES, MONTH_NAMES, MONTH_SHORT, KG_STEP, KG_STEPS, KG_MAX, SETS, REPS, FIRST_TIME_VALUES, YEARS_BACK, REST_TIMES_S, TEXT_SIZES, DEFAULT_PREFS, TABS, WHEEL_ITEM_PX, DELETE_WIDTH_PX, RULE_INSET_PX, OPEN_OFFSET_PX, FULL_SWIPE, UNDO_MS, HOLD_MS, PREVIEW_ID, BLANK_ROW, svg, Icons };
 })(globalThis.FN = globalThis.FN || {});
 </script>
 
@@ -1622,11 +1658,12 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
  * Shape
  *   { timerOn: true | false,   the rest timer is switched on
  *     restSeconds: 90,         how long the rest timer runs, one of REST_TIMES_S
- *     kgStep: 2.5 }            every notch on the kg wheel, one of KG_STEPS
+ *     kgStep: 2.5,             every notch on the kg wheel, one of KG_STEPS
+ *     textSize: 'normal' }     the size of the handwriting, one of TEXT_SIZES
  */
 (function (FN) {
   'use strict';
-  const { PREFS_KEY, REST_TIMES_S, KG_STEPS, DEFAULT_PREFS } = FN.config;
+  const { PREFS_KEY, REST_TIMES_S, KG_STEPS, TEXT_SIZES, DEFAULT_PREFS } = FN.config;
 
   /** The value when it is one of the allowed ones, else the fallback. */
   const oneOf = (allowed, value, fallback) => (allowed.includes(value) ? value : fallback);
@@ -1639,6 +1676,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
         timerOn: typeof v.timerOn === 'boolean' ? v.timerOn : DEFAULT_PREFS.timerOn,
         restSeconds: oneOf(REST_TIMES_S, v.restSeconds, DEFAULT_PREFS.restSeconds),
         kgStep: oneOf(KG_STEPS, v.kgStep, DEFAULT_PREFS.kgStep),
+        textSize: oneOf(TEXT_SIZES, v.textSize, DEFAULT_PREFS.textSize),
       };
     },
 
@@ -2209,7 +2247,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
  */
 (function (FN) {
   'use strict';
-  const { OPEN_OFFSET_PX, FULL_SWIPE } = FN.config;
+  const { OPEN_OFFSET_PX, FULL_SWIPE, REST_TIMES_S, TABS } = FN.config;
   const { clamp, range } = FN.util;
   const { Calendar } = FN.calendar;
   const { Progress } = FN.progress;
@@ -2472,11 +2510,23 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
 
     /**
      * The screen to show for `next` ({ view, planId }): the notebook when there is no such screen,
-     * settings when the plan it asks for is gone. `views`: the names of the screens; hasPlan(id).
+     * plans and machines when the plan it asks for is gone. `views`: the names of the screens; hasPlan(id).
      */
     screenFor(next, views, hasPlan) {
       if (!next || !views.includes(next.view)) return { view: 'notebook' };
-      return next.view === 'plan' && !hasPlan(next.planId) ? { view: 'settings' } : next;
+      return next.view === 'plan' && !hasPlan(next.planId) ? { view: 'machines' } : next;
+    },
+
+    /** The tab of a screen: the screen itself when it has a tab; null for a page below one (a plan, one machine). */
+    tabOf(view) {
+      return TABS.includes(view) ? view : null;
+    },
+
+    /* ---- Settings ---- */
+
+    /** The rest time one notch (`by`: -1 or 1) shorter or longer than `seconds`, never past the shortest or longest. */
+    restTimeStep(seconds, by) {
+      return REST_TIMES_S[clamp(REST_TIMES_S.indexOf(seconds) + by, 0, REST_TIMES_S.length - 1)];
     },
 
     /** Whether Back can use the browser's own back: this screen was opened from another one (`state` is its history entry). */
@@ -2891,7 +2941,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       this.action = byId('sheetAction');
       this.cancelButton = byId('sheetCancel');
       this.info = byId('sheetInfo');
-      this.behind = ['notebook', 'settings', 'plan', 'cogBtn', 'statsBtn', 'timerBtn', 'todayBtn'].map(byId);
+      this.behind = ['notebook', 'settings', 'plan', 'machines', 'stats', 'machineStats', 'tabs', 'timerBtn', 'todayBtn'].map(byId);
       this.config = null;
       this.listen();
     }
@@ -4269,24 +4319,18 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
 
 <script data-module="settingsScreen">
 /**
- * The settings screen: the plans (in your own order: hold one, then drag it), the way to the machines,
- * the rest timer, and the backup (export and import).
+ * The settings screen: the text size, the kg wheel and the rest timer, each changed in place with a tap;
+ * backups (save a copy, bring a copy back); and a way to remove the example lines.
  */
 (function (FN) {
   'use strict';
-  const { escapeHtml } = FN.util;
+  const { REST_TIMES_S } = FN.config;
   const { byId, downloadFile } = FN.dom;
   const { Calendar } = FN.calendar;
   const { Backup } = FN.backup;
-  const { SwipeRows } = FN.swipeRows;
-  const { HoldSort } = FN.holdSort;
-  const { REST_TIMES_S, KG_STEPS, Icons } = FN.config;
-  const { indexOr, formatKg } = FN.util;
   const { Notebook } = FN.notebook;
-
-  /** A kg step as settings write it: "0.5 kg". */
-  const kgText = (kg) => `${formatKg(kg)} kg`;
   const { Prefs } = FN.prefs;
+  const { Decide } = FN.decide;
 
   class SettingsScreen {
     /** app: to draw whatever screen is showing again, after an import or an undo. app.prefs holds the settings. */
@@ -4296,59 +4340,19 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       this.toast = toast;
       this.app = app;
       this.root = byId('settings');
-      this.planList = byId('planList');
       this.examplesBtn = byId('removeExamples');
       this.importFile = byId('importFile');
       this.timerOnBtn = byId('timerOnBtn');
-      this.restTimeBtn = byId('restTimeBtn');
-      this.kgStepBtn = byId('kgStepBtn');
+      this.restTimeRow = byId('restTimeRow');
+      this.restLessBtn = byId('restLessBtn');
+      this.restMoreBtn = byId('restMoreBtn');
       this.listen();
     }
 
     render() {
-      this.renderPlans();
-      byId('machinesCount').textContent = String(this.notebook.machines.length);
-      this.renderKgStep();
+      this.renderChoices();
       this.renderTimer();
       this.examplesBtn.hidden = !this.notebook.hasExamples();
-    }
-
-    /* ---- Plans ---- */
-
-    renderPlans() {
-      this.planList.innerHTML = this.notebook.plans.map((plan) => planRowHtml(plan, this.notebook.planMachines(plan.id).length)).join('');
-    }
-
-    /** Asks for a name, then opens the new plan so its machines can be added. */
-    addPlan() {
-      this.sheet.open({
-        title: 'New plan',
-        text: { value: '', placeholder: 'name of the plan', label: 'Name of the plan' },
-        columns: 'none',
-        labels: [],
-        wheels: [],
-        actionLabel: 'Add plan',
-        onAction: () => {
-          const name = this.sheet.textField.value.trim();
-          if (!name) return;
-          if (this.notebook.planNameTaken(name)) {
-            this.toast.show('There is a plan with that name already');
-            return;
-          }
-          const plan = this.notebook.addPlan(name);
-          this.app.open({ view: 'plan', planId: plan.id });
-        },
-      });
-    }
-
-    removePlan(id) {
-      const undo = this.notebook.removePlan(id);
-      if (!undo) return;
-      this.renderPlans();
-      this.toast.show('Plan removed', () => {
-        undo();
-        this.app.refresh();
-      });
     }
 
     removeExamples() {
@@ -4360,16 +4364,30 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       });
     }
 
+    /* ---- Text size and kg wheel: a choice, circled ---- */
+
+    renderChoices() {
+      const { textSize, kgStep } = this.app.prefs;
+      for (const button of this.root.querySelectorAll('[data-text-size]')) button.setAttribute('aria-checked', String(button.dataset.textSize === textSize));
+      for (const button of this.root.querySelectorAll('[data-kg-step]')) button.setAttribute('aria-checked', String(Number(button.dataset.kgStep) === kgStep));
+    }
+
+    /** A tap on a choice: a text size, or a step for the kg wheel. */
+    choose(button) {
+      if (button.dataset.textSize) this.app.setPrefs({ textSize: button.dataset.textSize });
+      else this.app.setPrefs({ kgStep: Number(button.dataset.kgStep) });
+      this.renderChoices();
+    }
+
     /* ---- Rest timer ---- */
 
     renderTimer() {
       const { timerOn, restSeconds } = this.app.prefs;
-      const value = byId('timerOnValue');
-      value.textContent = timerOn ? 'on' : 'off';
-      value.classList.toggle('is-off', !timerOn);
       this.timerOnBtn.setAttribute('aria-checked', String(timerOn));
+      this.restTimeRow.hidden = !timerOn; // no rest time to set while the timer is off
       byId('restTimeValue').textContent = Prefs.clock(restSeconds);
-      this.restTimeBtn.hidden = !timerOn; // no rest time to pick while the timer is off
+      this.restLessBtn.disabled = restSeconds === REST_TIMES_S[0];
+      this.restMoreBtn.disabled = restSeconds === REST_TIMES_S[REST_TIMES_S.length - 1];
     }
 
     toggleTimer() {
@@ -4377,43 +4395,32 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       this.renderTimer();
     }
 
-    pickRestTime() {
-      const [wheel] = this.sheet.open({
-        title: 'Rest time',
-        columns: '96px',
-        center: true,
-        labels: [{ text: 'rest' }],
-        wheels: [{ label: 'Rest time', items: REST_TIMES_S.map(Prefs.clock), index: indexOr(REST_TIMES_S, this.app.prefs.restSeconds) }],
-        actionLabel: 'Save',
-        onAction: () => {
-          this.app.setPrefs({ restSeconds: REST_TIMES_S[wheel.index] });
-          this.renderTimer();
-        },
-      });
-    }
-
-    /* ---- Kg wheel ---- */
-
-    renderKgStep() {
-      byId('kgStepValue').textContent = kgText(this.app.prefs.kgStep);
-    }
-
-    pickKgStep() {
-      const [wheel] = this.sheet.open({
-        title: 'Steps on the kg wheel',
-        columns: '96px',
-        center: true,
-        labels: [{ text: 'step' }],
-        wheels: [{ label: 'Kg step', items: KG_STEPS.map(kgText), index: indexOr(KG_STEPS, this.app.prefs.kgStep) }],
-        actionLabel: 'Save',
-        onAction: () => {
-          this.app.setPrefs({ kgStep: KG_STEPS[wheel.index] });
-          this.renderKgStep();
-        },
-      });
+    /** 15 seconds less (-1) or more (1) rest. */
+    restStep(by) {
+      this.app.setPrefs({ restSeconds: Decide.restTimeStep(this.app.prefs.restSeconds, by) });
+      this.renderTimer();
     }
 
     /* ---- Backup ---- */
+
+    /** Where a copy comes back from: a file you saved (the file picker), or its text pasted in. */
+    bringBack() {
+      this.sheet.open({
+        title: 'Bring a copy back',
+        info: {
+          heading: 'Bring a copy back',
+          details: ['A copy you saved: the file, or its text.'],
+          note: 'You see what is in it before it replaces anything.',
+        },
+        columns: 'none',
+        labels: [],
+        wheels: [],
+        actionLabel: 'From a file',
+        otherLabel: 'From text',
+        onAction: () => this.importFile.click(),
+        onOther: () => this.importText(),
+      });
+    }
 
     exportFile() {
       const fileName = Backup.fileName(Calendar.today());
@@ -4480,48 +4487,23 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
     }
 
     listen() {
-      byId('machinesBtn').addEventListener('click', () => this.app.open({ view: 'machines' }));
       this.examplesBtn.addEventListener('click', () => this.removeExamples());
-
-      byId('addPlanRow').addEventListener('click', (e) => {
-        if (e.target.closest('.pencil-btn')) this.addPlan();
+      this.root.addEventListener('click', (e) => {
+        const choice = e.target.closest('.choice');
+        if (choice) this.choose(choice);
       });
-      const planRows = new SwipeRows(this.planList, {
-        onTap: (row) => this.app.open({ view: 'plan', planId: row.dataset.key }),
-        onDelete: (row) => this.removePlan(row.dataset.key),
-      });
-      new HoldSort(this.planList, {
-        swipeRows: planRows,
-        group: () => Array.from(this.planList.children),
-        onMove: (id, to) => this.notebook.movePlan(id, to),
-        render: () => this.renderPlans(),
-        isBusy: () => this.sheet.isOpen(),
-      });
-
       this.timerOnBtn.addEventListener('click', () => this.toggleTimer());
-      this.restTimeBtn.addEventListener('click', () => this.pickRestTime());
-      this.kgStepBtn.addEventListener('click', () => this.pickKgStep());
+      this.restLessBtn.addEventListener('click', () => this.restStep(-1));
+      this.restMoreBtn.addEventListener('click', () => this.restStep(1));
 
       byId('exportBtn').addEventListener('click', () => this.exportFile());
-      byId('importBtn').addEventListener('click', () => this.importFile.click());
-      byId('importTextBtn').addEventListener('click', () => this.importText());
+      byId('importBtn').addEventListener('click', () => this.bringBack());
       this.importFile.addEventListener('change', () => {
         const file = this.importFile.files[0];
         this.importFile.value = ''; // so the same file can be picked again
         if (file) this.readImportFile(file);
       });
     }
-  }
-
-  function planRowHtml(plan, count) {
-    const name = escapeHtml(plan.name);
-    return (
-      `<div class="row row--machine" role="listitem" tabindex="0" data-key="${escapeHtml(plan.id)}">` +
-      `<div class="row-content"><span class="name">${name}</span>` +
-      `<span class="mark stat-value">${count} ${count === 1 ? 'machine' : 'machines'}${Icons.chevron}</span></div>` +
-      `<button class="row-delete" type="button" tabindex="-1" aria-label="Remove ${name}"><span>Delete</span></button>` +
-      '</div>'
-    );
   }
 
   FN.settingsScreen = { SettingsScreen };
@@ -4817,29 +4799,107 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
 </script>
 
 <script data-module="machinesScreen">
-/** Every machine, A to Z. Tap one to open its page. Machines are not added, renamed or removed. */
+/**
+ * The tab with plans and machines. First the plans, in your own order: tap one to open it, hold one then drag it
+ * to move it, drag it left to remove it. Then every machine, A to Z: tap one to open its page.
+ * Machines are not added, renamed or removed.
+ */
 (function (FN) {
   'use strict';
   const { Icons } = FN.config;
   const { escapeHtml } = FN.util;
   const { byId } = FN.dom;
+  const { SwipeRows } = FN.swipeRows;
+  const { HoldSort } = FN.holdSort;
 
   class MachinesScreen {
-    /** app: to open a machine's page. */
-    constructor({ notebook, app }) {
+    /** app: to open a plan or a machine's page, and to draw the screen again after an undo. */
+    constructor({ notebook, sheet, toast, app }) {
       this.notebook = notebook;
+      this.sheet = sheet;
+      this.toast = toast;
       this.app = app;
       this.root = byId('machines');
+      this.planList = byId('planList');
       this.list = byId('machineList');
+      this.listen();
+    }
+
+    render() {
+      this.renderPlans();
+      byId('machinesCount').textContent = `${this.notebook.machines.length}, A to Z`;
+      this.list.innerHTML = this.notebook.machinesAZ().map(linkHtml).join('');
+    }
+
+    /* ---- Plans ---- */
+
+    renderPlans() {
+      this.planList.innerHTML = this.notebook.plans.map((plan) => planRowHtml(plan, this.notebook.planMachines(plan.id).length)).join('');
+    }
+
+    /** Asks for a name, then opens the new plan so its machines can be added. */
+    addPlan() {
+      this.sheet.open({
+        title: 'New plan',
+        text: { value: '', placeholder: 'name of the plan', label: 'Name of the plan' },
+        columns: 'none',
+        labels: [],
+        wheels: [],
+        actionLabel: 'Add plan',
+        onAction: () => {
+          const name = this.sheet.textField.value.trim();
+          if (!name) return;
+          if (this.notebook.planNameTaken(name)) {
+            this.toast.show('There is a plan with that name already');
+            return;
+          }
+          const plan = this.notebook.addPlan(name);
+          this.app.open({ view: 'plan', planId: plan.id });
+        },
+      });
+    }
+
+    removePlan(id) {
+      const undo = this.notebook.removePlan(id);
+      if (!undo) return;
+      this.renderPlans();
+      this.toast.show('Plan removed', () => {
+        undo();
+        this.app.refresh();
+      });
+    }
+
+    listen() {
       this.list.addEventListener('click', (e) => {
         const link = e.target.closest('[data-machine]');
         if (link) this.app.open({ view: 'machineStats', machineId: link.dataset.machine });
       });
+      byId('addPlanRow').addEventListener('click', (e) => {
+        if (e.target.closest('.pencil-btn')) this.addPlan();
+      });
+      const planRows = new SwipeRows(this.planList, {
+        onTap: (row) => this.app.open({ view: 'plan', planId: row.dataset.key }),
+        onDelete: (row) => this.removePlan(row.dataset.key),
+      });
+      new HoldSort(this.planList, {
+        swipeRows: planRows,
+        group: () => Array.from(this.planList.children),
+        onMove: (id, to) => this.notebook.movePlan(id, to),
+        render: () => this.renderPlans(),
+        isBusy: () => this.sheet.isOpen(),
+      });
     }
+  }
 
-    render() {
-      this.list.innerHTML = this.notebook.machinesAZ().map(linkHtml).join('');
-    }
+  function planRowHtml(plan, count) {
+    const name = escapeHtml(plan.name);
+    return (
+      `<div class="row row--machine" role="listitem" tabindex="0" data-key="${escapeHtml(plan.id)}">` +
+      `<div class="row-content"><span class="name">${name}</span>` +
+      `<span class="mark stat-value">${count} ${count === 1 ? 'machine' : 'machines'}${Icons.chevron}</span></div>` +
+      `<button class="row-delete" type="button" tabindex="-1" aria-label="Remove ${name}"><span>Delete</span></button>` +
+      '</div>'
+    );
   }
 
   function linkHtml(machine) {
@@ -4868,8 +4928,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
   const { MachineList } = FN.machineList;
 
   const MAX_CHART_ROWS = 5;   // ruled lines a chart may use as its grid
-  const LINE_PX = 44;         // keep in sync with --line
-  const RULE_Y = 36.5;        // where the ruled line sits inside a row
+  const RULE_ABOVE = 7.5;     // a ruled line sits this far above the bottom of its row
   const CHART_LEFT = 66;      // room for the kg written on the left
   const CHART_RIGHT_GAP = 28;
   const MAX_DOTS = 24;        // with more points, only the changes get a dot
@@ -4918,8 +4977,9 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
     const weights = points.map((p) => p.weight);
     const scale = ChartMath.scale(weights, MAX_CHART_ROWS);
     const rows = ChartMath.rowsNeeded(weights, scale, MAX_CHART_ROWS);
-    const height = rows * LINE_PX;
-    const xy = ChartMath.pointPositions(points, scale, { left: CHART_LEFT, right: width - CHART_RIGHT_GAP, firstLineY: RULE_Y, lineHeight: LINE_PX });
+    const line = lineHeight();
+    const height = rows * line;
+    const xy = ChartMath.pointPositions(points, scale, { left: CHART_LEFT, right: width - CHART_RIGHT_GAP, firstLineY: line - RULE_ABOVE, lineHeight: line });
     const dots = points.length <= MAX_DOTS ? xy : Progress.changeIndexes(points).map((i) => xy[i]);
     const first = points[0];
     const last = points[points.length - 1];
@@ -4929,13 +4989,18 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
 
     return (
       `<div class="chart" style="height: ${height}px">` +
-      ChartMath.axisValues(scale, rows).map(({ row, value }, i) => `<span class="axis" style="top: ${row * LINE_PX}px">${formatKg(value)}${i === 0 ? ' kg' : ''}</span>`).join('') +
+      ChartMath.axisValues(scale, rows).map(({ row, value }, i) => `<span class="axis" style="top: ${row * line}px">${formatKg(value)}${i === 0 ? ' kg' : ''}</span>`).join('') +
       `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" fill="none" role="img" aria-label="${label}">` +
       `<path d="M${xy.map((p) => `${p.x} ${p.y}`).join('L')}" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"/>` +
       `<g fill="currentColor">${dots.map((p) => `<circle cx="${p.x}" cy="${p.y}" r="4"/>`).join('')}</g>` +
       '</svg></div>' +
       `<div class="x-labels" aria-hidden="true">${xLabels(points, xy).map((l) => `<span style="left: ${l.x}px">${l.text}</span>`).join('')}</div>`
     );
+  }
+
+  /** The room between two ruled lines, in px: it grows with large text. */
+  function lineHeight() {
+    return parseFloat(getComputedStyle(document.documentElement).getPropertyValue('--line'));
   }
 
   /** What is written under the chart: a date under each change when they fit, else month names. */
@@ -5004,7 +5069,8 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
         stats: new MonthScreen(parts),
         machineStats: new MachineScreen(parts),
       };
-      this.topButtons = [byId('cogBtn'), byId('statsBtn')];
+      this.tabs = byId('tabs');
+      this.showTextSize();
       this.current = { view: 'notebook' };
       this.notebookScrollY = 0;
     }
@@ -5022,22 +5088,38 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
       }
       this.current = target;
       for (const [name, screen] of Object.entries(this.screens)) screen.root.hidden = name !== target.view;
-      this.topButtons.forEach((button) => { button.hidden = target.view !== 'notebook'; });
+      this.showTabs(target.view);
       this.timer.setShown(target.view === 'notebook');
       this.refresh();
       window.scrollTo(0, target.view === 'notebook' ? this.notebookScrollY : 0);
       this.screens.notebook.updateTodayButton();
     }
 
-    /** The screen to show for `next`: the notebook when there is no such screen, settings when the plan is gone. */
+    /** The tabs show on a screen with a tab of its own, and mark it; a page below one has a back arrow instead. */
+    showTabs(view) {
+      const current = Decide.tabOf(view);
+      this.tabs.hidden = !current;
+      for (const tab of this.tabs.querySelectorAll('[data-tab]')) {
+        if (tab.dataset.tab === current) tab.setAttribute('aria-current', 'page');
+        else tab.removeAttribute('aria-current');
+      }
+    }
+
+    /** The text size from settings, on the whole page. */
+    showTextSize() {
+      document.documentElement.dataset.text = this.prefs.textSize;
+    }
+
+    /** The screen to show for `next`: the notebook when there is no such screen, plans and machines when the plan is gone. */
     targetFor(next) {
       return Decide.screenFor(next, Object.keys(this.screens), (planId) => !!this.notebook.plan(planId));
     }
 
-    /** Changes some settings and saves them. `changes` is part of { timerOn, restSeconds, kgStep }. */
+    /** Changes some settings and saves them. `changes` is part of { timerOn, restSeconds, kgStep, textSize }. */
     setPrefs(changes) {
       this.prefs = Prefs.clean({ ...this.prefs, ...changes });
       Prefs.save(this.prefs);
+      this.showTextSize();
       if (!this.prefs.timerOn) this.timer.stop();
     }
 
@@ -5069,6 +5151,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
         /* not available: fine */
       }
       this.notebook.save();
+      this.showTabs('notebook');
       this.screens.notebook.render();
       scrollToBottom(false);
       if (document.fonts && document.fonts.ready) {
@@ -5081,8 +5164,10 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
     }
 
     listen() {
-      byId('cogBtn').addEventListener('click', () => this.open({ view: 'settings' }));
-      byId('statsBtn').addEventListener('click', () => this.open({ view: 'stats' }));
+      this.tabs.addEventListener('click', (e) => {
+        const tab = e.target.closest('[data-tab]');
+        if (tab) this.open({ view: tab.dataset.tab });
+      });
       /** @type {NodeListOf<HTMLElement>} */ (document.querySelectorAll('[data-back]')).forEach((button) => {
         button.addEventListener('click', () => this.back(button.dataset.back));
       });
@@ -5107,6 +5192,7 @@ body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
 
     reloadPrefs() {
       this.prefs = Prefs.load();
+      this.showTextSize();
       if (this.current.view === 'settings' && !this.sheet.isOpen()) this.refresh();
     }
 
