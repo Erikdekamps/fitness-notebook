@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { load } from './load.js';
 
 const { Notebook } = load('notebook');
-const { Pictures } = load('pictures');
+const { MachineList } = load('machineList');
 
 const date = (id, iso) => ({ id, type: 'date', date: iso });
 const text = (id, words) => ({ id, type: 'text', text: words });
@@ -155,18 +155,18 @@ test('machinesAZ: alphabetical, ignoring case, without changing the list', () =>
   assert.equal(notebook.machines[0].name, 'Leg press');
 });
 
-test('start: the saved notebook, with the machines that have drawings; with nothing saved, the example one', () => {
+test('start: the saved notebook, with every machine of the list; with nothing saved, the example one', () => {
   const example = Notebook.start(null);
   assert.deepEqual(example.machines, Notebook.exampleData().machines);
   assert.ok(example.lines.length > 0 && example.lines.every((l) => l.example));
   const saved = { version: 1, machines: [{ id: 'm-leg', name: 'Leg press' }], plans: [], lines: [date('d1', '2026-11-16')] };
   const started = Notebook.start(saved);
-  assert.equal(started.machines.length, Pictures.CATALOG.length);
-  assert.deepEqual(started.machines[0], { id: 'm-leg', name: 'Leg press', picture: 'leg-press' });
+  assert.equal(started.machines.length, MachineList.LIST.length);
+  assert.deepEqual(started.machines[0], { id: 'm-leg', name: 'Leg press' });
   assert.deepEqual(started.lines, saved.lines);
 });
 
-test('withPictures: a machine with a drawing takes its name, in the list of machines and in every line of it', () => {
+test('withList: a machine of the list takes its name in the list, in the list of machines and in every line of it', () => {
   const data = {
     version: 1,
     machines: [{ id: 'm-leg-press', name: 'Seated leg press' }, { id: 'm-h1', name: 'Squat (barbell)' }, { id: 'm-own', name: 'Rotary torso' }],
@@ -180,7 +180,7 @@ test('withPictures: a machine with a drawing takes its name, in the list of mach
       text('t1', 'Seated leg press'),
     ],
   };
-  const named = Notebook.withPictures(data);
+  const named = Notebook.withList(data);
   assert.deepEqual(named.machines.slice(0, 3).map((m) => m.name), ['Leg press', 'Squat', 'Rotary torso']);
   assert.deepEqual(named.lines.map((l) => l.name || l.text || l.date), ['2026-11-16', 'Leg press', 'Leg press', 'Squat', 'Rotary torso', 'Seated leg press']);
   assert.equal(named.lines[1], data.lines[1]); // a line that has the name already is left as it is
@@ -188,8 +188,8 @@ test('withPictures: a machine with a drawing takes its name, in the list of mach
   assert.equal(data.lines[2].name, 'Seated leg press'); // the data given is left alone
 });
 
-test('linesNamed: only lines of a machine with a drawing take its name; other lines stay as they are', () => {
-  const machines = [{ id: 'm-a', name: 'Leg press', picture: 'leg-press' }, { id: 'm-b', name: 'Rotary torso' }];
+test('linesNamed: only lines of a machine of the list take its name; other lines stay as they are', () => {
+  const machines = [{ id: 'm-a', name: 'Leg press' }, { id: 'm-b', name: 'Rotary torso' }];
   const lines = [
     { id: 'l1', type: 'machine', machineId: 'm-a', name: 'Old name', weight: 80, sets: 3, reps: 12 },
     { id: 'l2', type: 'machine', machineId: 'm-b', name: 'Torso', weight: 30, sets: 3, reps: 12 },
@@ -202,16 +202,29 @@ test('linesNamed: only lines of a machine with a drawing take its name; other li
   assert.equal(named[2], lines[2]);
 });
 
-test('withPictures: adds the machines with drawings to machines from before drawings, and keeps the rest of the data', () => {
+test('withList: adds the machines of the list to machines from before the list, and keeps the rest of the data', () => {
   const data = { version: 1, machines: [{ id: 'm-x', name: 'My own machine' }], plans: [{ id: 'p', name: 'Legs', machineIds: [] }], lines: [] };
-  const upgraded = Notebook.withPictures(data);
-  assert.equal(upgraded.machines.length, 1 + Pictures.CATALOG.length);
+  const upgraded = Notebook.withList(data);
+  assert.equal(upgraded.machines.length, 1 + MachineList.LIST.length);
   assert.equal(upgraded.plans, data.plans);
   assert.deepEqual(upgraded.lines, data.lines);
   assert.equal(upgraded.version, 1);
   assert.equal(data.machines.length, 1); // the data given is left alone
-  const later = Notebook.withPictures(upgraded);
+  const later = Notebook.withList(upgraded);
   assert.deepEqual(later.machines, upgraded.machines);
+});
+
+test('withList: a machine keeps only its id and its name; the drawing it had is left out', () => {
+  const data = { version: 1, machines: [{ id: 'm-leg-press', name: 'Leg press', picture: 'leg-press' }], plans: [], lines: [] };
+  const started = Notebook.withList(data);
+  assert.deepEqual(started.machines[0], { id: 'm-leg-press', name: 'Leg press' });
+  assert.ok(started.machines.every((m) => Object.keys(m).join() === 'id,name'));
+  assert.equal(data.machines[0].picture, 'leg-press'); // the data given is left alone
+});
+
+test('withList: a notebook without machines stays without', () => {
+  const data = { version: 1, machines: [], plans: [], lines: [text('t1', 'Walk 30 min')] };
+  assert.deepEqual(Notebook.withList(data).machines, []);
 });
 
 /* ---- The whole notebook ---- */
@@ -271,10 +284,11 @@ test('exampleData: 147 machines, each with its own id and name, and no plans', (
   assert.deepEqual(data.plans, []);
 });
 
-test('exampleData: every machine of the list of drawings, with its drawing, and Dumbbells without one', () => {
+test('exampleData: every machine of the list, and Dumbbells; each only an id and a name', () => {
   const { machines } = Notebook.exampleData();
-  for (const [name, picture] of Pictures.CATALOG) assert.ok(machines.some((m) => m.name === name && m.picture === picture), name);
-  assert.deepEqual(machines.filter((m) => !m.picture), [{ id: 'm-dumbbells', name: 'Dumbbells' }]);
+  for (const [name] of MachineList.LIST) assert.ok(machines.some((m) => m.name === name), name);
+  assert.deepEqual(machines.filter((m) => !MachineList.nameFor(m.name)), [{ id: 'm-dumbbells', name: 'Dumbbells' }]);
+  assert.ok(machines.every((m) => Object.keys(m).join() === 'id,name'));
 });
 
 test('exampleData: machine ids are "m-" and the name, the ids older notebooks use, listed A to Z', () => {

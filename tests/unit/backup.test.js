@@ -88,15 +88,15 @@ test('cleanMachine: needs an id and a name', () => {
   assert.deepEqual(Backup.cleanMachine({ id: 'm', name: 'Row' }), { id: 'm', name: 'Row' });
 });
 
-test('cleanMachine: keeps a drawing this app has; leaves out one it has not got', () => {
-  assert.deepEqual(Backup.cleanMachine({ id: 'm', name: 'Row', picture: 'seated-row' }), { id: 'm', name: 'Row', picture: 'seated-row' });
-  assert.deepEqual(Backup.cleanMachine({ id: 'm', name: 'Row', picture: 'burpee' }), { id: 'm', name: 'Row' });
-  assert.deepEqual(Backup.cleanMachine({ id: 'm', name: 'Row', picture: 7 }), { id: 'm', name: 'Row' });
+test('cleanMachine: leaves out what this app does not know, such as the drawing a machine had', () => {
+  assert.deepEqual(Backup.cleanMachine({ id: 'm', name: 'Row', picture: 'seated-row' }), { id: 'm', name: 'Row' });
 });
 
-test('round trip: a machine keeps its drawing', () => {
+test('round trip: a machine from a backup with drawings comes back without its drawing', () => {
   const drawn = { ...data, machines: [{ id: 'm1', name: 'Leg press', picture: 'leg-press' }] };
-  assert.deepEqual(Backup.parse(Backup.toJson(drawn, NOW)).data.machines, [{ id: 'm1', name: 'Leg press', picture: 'leg-press' }]);
+  assert.deepEqual(Backup.parse(Backup.toJson(drawn, NOW)).data.machines, [{ id: 'm1', name: 'Leg press' }]);
+  const file = JSON.stringify({ app: 'fitness-notebook', version: 1, machines: drawn.machines, lines: [] });
+  assert.deepEqual(Backup.parse(file).data.machines, [{ id: 'm1', name: 'Leg press' }]);
 });
 
 test('describe: counts, with singular and plural', () => {

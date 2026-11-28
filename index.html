@@ -16,7 +16,7 @@
 <style>
 /* ==========================================================================
    Fitness Notebook
-   Endless lined notebook paper for gym sessions, in one page plus its font file and the machines' drawings.
+   Endless lined notebook paper for gym sessions, in one page plus its font file.
    Everything is stored on this device (localStorage).
 
    CSS sections
@@ -382,20 +382,6 @@ button {
 .sheet-error { margin: 0; padding: 0 8px; color: var(--danger); font-size: 15px; line-height: 20px; }
 .sheet-cols { display: grid; gap: 6px; padding: 0 8px; }
 .sheet-labels { font-size: 13px; color: var(--muted); text-align: center; }
-
-.sheet-picture { /* the drawing of the machine on the wheel; the same height with or without one, so the panel never jumps */
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  height: 112px;
-  height: clamp(72px, calc(100svh - 600px), 224px); /* twice that where it fits, smaller on a short screen */
-  margin-top: -4px;
-  color: var(--muted);
-  font-size: 15px;
-}
-
-.sheet-picture img { display: block; width: 100%; height: 100%; object-fit: contain; }
-@media (max-height: 540px) { .sheet-picture { display: none; } } /* a phone on its side has no room for it */
 .sheet-labels .is-left { padding-left: 4px; text-align: left; }
 .wheels { position: relative; }
 
@@ -525,23 +511,9 @@ button {
 }
 body.is-dragging, body.is-dragging * { cursor: grabbing !important; }
 
-.thumb { /* a small drawing at the end of a machine's line, standing on the ruled line, in pencil */
-  flex: none;
-  width: 64px;
-  height: 40px;
-  margin-top: -4px;
-  object-fit: contain;
-  object-position: right bottom;
-  filter: grayscale(1) brightness(1.35);
-}
-
 .machine-link { align-items: flex-start; gap: 10px; height: auto; min-height: var(--line); } /* a machine in the list of machines */
 .machine-link > span { flex: 1 1 auto; min-width: 0; line-height: var(--line); overflow-wrap: anywhere; }
 .machine-link > svg { flex: none; margin-top: 11px; }
-
-#planMachines .row-content { flex-wrap: nowrap; align-items: flex-start; }
-#planMachines .name { flex: 1 1 auto; line-height: var(--line); }
-#planMachines .thumb { margin-right: -6px; }
 
 a.stat-link { text-decoration: none; } /* a credit that opens its source */
 .stat-link .out { flex: none; }
@@ -580,19 +552,6 @@ a.stat-link { text-decoration: none; } /* a credit that opens its source */
 .month-arrow:first-child { margin-left: -10px; }
 .month-arrow:last-child { margin-right: -10px; }
 
-.big-drawing { /* one step of a machine's move, big: it stands on a ruled line, and the lines stop behind it. Tap it for the next step */
-  display: block;
-  width: calc(100% - 2 * (var(--rule-inset) - var(--text-left)));
-  height: calc(var(--line) * 5);
-  margin: 0 calc(var(--rule-inset) - var(--text-right)) 0 calc(var(--rule-inset) - var(--text-left));
-  padding: 6px calc(var(--text-right) - var(--rule-inset)) 7px calc(var(--text-left) - var(--rule-inset));
-  background: linear-gradient(var(--paper) calc(100% - 8px), transparent calc(100% - 8px)); /* all but the bottom ruled line */
-}
-
-.big-drawing img { display: block; width: 100%; height: 100%; object-fit: contain; object-position: center bottom; }
-.steps { display: flex; justify-content: center; gap: 8px; height: var(--line); }
-.steps button { width: 44px; height: var(--line); color: var(--pencil); font-size: 24px; }
-.steps button[aria-pressed="true"] { color: var(--pen); font-weight: 700; text-decoration: underline; text-underline-offset: 5px; }
 .info { display: flex; align-items: baseline; gap: 14px; min-height: var(--line); } /* what a machine works, and with what */
 .info .label { flex: none; width: 104px; color: var(--pencil); font-size: 24px; }
 .info .label + span { min-width: 0; overflow-wrap: anywhere; }
@@ -681,11 +640,10 @@ a.stat-link { text-decoration: none; } /* a credit that opens its source */
     <button id="importTextBtn" class="stat-link" type="button"><span>import from text</span><svg width="12" height="22" viewBox="0 0 12 22" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M2 3l8 8-8 8"/></svg></button>
     <input id="importFile" type="file" accept="application/json,.json" aria-label="Backup file to import" hidden>
     <div class="blank" aria-hidden="true"></div>
-    <h2 class="section-title">drawings</h2>
+    <h2 class="section-title">what each machine works</h2>
     <a class="stat-link" href="https://github.com/bryllim/workout-guide" target="_blank" rel="noopener"><span>Workout Guide, by Bryl Lim</span><svg class="out" width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 13L13 5M6 5h7v7"/></svg></a>
-    <a class="stat-link" href="https://github.com/everkinetic/data" target="_blank" rel="noopener"><span>based on Everkinetic</span><svg class="out" width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 13L13 5M6 5h7v7"/></svg></a>
     <a class="stat-link" href="https://creativecommons.org/licenses/by-sa/4.0/" target="_blank" rel="noopener"><span>license CC BY-SA 4.0</span><svg class="out" width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="M5 13L13 5M6 5h7v7"/></svg></a>
-    <p class="stat-line is-pencil is-small">cropped and colored for this notebook</p>
+    <p class="stat-line is-pencil is-small">in plainer words for this notebook</p>
     <div class="blank" aria-hidden="true"></div>
     <button id="removeExamples" class="text-btn" type="button" hidden>remove the example lines</button>
     <div class="filler" aria-hidden="true"></div>
@@ -776,7 +734,6 @@ a.stat-link { text-decoration: none; } /* a credit that opens its source */
     <h2 id="sheetTitle" class="visually-hidden">Log a line</h2>
     <div id="sheetInfo" class="sheet-info" hidden></div>
     <div class="sheet-pickers">
-      <div id="sheetPicture" class="sheet-picture" aria-hidden="true" hidden></div>
       <div id="sheetLabels" class="sheet-cols sheet-labels" aria-hidden="true"></div>
       <div class="wheels">
         <div class="wheels-band" aria-hidden="true"></div>
@@ -799,7 +756,7 @@ a.stat-link { text-decoration: none; } /* a credit that opens its source */
 
 <!--
   The script is split into blocks, one subject each, in four groups:
-    1. Logic    Pictures, Calendar, Progress, ChartMath, Backup, Store, LineMarkup and the Notebook class
+    1. Logic    MachineList, Calendar, Progress, ChartMath, Backup, Store, LineMarkup and the Notebook class
     2. Parts    Toast, LineInput, Wheel, Sheet, SwipeRows
     3. Panels   LineEditor, DateEditor
     4. Screens  NotebookScreen, SettingsScreen, PlanScreen, MachinesScreen, MonthScreen, MachineScreen, and the App
@@ -900,230 +857,173 @@ a.stat-link { text-decoration: none; } /* a credit that opens its source */
 })(globalThis.FN = globalThis.FN || {});
 </script>
 
-<script data-module="pictures" data-testable>
+<script data-module="machineList" data-testable>
 /**
- * Drawings of the machines: three per machine, how the move goes, in pictures/<picture>/frame-1.svg to frame-3.svg.
- * They come from Workout Guide by Bryl Lim, based on Everkinetic, under CC BY-SA 4.0: see pictures/README.md.
+ * The machines: a fixed list. A new notebook starts with every machine in it, and Dumbbells. Machines are not
+ * added, renamed or removed. A notebook from before the list gets the machines it lacks when it is opened, and
+ * its own machines take their name in the list: "Squat (barbell)" becomes "Squat" (complete).
  *
- * A machine with a drawing says which one: { id, name, picture }. A new notebook starts with every machine
- * in the list below. A notebook from before drawings gets them once, the first time it is opened (addTo).
+ * What each machine works comes from Workout Guide by Bryl Lim, under CC BY-SA 4.0, in plainer words: see README.md.
  */
 (function (FN) {
   'use strict';
   const { sameName, newId } = FN.util;
 
   /**
-   * Every machine that has a drawing, A to Z: [name, picture]. Each name fits the machine wheel.
+   * Every machine of the list, A to Z: [name, what it works]. Each name fits the machine wheel.
+   * What it works: 'what it works mostly; what else it works (nothing for nothing); with what'.
+   * "Abdominal" is the ab machine, so it works the core "with a machine".
    * @type {[string, string][]}
    */
-  const CATALOG = [
-    ['Abdominal', 'crunch'], ['Arnold press', 'arnold-press'], ['Assisted chin-up', 'assisted-chin-up'],
-    ['Assisted pull-up', 'assisted-pull-up'], ['Back extension', 'back-extension'], ['Barbell glute bridge', 'barbell-glute-bridge'],
-    ['Barbell row', 'barbell-row'], ['Barbell shrug', 'shrug'], ['Belt squat', 'belt-squat'], ['Bench press', 'bench-press'],
-    ['Biceps curl', 'preacher-curl'], ['Bulgarian split squat', 'bulgarian-split-squat'], ['Cable crunch', 'cable-crunch'],
-    ['Cable curl', 'cable-curl'], ['Cable fly', 'cable-fly'], ['Cable front raise', 'cable-front-raise'],
-    ['Cable hip abduction', 'cable-standing-hip-abduction'], ['Cable hip adduction', 'cable-standing-hip-adduction'],
-    ['Cable kickback', 'cable-kickback'], ['Cable lateral raise', 'cable-lateral-raise'], ['Cable Pallof hold', 'cable-pallof-hold'],
-    ['Cable pull-through', 'cable-pull-through'], ['Cable rear delt fly', 'cable-rear-delt-fly'], ['Cable woodchop', 'cable-woodchop'],
-    ["Captain's chair", 'captains-chair-knee-raise'], ['Chest press', 'machine-chest-press'],
-    ['Chest supported row', 'chest-supported-row'], ['Close-grip bench', 'close-grip-bench-press'],
-    ['Close-grip pulldown', 'close-grip-lat-pulldown'], ['Concentration curl', 'concentration-curl'],
-    ['Curtsy lunge', 'dumbbell-curtsy-lunge'], ['DB sumo deadlift', 'dumbbell-sumo-deadlift'], ['Deadlift', 'deadlift'],
-    ['Decline bench press', 'decline-bench-press'], ['Decline DB press', 'decline-dumbbell-press'],
-    ['Deficit reverse lunge', 'deficit-reverse-lunge'], ['Donkey calf raise', 'donkey-calf-raise'], ['Drag curl', 'drag-curl'],
-    ['Dumbbell bench press', 'dumbbell-bench-press'], ['Dumbbell curl', 'bicep-curl'], ['Dumbbell deadlift', 'dumbbell-romanian-deadlift'],
-    ['Dumbbell fly', 'dumbbell-fly'], ['Dumbbell glute bridge', 'dumbbell-glute-bridge'], ['Dumbbell hip thrust', 'dumbbell-hip-thrust'],
-    ['Dumbbell row', 'dumbbell-bent-over-row'], ['Dumbbell shrug', 'dumbbell-shrug'], ['Dumbbell side bend', 'dumbbell-side-bend'],
-    ['Dumbbell skull crusher', 'dumbbell-skull-crusher'], ['Elevated split squat', 'front-foot-elevated-split-squat'],
-    ['EZ-bar curl', 'ez-bar-curl'], ['Face pull', 'face-pull'], ['Fly', 'pec-deck'], ['Front raise', 'front-raise'],
-    ['Front squat', 'front-squat'], ['Glute kickback', 'machine-glute-kickback'], ['Goblet squat', 'goblet-squat'],
-    ['Good morning', 'good-morning'], ['Hack squat', 'hack-squat'], ['Hammer curl', 'hammer-curl'],
-    ['Heels-up goblet squat', 'heel-elevated-goblet-squat'], ['Hip abduction', 'hip-abduction-machine'],
-    ['Hip adduction', 'hip-adduction-machine'], ['Hip thrust', 'hip-thrust'], ['Incline bench press', 'incline-bench-press'],
-    ['Incline cable fly', 'incline-cable-fly'], ['Incline curl', 'incline-dumbbell-curl'],
-    ['Incline dumbbell press', 'incline-dumbbell-press'], ['Kettlebell deadlift', 'kettlebell-romanian-deadlift'],
-    ['Kettlebell swing', 'kettlebell-swing'], ['Kneeling Pallof press', 'half-kneeling-pallof-press'],
-    ['Landmine deadlift', 'landmine-romanian-deadlift'], ['Landmine press', 'landmine-press'], ['Landmine squat', 'landmine-squat'],
-    ['Lat pulldown', 'lat-pulldown'], ['Lateral lunge', 'dumbbell-lateral-lunge'], ['Lateral raise', 'lateral-raise'],
-    ['Leg curl', 'leg-curl'], ['Leg extension', 'leg-extension'], ['Leg press', 'leg-press'],
-    ['Leg press calf raise', 'leg-press-calf-raise'], ['Lying leg curl', 'lying-leg-curl'],
-    ['Machine lateral raise', 'machine-lateral-raise'], ['Machine row', 'machine-row'], ['Meadows row', 'meadows-row'],
-    ['One-arm cable row', 'single-arm-cable-row'], ['One-arm dumbbell row', 'one-arm-dumbbell-row'],
-    ['One-arm triceps', 'single-arm-dumbbell-tricep-extension'], ['Overhead press', 'overhead-press'],
-    ['Overhead triceps', 'overhead-tricep-extension'], ['Pallof press', 'pallof-press'], ['Pendlay row', 'pendlay-row'],
-    ['Plate front raise', 'plate-front-raise'], ['Pull-up', 'pull-up'], ['Push press', 'push-press'], ['Push-up', 'push-up'],
-    ['Rack pull', 'rack-pull'], ['Rear delt fly', 'rear-delt-fly'], ['Rear delt raise', 'bent-over-rear-delt-raise'],
-    ['Reverse curl', 'reverse-curl'], ['Reverse hyper', 'reverse-hyperextension'], ['Reverse lunge', 'reverse-lunge'],
-    ['Romanian deadlift', 'romanian-deadlift'], ['Rope hammer curl', 'rope-hammer-curl'], ['Rope pushdown', 'rope-tricep-pushdown'],
-    ['Row rear deltoid', 'reverse-pec-deck'], ['Russian twist', 'weighted-russian-twist'], ['Seated calf raise', 'seated-calf-raise'],
-    ['Seated dumbbell press', 'seated-dumbbell-press'], ['Seated leg curl', 'seated-leg-curl'], ['Seated row', 'seated-row'],
-    ['Shoulder press', 'machine-shoulder-press'], ['Single skull crusher', 'single-dumbbell-skullcrusher'],
-    ['Single-leg deadlift', 'single-leg-romanian-deadlift'], ['Skull crusher', 'skull-crusher'],
-    ['Smith bench press', 'smith-machine-bench-press'], ['Smith Bulgarian squat', 'smith-machine-bulgarian-split-squat'],
-    ['Smith deadlift', 'smith-machine-romanian-deadlift'], ['Smith hip thrust', 'smith-machine-hip-thrust'],
-    ['Smith reverse lunge', 'smith-machine-reverse-lunge'], ['Smith split squat', 'smith-machine-split-squat'],
-    ['Smith squat', 'smith-machine-squat'], ['Spider curl', 'spider-curl'], ['Split squat', 'split-squat'], ['Squat', 'squat'],
-    ['Standing calf raise', 'standing-calf-raise'], ['Standing DB press', 'standing-dumbbell-press'], ['Step-up', 'step-up'],
-    ['Straight-arm pulldown', 'straight-arm-pulldown'], ['Sumo deadlift', 'sumo-deadlift'], ['Sumo squat', 'dumbbell-sumo-squat'],
-    ['T-bar row', 't-bar-row'], ['Trap bar deadlift', 'trap-bar-deadlift'], ['Triceps extension', 'dumbbell-overhead-tricep-extension'],
-    ['Triceps kickback', 'tricep-kickback'], ['Triceps press', 'assisted-dip'], ['Triceps pushdown', 'tricep-pushdown'],
-    ['Upright row', 'upright-row'], ['Walking lunge', 'walking-lunge'], ['Weighted chin-up', 'weighted-chin-up'],
-    ['Weighted crunch', 'weighted-crunch'], ['Weighted dip', 'weighted-dip'], ['Weighted pull-up', 'weighted-pull-up'],
-    ['Weighted push-up', 'weighted-push-up'], ['Wide-grip pulldown', 'wide-grip-lat-pulldown'], ['Wrist curl', 'wrist-curl'],
-    ['Wrist extension', 'wrist-extension'],
+  const LIST = [
+    ['Abdominal', 'core; ; a machine'], ['Arnold press', 'shoulders; triceps; dumbbells'],
+    ['Assisted chin-up', 'biceps; lats; a machine'], ['Assisted pull-up', 'lats; biceps; a machine'],
+    ['Back extension', 'lower back; glutes, hamstrings; your own weight'],
+    ['Barbell glute bridge', 'glutes; hamstrings, core; a barbell'],
+    ['Barbell row', 'back; biceps, back of the shoulders; a barbell'], ['Barbell shrug', 'upper back; forearms; a barbell'],
+    ['Belt squat', 'quads; glutes; a machine'], ['Bench press', 'chest; triceps, shoulders; a barbell'],
+    ['Biceps curl', 'biceps; forearms; a machine'], ['Bulgarian split squat', 'quads; glutes, core; dumbbells'],
+    ['Cable crunch', 'core; ; a cable'], ['Cable curl', 'biceps; forearms; a cable'], ['Cable fly', 'chest; shoulders; a cable'],
+    ['Cable front raise', 'shoulders; chest; a cable'], ['Cable hip abduction', 'glutes; core; a cable'],
+    ['Cable hip adduction', 'inner thighs; core, glutes; a cable'], ['Cable kickback', 'glutes; hamstrings; a cable'],
+    ['Cable lateral raise', 'shoulders; upper back; a cable'], ['Cable Pallof hold', 'core; glutes, shoulders; a cable'],
+    ['Cable pull-through', 'glutes; hamstrings, lower back; a cable'],
+    ['Cable rear delt fly', 'back of the shoulders; upper back; a cable'], ['Cable woodchop', 'core; shoulders; a cable'],
+    ["Captain's chair", 'core; shoulders; a machine'], ['Chest press', 'chest; triceps, shoulders; a machine'],
+    ['Chest supported row', 'back; biceps, back of the shoulders; a machine'],
+    ['Close-grip bench', 'triceps; chest, shoulders; a barbell'], ['Close-grip pulldown', 'lats; biceps; a cable'],
+    ['Concentration curl', 'biceps; forearms; dumbbells'], ['Curtsy lunge', 'glutes; quads, hamstrings, core; dumbbells'],
+    ['DB sumo deadlift', 'back of the body; glutes, quads, inner thighs; dumbbells'],
+    ['Deadlift', 'back of the body; back, grip; a barbell'], ['Decline bench press', 'chest; triceps, shoulders; a barbell'],
+    ['Decline DB press', 'chest; triceps, shoulders; dumbbells'],
+    ['Deficit reverse lunge', 'glutes; quads, hamstrings, core; dumbbells'], ['Donkey calf raise', 'calves; ; a machine'],
+    ['Drag curl', 'biceps; forearms; a barbell'], ['Dumbbell bench press', 'chest; triceps, shoulders; dumbbells'],
+    ['Dumbbell curl', 'biceps; forearms; dumbbells'], ['Dumbbell deadlift', 'hamstrings; glutes, lower back; dumbbells'],
+    ['Dumbbell fly', 'chest; shoulders; dumbbells'], ['Dumbbell glute bridge', 'glutes; hamstrings, core; dumbbells'],
+    ['Dumbbell hip thrust', 'glutes; hamstrings; dumbbells'], ['Dumbbell row', 'back; biceps, back of the shoulders; dumbbells'],
+    ['Dumbbell shrug', 'upper back; forearms; dumbbells'], ['Dumbbell side bend', 'core; grip; dumbbells'],
+    ['Dumbbell skull crusher', 'triceps; shoulders; dumbbells'],
+    ['Elevated split squat', 'quads; glutes, core; dumbbells'], ['EZ-bar curl', 'biceps; forearms; a barbell'],
+    ['Face pull', 'upper back; back of the shoulders, shoulders; a cable'], ['Fly', 'chest; shoulders; a machine'],
+    ['Front raise', 'shoulders; chest; dumbbells'], ['Front squat', 'quads; core, glutes; a barbell'],
+    ['Glute kickback', 'glutes; hamstrings; a machine'], ['Goblet squat', 'quads; glutes, core; dumbbells'],
+    ['Good morning', 'hamstrings; glutes, lower back; a barbell'], ['Hack squat', 'quads; glutes; a machine'],
+    ['Hammer curl', 'biceps; forearms; dumbbells'], ['Heels-up goblet squat', 'quads; glutes, core; dumbbells'],
+    ['Hip abduction', 'glutes; core; a machine'], ['Hip adduction', 'inner thighs; core; a machine'],
+    ['Hip thrust', 'glutes; hamstrings; a barbell'], ['Incline bench press', 'chest; shoulders, triceps; a barbell'],
+    ['Incline cable fly', 'chest; shoulders; a cable'], ['Incline curl', 'biceps; forearms; dumbbells'],
+    ['Incline dumbbell press', 'chest; shoulders, triceps; dumbbells'],
+    ['Kettlebell deadlift', 'hamstrings; glutes, lower back; a kettlebell'],
+    ['Kettlebell swing', 'glutes; hamstrings, core, cardio; a kettlebell'],
+    ['Kneeling Pallof press', 'core; glutes, shoulders; a cable'],
+    ['Landmine deadlift', 'hamstrings; glutes, lower back; a barbell'], ['Landmine press', 'shoulders; chest, triceps; a barbell'],
+    ['Landmine squat', 'quads; glutes, core; a barbell'], ['Lat pulldown', 'lats; biceps; a cable'],
+    ['Lateral lunge', 'quads; glutes, inner thighs, hamstrings; dumbbells'], ['Lateral raise', 'shoulders; upper back; dumbbells'],
+    ['Leg curl', 'hamstrings; calves; a machine'], ['Leg extension', 'quads; ; a machine'],
+    ['Leg press', 'quads; glutes, hamstrings; a machine'], ['Leg press calf raise', 'calves; ; a machine'],
+    ['Lying leg curl', 'hamstrings; calves; a machine'], ['Machine lateral raise', 'shoulders; upper back; a machine'],
+    ['Machine row', 'back; biceps; a machine'], ['Meadows row', 'back; biceps, back of the shoulders; a barbell'],
+    ['One-arm cable row', 'back; biceps, back of the shoulders; a cable'], ['One-arm dumbbell row', 'back; biceps; dumbbells'],
+    ['One-arm triceps', 'triceps; shoulders; dumbbells'], ['Overhead press', 'shoulders; triceps; a barbell'],
+    ['Overhead triceps', 'triceps; shoulders; a cable'], ['Pallof press', 'core; shoulders; a cable'],
+    ['Pendlay row', 'back; biceps, back of the shoulders; a barbell'], ['Plate front raise', 'shoulders; chest; a weight plate'],
+    ['Pull-up', 'lats; biceps, core; your own weight'], ['Push press', 'shoulders; triceps, quads; a barbell'],
+    ['Push-up', 'chest; triceps, core; your own weight'], ['Rack pull', 'back; glutes, hamstrings; a barbell'],
+    ['Rear delt fly', 'back of the shoulders; upper back; dumbbells'],
+    ['Rear delt raise', 'back of the shoulders; upper back; dumbbells'], ['Reverse curl', 'forearms; biceps; a barbell'],
+    ['Reverse hyper', 'glutes; hamstrings, lower back; a machine'], ['Reverse lunge', 'quads; glutes, hamstrings; dumbbells'],
+    ['Romanian deadlift', 'hamstrings; glutes, lower back; a barbell'], ['Rope hammer curl', 'biceps; forearms; a cable'],
+    ['Rope pushdown', 'triceps; shoulders; a cable'], ['Row rear deltoid', 'back of the shoulders; upper back; a machine'],
+    ['Russian twist', 'core; shoulders; dumbbells'], ['Seated calf raise', 'calves; ; a machine'],
+    ['Seated dumbbell press', 'shoulders; triceps; dumbbells'], ['Seated leg curl', 'hamstrings; calves; a machine'],
+    ['Seated row', 'back; biceps, back of the shoulders; a cable'], ['Shoulder press', 'shoulders; triceps; a machine'],
+    ['Single skull crusher', 'triceps; shoulders; dumbbells'], ['Single-leg deadlift', 'hamstrings; glutes, core; dumbbells'],
+    ['Skull crusher', 'triceps; shoulders; a barbell'], ['Smith bench press', 'chest; triceps, shoulders; a machine'],
+    ['Smith Bulgarian squat', 'quads; glutes, core; a machine'], ['Smith deadlift', 'hamstrings; glutes, lower back; a machine'],
+    ['Smith hip thrust', 'glutes; hamstrings, core; a machine'],
+    ['Smith reverse lunge', 'quads; glutes, hamstrings, core; a machine'], ['Smith split squat', 'quads; glutes, core; a machine'],
+    ['Smith squat', 'quads; glutes, core; a machine'], ['Spider curl', 'biceps; forearms; dumbbells'],
+    ['Split squat', 'quads; glutes, core; dumbbells'], ['Squat', 'quads; glutes, core; a barbell'],
+    ['Standing calf raise', 'calves; ; a machine'], ['Standing DB press', 'shoulders; triceps, core; dumbbells'],
+    ['Step-up', 'quads; glutes; dumbbells'], ['Straight-arm pulldown', 'lats; core; a cable'],
+    ['Sumo deadlift', 'back of the body; glutes, quads; a barbell'],
+    ['Sumo squat', 'glutes; quads, inner thighs, hamstrings; dumbbells'],
+    ['T-bar row', 'back; biceps, back of the shoulders; a machine'],
+    ['Trap bar deadlift', 'back of the body; quads, grip; a barbell'], ['Triceps extension', 'triceps; shoulders; dumbbells'],
+    ['Triceps kickback', 'triceps; shoulders; dumbbells'], ['Triceps press', 'triceps; chest; a machine'],
+    ['Triceps pushdown', 'triceps; shoulders; a cable'], ['Upright row', 'shoulders; upper back, biceps; a barbell'],
+    ['Walking lunge', 'quads; glutes, hamstrings; dumbbells'], ['Weighted chin-up', 'biceps; lats; your own weight'],
+    ['Weighted crunch', 'core; ; a weight plate'], ['Weighted dip', 'triceps; chest, shoulders; your own weight'],
+    ['Weighted pull-up', 'lats; biceps; your own weight'], ['Weighted push-up', 'chest; triceps, core; your own weight'],
+    ['Wide-grip pulldown', 'lats; biceps; a cable'], ['Wrist curl', 'forearms; ; a barbell'],
+    ['Wrist extension', 'forearms; ; dumbbells'],
   ];
   /**
-   * Other names that get a drawing too: how another app names these (such as "Squat (barbell)").
-   * [name, picture]. A machine with one of these names gets the name of its drawing in the list (named).
+   * Other names of machines in the list: how another app names them (such as "Squat (barbell)").
+   * [name, its name in the list]. A machine with one of these names takes its name in the list (named).
    * @type {[string, string][]}
    */
   const OTHER_NAMES = [
-    ['Bench press (barbell)', 'bench-press'], ['Bent over row (barbell)', 'barbell-row'], ['Bicep curl (dumbbell)', 'bicep-curl'],
-    ['Hammer curl (dumbbell)', 'hammer-curl'], ['Incline bench press (dumbbell)', 'incline-dumbbell-press'],
-    ['Low cable fly crossovers', 'cable-fly'], ['Lunge (dumbbell)', 'walking-lunge'], ['Romanian deadlift (barbell)', 'romanian-deadlift'],
-    ['Shoulder press (dumbbell)', 'seated-dumbbell-press'], ['Squat (barbell)', 'squat'], ['Standing calf raise (Smith)', 'standing-calf-raise'],
-    ['Straight arm lat pulldown (cable)', 'straight-arm-pulldown'], ['Triceps extension (dumbbell)', 'dumbbell-overhead-tricep-extension'],
-    ['Triceps rope pushdown', 'rope-tricep-pushdown'],
-    ['Pull up', 'pull-up'], ['Push up', 'push-up'],
+    ['Bench press (barbell)', 'Bench press'], ['Bent over row (barbell)', 'Barbell row'],
+    ['Bicep curl (dumbbell)', 'Dumbbell curl'], ['Hammer curl (dumbbell)', 'Hammer curl'],
+    ['Incline bench press (dumbbell)', 'Incline dumbbell press'], ['Low cable fly crossovers', 'Cable fly'],
+    ['Lunge (dumbbell)', 'Walking lunge'], ['Romanian deadlift (barbell)', 'Romanian deadlift'],
+    ['Shoulder press (dumbbell)', 'Seated dumbbell press'], ['Squat (barbell)', 'Squat'],
+    ['Standing calf raise (Smith)', 'Standing calf raise'], ['Straight arm lat pulldown (cable)', 'Straight-arm pulldown'],
+    ['Triceps extension (dumbbell)', 'Triceps extension'], ['Triceps rope pushdown', 'Rope pushdown'], ['Pull up', 'Pull-up'],
+    ['Push up', 'Push-up'],
   ];
-  /**
-   * What each drawing shows, in plain words: 'what it works mostly; what else it works (nothing for nothing); with what'.
-   * From Workout Guide's list of exercises; "Abdominal" is the ab machine, so its crunch is "with a machine".
-   * @type {Record<string, string>}
-   */
-  const ABOUT = {
-    crunch: 'core; ; a machine', 'arnold-press': 'shoulders; triceps; dumbbells', 'assisted-chin-up': 'biceps; lats; a machine',
-    'assisted-pull-up': 'lats; biceps; a machine', 'back-extension': 'lower back; glutes, hamstrings; your own weight',
-    'barbell-glute-bridge': 'glutes; hamstrings, core; a barbell', 'barbell-row': 'back; biceps, back of the shoulders; a barbell',
-    shrug: 'upper back; forearms; a barbell', 'belt-squat': 'quads; glutes; a machine',
-    'bench-press': 'chest; triceps, shoulders; a barbell', 'preacher-curl': 'biceps; forearms; a machine',
-    'bulgarian-split-squat': 'quads; glutes, core; dumbbells', 'cable-crunch': 'core; ; a cable', 'cable-curl': 'biceps; forearms; a cable',
-    'cable-fly': 'chest; shoulders; a cable', 'cable-front-raise': 'shoulders; chest; a cable',
-    'cable-standing-hip-abduction': 'glutes; core; a cable', 'cable-standing-hip-adduction': 'inner thighs; core, glutes; a cable',
-    'cable-kickback': 'glutes; hamstrings; a cable', 'cable-lateral-raise': 'shoulders; upper back; a cable',
-    'cable-pallof-hold': 'core; glutes, shoulders; a cable', 'cable-pull-through': 'glutes; hamstrings, lower back; a cable',
-    'cable-rear-delt-fly': 'back of the shoulders; upper back; a cable', 'cable-woodchop': 'core; shoulders; a cable',
-    'captains-chair-knee-raise': 'core; shoulders; a machine', 'machine-chest-press': 'chest; triceps, shoulders; a machine',
-    'chest-supported-row': 'back; biceps, back of the shoulders; a machine',
-    'close-grip-bench-press': 'triceps; chest, shoulders; a barbell', 'close-grip-lat-pulldown': 'lats; biceps; a cable',
-    'concentration-curl': 'biceps; forearms; dumbbells', 'dumbbell-curtsy-lunge': 'glutes; quads, hamstrings, core; dumbbells',
-    'dumbbell-sumo-deadlift': 'back of the body; glutes, quads, inner thighs; dumbbells',
-    deadlift: 'back of the body; back, grip; a barbell', 'decline-bench-press': 'chest; triceps, shoulders; a barbell',
-    'decline-dumbbell-press': 'chest; triceps, shoulders; dumbbells', 'deficit-reverse-lunge': 'glutes; quads, hamstrings, core; dumbbells',
-    'donkey-calf-raise': 'calves; ; a machine', 'drag-curl': 'biceps; forearms; a barbell',
-    'dumbbell-bench-press': 'chest; triceps, shoulders; dumbbells', 'bicep-curl': 'biceps; forearms; dumbbells',
-    'dumbbell-romanian-deadlift': 'hamstrings; glutes, lower back; dumbbells', 'dumbbell-fly': 'chest; shoulders; dumbbells',
-    'dumbbell-glute-bridge': 'glutes; hamstrings, core; dumbbells', 'dumbbell-hip-thrust': 'glutes; hamstrings; dumbbells',
-    'dumbbell-bent-over-row': 'back; biceps, back of the shoulders; dumbbells', 'dumbbell-shrug': 'upper back; forearms; dumbbells',
-    'dumbbell-side-bend': 'core; grip; dumbbells', 'dumbbell-skull-crusher': 'triceps; shoulders; dumbbells',
-    'front-foot-elevated-split-squat': 'quads; glutes, core; dumbbells', 'ez-bar-curl': 'biceps; forearms; a barbell',
-    'face-pull': 'upper back; back of the shoulders, shoulders; a cable', 'pec-deck': 'chest; shoulders; a machine',
-    'front-raise': 'shoulders; chest; dumbbells', 'front-squat': 'quads; core, glutes; a barbell',
-    'machine-glute-kickback': 'glutes; hamstrings; a machine', 'goblet-squat': 'quads; glutes, core; dumbbells',
-    'good-morning': 'hamstrings; glutes, lower back; a barbell', 'hack-squat': 'quads; glutes; a machine',
-    'hammer-curl': 'biceps; forearms; dumbbells', 'heel-elevated-goblet-squat': 'quads; glutes, core; dumbbells',
-    'hip-abduction-machine': 'glutes; core; a machine', 'hip-adduction-machine': 'inner thighs; core; a machine',
-    'hip-thrust': 'glutes; hamstrings; a barbell', 'incline-bench-press': 'chest; shoulders, triceps; a barbell',
-    'incline-cable-fly': 'chest; shoulders; a cable', 'incline-dumbbell-curl': 'biceps; forearms; dumbbells',
-    'incline-dumbbell-press': 'chest; shoulders, triceps; dumbbells',
-    'kettlebell-romanian-deadlift': 'hamstrings; glutes, lower back; a kettlebell',
-    'kettlebell-swing': 'glutes; hamstrings, core, cardio; a kettlebell', 'half-kneeling-pallof-press': 'core; glutes, shoulders; a cable',
-    'landmine-romanian-deadlift': 'hamstrings; glutes, lower back; a barbell', 'landmine-press': 'shoulders; chest, triceps; a barbell',
-    'landmine-squat': 'quads; glutes, core; a barbell', 'lat-pulldown': 'lats; biceps; a cable',
-    'dumbbell-lateral-lunge': 'quads; glutes, inner thighs, hamstrings; dumbbells', 'lateral-raise': 'shoulders; upper back; dumbbells',
-    'leg-curl': 'hamstrings; calves; a machine', 'leg-extension': 'quads; ; a machine', 'leg-press': 'quads; glutes, hamstrings; a machine',
-    'leg-press-calf-raise': 'calves; ; a machine', 'lying-leg-curl': 'hamstrings; calves; a machine',
-    'machine-lateral-raise': 'shoulders; upper back; a machine', 'machine-row': 'back; biceps; a machine',
-    'meadows-row': 'back; biceps, back of the shoulders; a barbell', 'single-arm-cable-row': 'back; biceps, back of the shoulders; a cable',
-    'one-arm-dumbbell-row': 'back; biceps; dumbbells', 'single-arm-dumbbell-tricep-extension': 'triceps; shoulders; dumbbells',
-    'overhead-press': 'shoulders; triceps; a barbell', 'overhead-tricep-extension': 'triceps; shoulders; a cable',
-    'pallof-press': 'core; shoulders; a cable', 'pendlay-row': 'back; biceps, back of the shoulders; a barbell',
-    'plate-front-raise': 'shoulders; chest; a weight plate', 'pull-up': 'lats; biceps, core; your own weight',
-    'push-press': 'shoulders; triceps, quads; a barbell', 'push-up': 'chest; triceps, core; your own weight',
-    'rack-pull': 'back; glutes, hamstrings; a barbell', 'rear-delt-fly': 'back of the shoulders; upper back; dumbbells',
-    'bent-over-rear-delt-raise': 'back of the shoulders; upper back; dumbbells', 'reverse-curl': 'forearms; biceps; a barbell',
-    'reverse-hyperextension': 'glutes; hamstrings, lower back; a machine', 'reverse-lunge': 'quads; glutes, hamstrings; dumbbells',
-    'romanian-deadlift': 'hamstrings; glutes, lower back; a barbell', 'rope-hammer-curl': 'biceps; forearms; a cable',
-    'rope-tricep-pushdown': 'triceps; shoulders; a cable', 'reverse-pec-deck': 'back of the shoulders; upper back; a machine',
-    'weighted-russian-twist': 'core; shoulders; dumbbells', 'seated-calf-raise': 'calves; ; a machine',
-    'seated-dumbbell-press': 'shoulders; triceps; dumbbells', 'seated-leg-curl': 'hamstrings; calves; a machine',
-    'seated-row': 'back; biceps, back of the shoulders; a cable', 'machine-shoulder-press': 'shoulders; triceps; a machine',
-    'single-dumbbell-skullcrusher': 'triceps; shoulders; dumbbells', 'single-leg-romanian-deadlift': 'hamstrings; glutes, core; dumbbells',
-    'skull-crusher': 'triceps; shoulders; a barbell', 'smith-machine-bench-press': 'chest; triceps, shoulders; a machine',
-    'smith-machine-bulgarian-split-squat': 'quads; glutes, core; a machine',
-    'smith-machine-romanian-deadlift': 'hamstrings; glutes, lower back; a machine',
-    'smith-machine-hip-thrust': 'glutes; hamstrings, core; a machine',
-    'smith-machine-reverse-lunge': 'quads; glutes, hamstrings, core; a machine',
-    'smith-machine-split-squat': 'quads; glutes, core; a machine', 'smith-machine-squat': 'quads; glutes, core; a machine',
-    'spider-curl': 'biceps; forearms; dumbbells', 'split-squat': 'quads; glutes, core; dumbbells', squat: 'quads; glutes, core; a barbell',
-    'standing-calf-raise': 'calves; ; a machine', 'standing-dumbbell-press': 'shoulders; triceps, core; dumbbells',
-    'step-up': 'quads; glutes; dumbbells', 'straight-arm-pulldown': 'lats; core; a cable',
-    'sumo-deadlift': 'back of the body; glutes, quads; a barbell',
-    'dumbbell-sumo-squat': 'glutes; quads, inner thighs, hamstrings; dumbbells',
-    't-bar-row': 'back; biceps, back of the shoulders; a machine', 'trap-bar-deadlift': 'back of the body; quads, grip; a barbell',
-    'dumbbell-overhead-tricep-extension': 'triceps; shoulders; dumbbells', 'tricep-kickback': 'triceps; shoulders; dumbbells',
-    'assisted-dip': 'triceps; chest; a machine', 'tricep-pushdown': 'triceps; shoulders; a cable',
-    'upright-row': 'shoulders; upper back, biceps; a barbell', 'walking-lunge': 'quads; glutes, hamstrings; dumbbells',
-    'weighted-chin-up': 'biceps; lats; your own weight', 'weighted-crunch': 'core; ; a weight plate',
-    'weighted-dip': 'triceps; chest, shoulders; your own weight', 'weighted-pull-up': 'lats; biceps; your own weight',
-    'weighted-push-up': 'chest; triceps, core; your own weight', 'wide-grip-lat-pulldown': 'lats; biceps; a cable',
-    'wrist-curl': 'forearms; ; a barbell', 'wrist-extension': 'forearms; ; dumbbells',
-  };
 
-  const FRAMES = [1, 2, 3];
-  const NAMES = CATALOG.concat(OTHER_NAMES);
-  /** Every drawing, once, A to Z: the folders in pictures/. */
-  const DRAWINGS = [...new Set(NAMES.map(([, picture]) => picture))].sort();
+  /** Every name a machine of the list goes by: [name, its name in the list]. */
+  const NAMES = LIST.map(([name]) => [name, name]).concat(OTHER_NAMES);
+  /** What each machine works, by its name in the list. */
+  const ABOUT = new Map(LIST);
 
-  const Pictures = {
-    CATALOG,
+  const MachineList = {
+    LIST,
     OTHER_NAMES,
-    FRAMES,
-    DRAWINGS,
 
-    /** Whether `picture` is one of the drawings. */
-    has(picture) {
-      return DRAWINGS.includes(picture);
+    /** The id of a machine of the list: "m-" and its name, the ids the first machines have. */
+    idFor(name) {
+      return 'm-' + name.toLowerCase().replaceAll(' ', '-');
     },
 
-    /** Where frame 1, 2 or 3 of a drawing is. */
-    src(picture, frame = 1) {
-      return `pictures/${picture}/frame-${frame}.svg`;
-    },
-
-    /** The drawing of this name, in the list or among the other names; else null. */
-    forName(name) {
-      const found = NAMES.find(([own]) => sameName(own, name));
+    /** The name in the list for a name, its own or one of the other names, whatever the case and spaces; else null. */
+    nameFor(name) {
+      const found = NAMES.find(([known]) => sameName(known, name));
       return found ? found[1] : null;
     },
 
-    /** The drawing of the machine of the list that has this id, also after it was renamed; else null. */
-    forId(id) {
-      const found = CATALOG.find(([name]) => Pictures.idFor(name) === id);
-      return found ? found[1] : null;
-    },
-
-    /** The name of a drawing: the name of its machine in the list; null for no drawing. */
-    nameOf(picture) {
-      const found = CATALOG.find(([, own]) => own === picture);
+    /** The name in the list of the machine that has this id, also after it was renamed; else null. */
+    nameForId(id) {
+      const found = LIST.find(([name]) => MachineList.idFor(name) === id);
       return found ? found[0] : null;
     },
 
-    /** What a drawing shows, in plain words: { mostly, also, with }; also is '' when it works nothing else. Null for no drawing. */
-    aboutOf(picture) {
-      if (!Object.hasOwn(ABOUT, picture)) return null;
-      const [mostly, also, what] = ABOUT[picture].split('; ');
+    /**
+     * The name in the list of a machine: the one of its name, else the one of its id. A machine the notebook
+     * started with keeps its id when it is renamed ("Seated leg press" is still m-leg-press). Null when it is not in the list.
+     */
+    listNameOf(machine) {
+      return MachineList.nameFor(machine.name) || MachineList.nameForId(machine.id);
+    },
+
+    /** What a machine works, in plain words: { mostly, also, with }; also is '' when it works nothing else. Null when it is not in the list. */
+    aboutOf(machine) {
+      const about = ABOUT.get(MachineList.listNameOf(machine));
+      if (!about) return null;
+      const [mostly, also, what] = about.split('; ');
       return { mostly, also, with: what };
     },
 
     /**
-     * Machines with a drawing, each with the name of its drawing ("Squat (barbell)" becomes "Squat").
-     * A machine keeps its own name when another machine has that name already. Machines without a drawing keep theirs.
+     * Machines, each with its name in the list ("Squat (barbell)" becomes "Squat").
+     * A machine keeps its own name when another machine has that name already, and when it is not in the list.
      */
     named(machines) {
       const result = machines.slice();
       result.forEach((machine, i) => {
-        const name = Pictures.nameOf(machine.picture);
+        const name = MachineList.listNameOf(machine);
         if (name && name !== machine.name && !result.some((other) => other !== machine && sameName(other.name, name))) {
           result[i] = { ...machine, name };
         }
@@ -1131,48 +1031,28 @@ a.stat-link { text-decoration: none; } /* a credit that opens its source */
       return result;
     },
 
-    /** The id of a machine from the list: "m-" and its name, the ids the first machines have. */
-    idFor(name) {
-      return 'm-' + name.toLowerCase().replaceAll(' ', '-');
-    },
-
-    /**
-     * A machine with its drawing, when there is one: the drawing of its name, else of its id.
-     * A machine the notebook started with keeps its id when it is renamed ("Seated leg press" is still m-leg-press).
-     */
-    withPicture(machine) {
-      const picture = Pictures.forName(machine.name) || Pictures.forId(machine.id);
-      return picture ? { ...machine, picture } : machine;
-    },
-
-    /** Whether machines are from before drawings: there are some, and not one has a drawing. */
-    fromBefore(machines) {
-      return machines.length > 0 && !machines.some((m) => m.picture);
-    },
-
-    /**
-     * The machines with drawings, for machines from before drawings: every machine gets the drawing of its name
-     * or id (withPicture), and each machine of the list that is not there yet is added. Any other list stays
-     * as it is, so a machine you remove later stays removed.
-     */
-    addTo(machines) {
-      if (!Pictures.fromBefore(machines)) return machines;
-      const own = machines.map(Pictures.withPicture);
-      return own.concat(Pictures.missing(own));
-    },
-
-    /** The machines of the list that `machines` has neither by name nor by drawing, as new machines. */
+    /** The machines of the list that `machines` has not got, by name or by id, as new machines. */
     missing(machines) {
       const ids = new Set(machines.map((m) => m.id));
-      const there = ([name, picture]) => machines.some((m) => m.picture === picture || sameName(m.name, name));
-      return CATALOG.filter((entry) => !there(entry)).map(([name, picture]) => {
-        const id = Pictures.idFor(name);
-        return { id: ids.has(id) ? newId('m') : id, name, picture };
+      const there = new Set(machines.map(MachineList.listNameOf));
+      return LIST.filter(([name]) => !there.has(name)).map(([name]) => {
+        const id = MachineList.idFor(name);
+        return { id: ids.has(id) ? newId('m') : id, name };
       });
+    },
+
+    /**
+     * Every machine of the list, for machines a notebook has: each with its name in the list (named), and the ones
+     * they lack added (missing). A notebook without any machines stays without.
+     */
+    complete(machines) {
+      if (!machines.length) return machines;
+      const own = MachineList.named(machines);
+      return own.concat(MachineList.missing(own));
     },
   };
 
-  FN.pictures = { Pictures };
+  FN.machineList = { MachineList };
 })(globalThis.FN = globalThis.FN || {});
 </script>
 
@@ -1561,7 +1441,7 @@ a.stat-link { text-decoration: none; } /* a credit that opens its source */
  *
  * File shape
  *   { "app": "fitness-notebook", "version": 1, "exportedAt": "<ISO time>", "unit": "kg",
- *     "machines": [{ id, name, picture (optional: the name of its drawing) }],
+ *     "machines": [{ id, name }],
  *     "plans": [{ id, name, machineIds: [machine id] }],          (may be missing in older files)
  *     "lines": [{ id, type: "date", date, plan (optional) } | { id, type: "text", text } |
  *               { id, type: "machine", machineId, name, weight, sets, reps } |
@@ -1575,7 +1455,6 @@ a.stat-link { text-decoration: none; } /* a credit that opens its source */
   'use strict';
   const { cleanName, newId } = FN.util;
   const { Calendar } = FN.calendar;
-  const { Pictures } = FN.pictures;
 
   const isCount = (n) => Number.isFinite(n) && n >= 0;
   const isString = (s) => typeof s === 'string';
@@ -1609,15 +1488,10 @@ a.stat-link { text-decoration: none; } /* a credit that opens its source */
       return `fitness-notebook-${today}.json`;
     },
 
-    /** A machine with only the fields this app knows, or null when it cannot be used. A drawing this app has not got is left out. */
+    /** A machine with only the fields this app knows, or null when it cannot be used. */
     cleanMachine(machine) {
       if (!machine || typeof machine.id !== 'string' || typeof machine.name !== 'string' || !cleanName(machine.name)) return null;
-      return { id: machine.id, name: cleanName(machine.name), ...Backup.pictureOf(machine) };
-    },
-
-    /** A machine's drawing, as the field to keep: nothing when this app has not got that drawing. */
-    pictureOf(machine) {
-      return Pictures.has(machine.picture) ? { picture: machine.picture } : {};
+      return { id: machine.id, name: cleanName(machine.name) };
     },
 
     /** A plan with only the fields this app knows, or null when it cannot be used. */
@@ -1864,9 +1738,8 @@ a.stat-link { text-decoration: none; } /* a credit that opens its source */
  * a change that can be undone returns its undo.
  *
  * Data shape
- *   { version: 1, machines: [{ id, name, picture }], plans: [{ id, name, machineIds }], lines: [ ...see progress... ] }
- *   `picture` is the machine's drawing (see the pictures block); a machine without one has none.
- *   Machines are not added, renamed or removed: a new notebook starts with the list of machines with drawings.
+ *   { version: 1, machines: [{ id, name }], plans: [{ id, name, machineIds }], lines: [ ...see progress... ] }
+ *   Machines are not added, renamed or removed: a new notebook starts with the list of machines (see the machineList block).
  *   `example: true` marks the demo lines a new notebook starts with.
  *   A plan is a named list of machines, in the order you do them. It holds no kg or reps:
  *   those come from the last time you did the machine.
@@ -1874,7 +1747,7 @@ a.stat-link { text-decoration: none; } /* a credit that opens its source */
 (function (FN) {
   'use strict';
   const { newId, cleanName, sameName, round2, clamp } = FN.util;
-  const { Pictures } = FN.pictures;
+  const { MachineList } = FN.machineList;
 
   class Notebook {
     /** data: { version, machines, plans, lines }. onSave(data) runs after every change. */
@@ -2180,21 +2053,22 @@ a.stat-link { text-decoration: none; } /* a credit that opens its source */
 
     /** The notebook to start with: the saved one (`saved`, null when there is none), else the example one. */
     static start(saved) {
-      return saved ? Notebook.withPictures(saved) : Notebook.exampleData();
+      return saved ? Notebook.withList(saved) : Notebook.exampleData();
     }
 
     /**
-     * Notebook data with the machines that have drawings: added once to machines from before drawings (Pictures.addTo),
-     * each machine with a drawing named after it (Pictures.named), and the lines of those machines with that name too.
+     * Notebook data with every machine of the list (MachineList.complete): each machine with its name in the list,
+     * and the lines of those machines with that name too. A machine is only its id and its name: the drawing
+     * a machine had before is left out.
      */
-    static withPictures(data) {
-      const machines = Pictures.named(Pictures.addTo(data.machines));
+    static withList(data) {
+      const machines = MachineList.complete(data.machines.map(({ id, name }) => ({ id, name })));
       return { ...data, machines, lines: Notebook.linesNamed(data.lines, machines) };
     }
 
-    /** Lines of a machine with a drawing (logged, or still in pencil from a plan) written with that machine's name. */
+    /** Lines of a machine of the list (logged, or still in pencil from a plan) written with that machine's name. */
     static linesNamed(lines, machines) {
-      const names = new Map(machines.filter((m) => m.picture).map((m) => [m.id, m.name]));
+      const names = new Map(machines.filter((m) => MachineList.listNameOf(m)).map((m) => [m.id, m.name]));
       return lines.map((line) => (names.has(line.machineId) && line.name !== names.get(line.machineId) ? { ...line, name: names.get(line.machineId) } : line));
     }
 
@@ -2246,12 +2120,12 @@ a.stat-link { text-decoration: none; } /* a credit that opens its source */
     }
 
     /**
-     * The data a new notebook starts with: every machine that has a drawing, and Dumbbells, which has none;
-     * no plans, and five example days. Each machine's id is "m-" and its name, the ids older notebooks use.
+     * The data a new notebook starts with: every machine of the list, and Dumbbells; no plans, and five example days.
+     * Each machine's id is "m-" and its name, the ids older notebooks use.
      */
     static exampleData() {
-      const drawn = Pictures.CATALOG.map(([name, picture]) => ({ id: Pictures.idFor(name), name, picture }));
-      const machines = Notebook.sortMachines(drawn.concat({ id: 'm-dumbbells', name: 'Dumbbells' }));
+      const listed = MachineList.LIST.map(([name]) => ({ id: MachineList.idFor(name), name }));
+      const machines = Notebook.sortMachines(listed.concat({ id: 'm-dumbbells', name: 'Dumbbells' }));
       const byName = new Map(machines.map((m) => [m.name, m]));
       /** @type {[string, string, [string, number, number, number][]][]} date, class, [machine, kg, sets, reps] */
       const sessions = [
@@ -2546,13 +2420,6 @@ a.stat-link { text-decoration: none; } /* a credit that opens its source */
       return { action: 'replace', isSet: isSet && !!planLine }; // a pencil plan line is now in pen, with 1 set
     },
 
-    /* ---- A machine's page ---- */
-
-    /** The step of the move after `step` (1 to `count`); after the last comes the first again. */
-    nextStep(step, count) {
-      return (step % count) + 1;
-    },
-
     /* ---- Panels ---- */
 
     /** Whether a panel folds its wheels away for typing: it has none, or its text field has text or the focus. */
@@ -2682,12 +2549,7 @@ a.stat-link { text-decoration: none; } /* a credit that opens its source */
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
-  /** A small drawing at the end of a machine's line, when it has one. Only loaded when it scrolls into view. */
-  function thumbHtml(picture) {
-    return picture ? `<img class="thumb" src="${FN.pictures.Pictures.src(picture)}" alt="" loading="lazy">` : '';
-  }
-
-  FN.dom = { byId, onNextFrame, isOtherButton, capturePointer, shake, scrollToBottom, downloadFile, thumbHtml };
+  FN.dom = { byId, onNextFrame, isOtherButton, capturePointer, shake, scrollToBottom, downloadFile };
 })(globalThis.FN = globalThis.FN || {});
 </script>
 
@@ -3026,14 +2888,11 @@ a.stat-link { text-decoration: none; } /* a credit that opens its source */
   const { byId } = FN.dom;
   const { Wheel } = FN.wheel;
   const { Decide } = FN.decide;
-  const { Pictures } = FN.pictures;
 
   class Sheet {
     constructor({ toast }) {
       this.toast = toast;
       this.el = byId('sheet');
-      this.pictureEl = byId('sheetPicture');
-      this.picture = null; // the drawing the panel shows, while it shows one
       this.backdrop = byId('backdrop');
       this.title = byId('sheetTitle');
       this.textField = byId('sheetText');
@@ -3076,7 +2935,6 @@ a.stat-link { text-decoration: none; } /* a credit that opens its source */
     /**
      * Opens the sheet and returns its wheels.
      * config: { title, info: { heading, details: [..], note } (optional), text: { value, placeholder, label } (optional),
-     *           picture (optional: true makes room above the wheels for a machine's drawing, see showPicture),
      *           columns, center, labels: [{ text, left }], wheels: [{ label, align, items, index }],
      *           actionLabel, cancelLabel (optional), otherLabel + onOther() (optional: a second button with a job of its own),
      *           area: { placeholder, label } (optional: a big field to paste text in),
@@ -3129,23 +2987,8 @@ a.stat-link { text-decoration: none; } /* a credit that opens its source */
       this.fillText(cfg.text);
       this.fillArea(cfg.area);
       this.showError('');
-      this.fillPicture(!!cfg.picture);
       this.fillLabels(cfg);
       this.wheelsEl.replaceChildren();
-    }
-
-    /** The room for a drawing above the wheels, empty until showPicture. */
-    fillPicture(shown) {
-      this.pictureEl.hidden = !shown;
-      this.pictureEl.replaceChildren();
-      this.picture = null;
-    }
-
-    /** Shows a machine's drawing above the wheels (`picture`), or says it has none (null). */
-    showPicture(picture) {
-      if (picture === this.picture && this.pictureEl.firstChild) return;
-      this.picture = picture;
-      this.pictureEl.innerHTML = picture ? `<img src="${Pictures.src(picture)}" alt="">` : '<span>no picture</span>';
     }
 
     /** The big button, and the small one under it when the config names it. */
@@ -3816,7 +3659,6 @@ a.stat-link { text-decoration: none; } /* a credit that opens its source */
         title: this.title(),
         ...this.nextButton(),
         text: this.textSpec(hasWheels),
-        picture: hasWheels,
         columns: 'minmax(0, 1fr) 64px 48px',
         labels: [{ text: 'Machine', left: true }, { text: 'kg' }, { text: 'reps' }],
         wheels: hasWheels ? this.wheelSpecs(machineIndex, start) : [],
@@ -3934,7 +3776,6 @@ a.stat-link { text-decoration: none; } /* a credit that opens its source */
      */
     preview() {
       if (!this.wheels) return;
-      this.showPicture();
       const next = this.fields();
       const setLine = this.setLineFor(next);
       this.showOn(setLine);
@@ -3946,11 +3787,6 @@ a.stat-link { text-decoration: none; } /* a credit that opens its source */
       }
       if (setLine) this.keepLine(setLine);
       else this.previewNew(next);
-    }
-
-    /** The drawing of the machine on the wheel, above the wheels. */
-    showPicture() {
-      if (this.machines.length) this.sheet.showPicture(this.machines[this.wheels[0].index].picture || null);
     }
 
     /** The set is not there until it is logged: the line stays as it is, the button says which set comes. */
@@ -4448,7 +4284,7 @@ a.stat-link { text-decoration: none; } /* a credit that opens its source */
 <script data-module="settingsScreen">
 /**
  * The settings screen: the plans (in your own order: hold one, then drag it), the way to the machines,
- * the rest timer, the backup (export and import), and who made the drawings.
+ * the rest timer, the backup (export and import), and where what each machine works comes from.
  */
 (function (FN) {
   'use strict';
@@ -4647,7 +4483,7 @@ a.stat-link { text-decoration: none; } /* a credit that opens its source */
         actionLabel: 'Replace my notebook',
         cancelLabel: 'Cancel',
         onAction: () => {
-          const undo = this.notebook.replaceAll(Notebook.withPictures(data)); // a backup from before drawings gets them too
+          const undo = this.notebook.replaceAll(Notebook.withList(data)); // a backup from before the list gets every machine too
           this.app.refresh();
           this.toast.show('Notebook replaced', () => {
             undo();
@@ -4708,14 +4544,14 @@ a.stat-link { text-decoration: none; } /* a credit that opens its source */
 
 <script data-module="planScreen">
 /**
- * One plan: its machines in the order you do them, with their drawings. Names only, no kg or reps.
+ * One plan: its machines in the order you do them. Names only, no kg or reps.
  * Tap a machine to open its page; hold it, then drag it, to move it; drag it left to take it out.
  * Tap the name at the top to change it. A plan is removed in settings: drag it left.
  */
 (function (FN) {
   'use strict';
   const { escapeHtml, clamp } = FN.util;
-  const { byId, shake, thumbHtml } = FN.dom;
+  const { byId, shake } = FN.dom;
   const { Decide } = FN.decide;
   const { LineInput } = FN.lineInput;
   const { SwipeRows } = FN.swipeRows;
@@ -4762,7 +4598,7 @@ a.stat-link { text-decoration: none; } /* a credit that opens its source */
     /* ---- Machines ---- */
 
     /**
-     * The panel to add a machine: a wheel with the machines not in the plan yet, and the drawing of the one on it.
+     * The panel to add a machine: a wheel with the machines not in the plan yet.
      * After each machine it opens again for the next one, until you tap outside it.
      */
     addMachine(startIndex = 0) {
@@ -4777,11 +4613,9 @@ a.stat-link { text-decoration: none; } /* a credit that opens its source */
         const picked = options[wheel.index];
         this.addRow.className = 'bleed add-row';
         this.addRow.innerHTML = `<div class="row-content is-pencil">${escapeHtml(picked.name)}</div>`;
-        this.sheet.showPicture(picked.picture || null);
       };
       const [wheel] = this.sheet.open({
         title: `Add a machine to ${plan.name}`,
-        picture: true,
         columns: 'minmax(0, 1fr)',
         labels: [{ text: 'Machine', left: true }],
         wheels: [{ label: 'Machine', align: 'left', items: options.map((m) => m.name), index: clamp(startIndex, 0, options.length - 1) }],
@@ -4861,7 +4695,7 @@ a.stat-link { text-decoration: none; } /* a credit that opens its source */
     const name = escapeHtml(machine.name);
     return (
       `<div class="row row--machine" role="listitem" tabindex="0" data-key="${escapeHtml(machine.id)}">` +
-      `<div class="row-content"><span class="name">${name}</span>${thumbHtml(machine.picture)}</div>` +
+      `<div class="row-content"><span class="name">${name}</span></div>` +
       `<button class="row-delete" type="button" tabindex="-1" aria-label="Take ${name} out of the plan"><span>Delete</span></button>` +
       '</div>'
     );
@@ -4997,12 +4831,12 @@ a.stat-link { text-decoration: none; } /* a credit that opens its source */
 </script>
 
 <script data-module="machinesScreen">
-/** Every machine, A to Z, each with its drawing. Tap one to open its page. Machines are not added, renamed or removed. */
+/** Every machine, A to Z. Tap one to open its page. Machines are not added, renamed or removed. */
 (function (FN) {
   'use strict';
   const { Icons } = FN.config;
   const { escapeHtml } = FN.util;
-  const { byId, thumbHtml } = FN.dom;
+  const { byId } = FN.dom;
 
   class MachinesScreen {
     /** app: to open a machine's page. */
@@ -5025,7 +4859,7 @@ a.stat-link { text-decoration: none; } /* a credit that opens its source */
   function linkHtml(machine) {
     return (
       `<button class="stat-link machine-link" type="button" data-machine="${escapeHtml(machine.id)}">` +
-      `<span>${escapeHtml(machine.name)}</span>${thumbHtml(machine.picture)}${Icons.chevron}</button>`
+      `<span>${escapeHtml(machine.name)}</span>${Icons.chevron}</button>`
     );
   }
 
@@ -5035,8 +4869,7 @@ a.stat-link { text-decoration: none; } /* a credit that opens its source */
 
 <script data-module="machineScreen">
 /**
- * The page of one machine: its drawing, big (tap it, or 1 2 3, for each step of the move), what it works,
- * and your weights: on the ruled lines over time, and when the weight changed.
+ * The page of one machine: what it works, and your weights: on the ruled lines over time, and when the weight changed.
  */
 (function (FN) {
   'use strict';
@@ -5046,8 +4879,7 @@ a.stat-link { text-decoration: none; } /* a credit that opens its source */
   const { Calendar } = FN.calendar;
   const { Progress } = FN.progress;
   const { ChartMath } = FN.chartMath;
-  const { Pictures } = FN.pictures;
-  const { Decide } = FN.decide;
+  const { MachineList } = FN.machineList;
 
   const MAX_CHART_ROWS = 5;   // ruled lines a chart may use as its grid
   const LINE_PX = 44;         // keep in sync with --line
@@ -5063,54 +4895,25 @@ a.stat-link { text-decoration: none; } /* a credit that opens its source */
       this.root = byId('machineStats');
       this.title = byId('machineStatsTitle');
       this.body = byId('machineStatsBody');
-      this.picture = null; // the drawing on the page, and the step of the move it shows
-      this.step = 1;
-      this.body.addEventListener('click', (e) => this.onClick(e));
     }
 
     render({ machineId }) {
       const machine = this.notebook.machine(machineId);
       const name = machine ? machine.name : 'Machine';
       this.title.textContent = name;
-      this.picture = machine ? machine.picture : null;
-      this.step = 1;
+      const about = machine ? MachineList.aboutOf(machine) : null;
       const points = Progress.machineHistory(this.notebook.lines, machineId);
-      this.body.innerHTML = drawingHtml(name, this.picture) + aboutHtml(this.picture) + weightsHtml(name, points, this.body.clientWidth || 326);
-    }
-
-    /** A tap on a step's number shows that step; a tap on the drawing shows the next one. */
-    onClick(e) {
-      const step = e.target.closest('[data-step]');
-      if (step) this.showStep(Number(step.dataset.step));
-      else if (e.target.closest('.big-drawing')) this.showStep(Decide.nextStep(this.step, Pictures.FRAMES.length));
-    }
-
-    showStep(step) {
-      this.step = step;
-      this.body.querySelector('.big-drawing img').setAttribute('src', Pictures.src(this.picture, step));
-      for (const button of this.body.querySelectorAll('[data-step]')) button.setAttribute('aria-pressed', String(Number(button.dataset.step) === step));
+      this.body.innerHTML = aboutHtml(about) + weightsHtml(name, points, this.body.clientWidth || 326);
     }
   }
 
   /* ---- Markup ---- */
 
-  /** The drawing, big, on its first step, with the numbers of the steps under it. Nothing without a drawing. */
-  function drawingHtml(name, picture) {
-    if (!picture) return '';
-    const steps = Pictures.FRAMES.map((n) => `<button type="button" data-step="${n}" aria-pressed="${n === 1}">${n}</button>`).join('');
-    return (
-      `<button class="big-drawing" type="button" aria-label="${escapeHtml(name)}: the next step of the move"><img src="${Pictures.src(picture)}" alt=""></button>` +
-      `<div class="steps" role="group" aria-label="Steps of the move">${steps}</div>`
-    );
-  }
-
-  /** What the machine works, and with what, as its drawing says. Nothing without a drawing. */
-  function aboutHtml(picture) {
-    const about = Pictures.aboutOf(picture);
+  /** What the machine works, and with what, as the list of machines says. Nothing when it says nothing. */
+  function aboutHtml(about) {
     if (!about) return '';
     const line = (label, value) => `<div class="info"><span class="label">${label}</span><span>${escapeHtml(value)}</span></div>`;
     return (
-      BLANK_ROW +
       '<h2 class="section-title">what it works</h2>' +
       line('mostly', about.mostly) +
       (about.also ? line('also', about.also) : '') +
