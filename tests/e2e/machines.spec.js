@@ -1,9 +1,9 @@
 /**
  * The machines: the list of machines, one machine's page, plans; names that follow the list; where what each
- * machine works comes from; and no drawings anywhere.
+ * machine works comes from (credited in README.md, not in the app); and no drawings anywhere.
  */
 import { test, expect } from './fixtures.js';
-import { actionButton, backTo, machineNames, machineRow, openApp, openMachines, openSettings, pick, startWith } from './app.js';
+import { actionButton, backTo, bringBack, machineNames, machineRow, openApp, openMachines, openSettings, pick, startWith } from './app.js';
 
 const SLED = [{ id: 'm-sled', name: 'Sled push' }];
 const SLED_LINES = [{ id: 'd', type: 'date', date: '2026-11-20' }, { id: 'l', type: 'machine', machineId: 'm-sled', name: 'Sled push', weight: 40, sets: 3, reps: 10 }];
@@ -86,22 +86,11 @@ test('statistics lists only the machines that have been logged, and opens the sa
   await expect(page.locator('#machineStatsBody .info')).toHaveText(['mostlychest', 'alsotriceps, shoulders', 'witha machine']);
 });
 
-test('settings credits where what each machine works comes from: who made it, its license, and what was changed', async ({ page }) => {
+test('settings has no credits: no links out of the app', async ({ page }) => {
   await openApp(page);
   await openSettings(page);
-  const credits = [
-    ['Workout Guide, by Bryl Lim', 'https://github.com/bryllim/workout-guide'],
-    ['license CC BY-SA 4.0', 'https://creativecommons.org/licenses/by-sa/4.0/'],
-  ];
-  await expect(page.getByRole('heading', { name: 'what each machine works' })).toBeVisible();
-  await expect(page.locator('#settings').getByRole('link')).toHaveCount(credits.length);
-  for (const [name, href] of credits) {
-    const link = page.getByRole('link', { name });
-    await expect(link).toHaveAttribute('href', href);
-    await expect(link).toHaveAttribute('target', '_blank');
-    await expect(link).toHaveAttribute('rel', 'noopener');
-  }
-  await expect(page.getByText('in plainer words for this notebook')).toBeVisible();
+  await expect(page.locator('#settings').getByRole('link')).toHaveCount(0);
+  await expect(page.getByText('Workout Guide')).toHaveCount(0);
 });
 
 test('a plan: tap a machine to open its page', async ({ page }) => {
@@ -111,7 +100,7 @@ test('a plan: tap a machine to open its page', async ({ page }) => {
     lines: SLED_LINES,
   });
   await openApp(page);
-  await openSettings(page);
+  await openMachines(page);
   await page.locator('#planList .row').filter({ hasText: 'Leg day' }).click();
   await expect(page.locator('#planMachines .name')).toHaveText(['Leg press', 'Sled push']);
   await page.locator('#planMachines .row').first().locator('.name').click();
@@ -155,9 +144,8 @@ test.describe('a notebook from before the list', () => {
 
   test('a backup from before the list gets them when it is imported', async ({ page }) => {
     await openApp(page);
-    await openSettings(page);
     const backup = { app: 'fitness-notebook', version: 1, ...OLD };
-    await page.getByRole('button', { name: 'import from text' }).click();
+    await bringBack(page, 'text');
     await page.getByRole('textbox', { name: 'Text of a backup' }).fill(JSON.stringify(backup));
     await actionButton(page).click(); // Check the text
     await actionButton(page).click(); // Replace my notebook

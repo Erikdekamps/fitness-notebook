@@ -170,20 +170,40 @@ export async function touchHoldAndDrag(page, from, to, { hold = HOLD_MS } = {}) 
 export const holdAndDrag = (page, from, to, { touch, ...options }) =>
   touch ? touchHoldAndDrag(page, from, to, options) : mouseHoldAndDrag(page, from, to, options);
 
-export async function openSettings(page) {
-  await page.getByRole('button', { name: 'Settings' }).click();
-  await expect(page.locator('#settings')).toBeVisible();
+/** The tabs at the top, by screen: what each one is called. */
+const TAB_NAMES = { notebook: 'Notebook', machines: 'Plans and machines', stats: 'Statistics', settings: 'Settings' };
+export const tab = (page, screen) => page.getByRole('navigation', { name: 'Pages' }).getByRole('button', { name: TAB_NAMES[screen], exact: true });
+
+/** Taps the tab of a screen: notebook, machines (plans and machines), stats or settings. */
+export async function openTab(page, screen) {
+  await tab(page, screen).click();
+  await expect(page.locator(`#${screen}`)).toBeVisible();
 }
 
-/** Settings, then the list of machines. */
-export async function openMachines(page) {
-  await openSettings(page);
-  await page.getByRole('button', { name: /^machines/ }).click();
-  await expect(page.locator('#machines')).toBeVisible();
-}
+export const openSettings = (page) => openTab(page, 'settings');
 
+/** The tab with the plans and the list of machines. */
+export const openMachines = (page) => openTab(page, 'machines');
+
+/** Back to a screen: with the back arrow of a page below a tab, else with the tab itself. */
 export async function backTo(page, screen) {
-  await page.locator(`section:not([hidden]) .back-btn[data-back="${screen}"]`).click();
+  const back = page.locator(`section:not([hidden]) .back-btn[data-back="${screen}"]`);
+  if (await back.count()) await back.click();
+  else await openTab(page, screen);
+}
+
+/** Settings, "bring a copy back", then the way: 'file' (returns the file picker) or 'text' (the panel to paste in). */
+export async function bringBack(page, way) {
+  await openSettings(page);
+  await page.getByRole('button', { name: 'bring a copy back' }).click();
+  await expect(sheet(page)).toHaveClass(/is-open/);
+  if (way === 'text') {
+    await otherButton(page).click();
+    await expect(page.getByRole('textbox', { name: 'Text of a backup' })).toBeVisible();
+    return null;
+  }
+  const [chooser] = await Promise.all([page.waitForEvent('filechooser'), actionButton(page).click()]);
+  return chooser;
 }
 
 /** Starts a new date (today), optionally from a plan. */

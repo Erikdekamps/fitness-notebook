@@ -165,12 +165,12 @@ test('removal: the date of a plan day takes the whole day; the message says what
 
 /* ---- Screens ---- */
 
-test('screenFor: a screen that exists; the notebook when it does not; settings when the plan is gone', () => {
+test('screenFor: a screen that exists; the notebook when it does not; plans and machines when the plan is gone', () => {
   const views = ['notebook', 'settings', 'plan', 'stats'];
   const hasPlan = (id) => id === 'p1';
   assert.deepEqual(Decide.screenFor({ view: 'stats' }, views, hasPlan), { view: 'stats' });
   assert.deepEqual(Decide.screenFor({ view: 'plan', planId: 'p1' }, views, hasPlan), { view: 'plan', planId: 'p1' });
-  assert.deepEqual(Decide.screenFor({ view: 'plan', planId: 'gone' }, views, hasPlan), { view: 'settings' });
+  assert.deepEqual(Decide.screenFor({ view: 'plan', planId: 'gone' }, views, hasPlan), { view: 'machines' });
   assert.deepEqual(Decide.screenFor({ view: 'nowhere' }, views, hasPlan), { view: 'notebook' });
   assert.deepEqual(Decide.screenFor(null, views, hasPlan), { view: 'notebook' });
   // Only a plan screen asks about a plan.
@@ -386,6 +386,22 @@ test('validDate: no 31 November, and nothing after today', () => {
 });
 
 /* ---- Back ---- */
+
+test('tabOf: the four tabs are screens of their own; a plan or one machine is below one, without tabs', () => {
+  assert.deepEqual(['notebook', 'machines', 'stats', 'settings'].map(Decide.tabOf), ['notebook', 'machines', 'stats', 'settings']);
+  assert.equal(Decide.tabOf('plan'), null);
+  assert.equal(Decide.tabOf('machineStats'), null);
+  assert.equal(Decide.tabOf('toString'), null);
+});
+
+test('restTimeStep: one notch shorter or longer, never past 0:15 or 10:00', () => {
+  assert.equal(Decide.restTimeStep(90, 1), 105);
+  assert.equal(Decide.restTimeStep(90, -1), 75);
+  assert.equal(Decide.restTimeStep(15, -1), 15);
+  assert.equal(Decide.restTimeStep(600, 1), 600);
+  assert.equal(Decide.restTimeStep(585, 1), 600);
+  assert.equal(Decide.restTimeStep(30, -1), 15);
+});
 
 test('canGoBack: only on a screen that was opened from another one', () => {
   assert.equal(Decide.canGoBack({ view: 'settings' }, 'settings'), true);
